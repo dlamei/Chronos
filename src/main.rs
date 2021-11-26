@@ -3,6 +3,7 @@
 use std::io::{self, Write};
 
 mod chronos;
+mod errors;
 use chronos::*;
 
 fn main() {
@@ -17,7 +18,7 @@ fn main() {
 
         match run("STDIN".to_string(), buffer) {
             Ok(tokens) => println!("{:?}", tokens),
-            Err(e) => eprintln!("{}", e), 
+            Err(e) => eprintln!("{}", e),
         }
         //let tokens = run(buffer).unwrap_or_else(|x| panic!("{}", x));
         //println!("{:?}", tokens);

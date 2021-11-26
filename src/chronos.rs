@@ -1,19 +1,8 @@
-use std::{error::Error, fmt};
-
-#[derive(Debug)]
-pub struct IllegalCharError(Position, String);
-
-impl fmt::Display for IllegalCharError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Illegal Character: {}\n File: {}, Line: {}", self.1, self.0.file_name, self.0.line)
-    }
-}
-
-impl Error for IllegalCharError {}
+use crate::errors::*;
 
 const DIGITS: &str = "0123456789";
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Token {
     INT(i32),
     FLOAT(f32),
@@ -25,27 +14,43 @@ pub enum Token {
     RPAREN,
 }
 
+fn match_tokens(t1: &Token, t2: &Token) -> bool {
+    match (t1, t2) {
+        (&Token::ADD, &Token::ADD)
+        | (&Token::SUB, &Token::SUB)
+        | (&Token::MUL, &Token::MUL)
+        | (&Token::DIV, &Token::DIV)
+        | (&Token::LPAREN, &Token::LPAREN)
+        | (&Token::RPAREN, &Token::RPAREN) => true,
+        _ => false,
+    }
+}
+
 #[derive(Debug)]
-enum Node {
-    NUMB(Token),
-    BINOP(Token, Token)
+pub enum Node {
+    NUM(Token),
+    BINOP(Box<Node>, Token, Box<Node>),
 }
 
 #[derive(Debug, Clone)]
-struct Position {
-    file_name: String,
-    index: usize,
-    line: usize,
-    column: usize,
+pub struct Position {
+    pub file_name: String,
+    pub index: usize,
+    pub line: usize,
+    pub column: usize,
 }
 
 impl Position {
     fn new(file_name: String, index: usize, line: usize, column: usize) -> Self {
-        Position { file_name, index, line, column }
+        Position {
+            file_name,
+            index,
+            line,
+            column,
+        }
     }
 
-    fn advance(&mut self, current_char: &Option<char>)
-    {
+    fn advance(&mut self, current_char: &Option<char>) {
         match *current_char {
             Some('\n') => {
                 self.line += 1;
@@ -57,9 +62,17 @@ impl Position {
                 self.index += 1;
                 self.column += 1;
             }
-            _ => ()
+            _ => (),
         }
     }
+}
+
+pub fn run(file_name: String, text: String) -> Result<Node, IllegalCharError> {
+    let mut lexer = Lexer::new(file_name, text);
+    let tokens = lexer.parse_tokens()?;
+
+    let mut parser = Parser::new(tokens);
+    Ok(parser.parse())
 }
 
 struct Lexer {
@@ -68,16 +81,16 @@ struct Lexer {
     current_char: Option<char>,
 }
 
-pub fn run(file_name: String, text: String) -> Result<Vec<Token>, IllegalCharError> {
-    let mut lexer = Lexer::new(file_name, text);
-    lexer.parse_tokens()
-}
-
 impl Lexer {
     pub fn new(file_name: String, text: String) -> Self {
         let mut l = Lexer {
             text: (text.as_bytes().into()),
-            position: Position {file_name, index: 0, line: 0, column: 0},
+            position: Position {
+                file_name,
+                index: 0,
+                line: 0,
+                column: 0,
+            },
             current_char: None,
         };
         l.current_char = Some(l.text[l.position.index] as char);
@@ -167,5 +180,73 @@ impl Lexer {
             return Token::INT(num.parse::<i32>().unwrap());
         }
         Token::FLOAT(num.parse::<f32>().unwrap())
+    }
+}
+
+struct Parser {
+    tokens: Vec<Token>,
+    token_index: usize,
+    current_token: Token,
+}
+
+impl Parser {
+    pub fn new(tokens: Vec<Token>) -> Self {
+        let t = tokens[0].clone();
+        Parser {
+            tokens,
+            token_index: 0,
+            current_token: t,
+        }
+    }
+
+    fn parse(&mut self) -> Node {
+        self.expression()
+    }
+
+    fn advance(&mut self) {
+        self.token_index += 1;
+
+        if self.token_index < self.tokens.len() {
+            self.current_token = self.tokens[self.token_index].clone();
+        }
+    }
+
+    fn factor(&mut self) -> Node {
+        let t = self.current_token.clone();
+
+        return match t {
+            Token::INT(_) | Token::FLOAT(_) => {
+                self.advance();
+                Node::NUM(t)
+            }
+            _ => panic!("test"),
+        };
+    }
+
+    fn binary_operation(
+        &mut self,
+        func: fn(parser: &mut Parser) -> Node,
+        ops: (Token, Token),
+    ) -> Node {
+        let mut left_node = self.factor();
+
+        while match_tokens(&self.current_token, &ops.0) || match_tokens(&self.current_token, &ops.1)
+        {
+            let op_token = self.current_token.clone();
+            self.advance();
+            let right_node = func(self);
+
+            left_node = Node::BINOP(left_node.into(), op_token, right_node.into());
+        }
+
+        left_node
+    }
+
+    fn term(&mut self) -> Node {
+        self.binary_operation(Parser::factor, (Token::MUL, Token::DIV))
+    }
+
+    fn expression(&mut self) -> Node {
+        self.binary_operation(Parser::term, (Token::ADD, Token::SUB))
     }
 }
