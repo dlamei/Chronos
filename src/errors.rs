@@ -1,34 +1,35 @@
-use std::{error::Error, fmt};
+use std::fmt;
 
 use crate::chronos::Position;
 
 #[derive(Debug)]
-pub struct IllegalCharError(pub Position, pub String);
-
-impl fmt::Display for IllegalCharError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "Illegal Character: {}\n File: {}, Line: {}",
-            self.1, self.0.file_name, self.0.line
-        )
-    }
+pub struct ErrDesc {
+    message: String,
+    details: String,
 }
-
-impl Error for IllegalCharError {}
 
 #[derive(Debug)]
-pub struct InvalidSyntaxError(pub Position, pub String);
+pub enum ErrTypes {
+    IllegalCharError,
+    InvalidSyntaxError,
+}
 
-impl fmt::Display for InvalidSyntaxError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "Invalid Syntax: {}\n File: {}, Line: {}",
-            self.1, self.0.file_name, self.0.line
-        )
+pub struct Error(pub ErrTypes, pub ErrDesc);
+
+impl Error {
+    pub fn new(
+        error_type: ErrTypes,
+        start_pos: &Position,
+        _end_pos: &Position,
+        details: String,
+    ) -> Self {
+        let message = format!("File: {}, Line: {}", start_pos.file_name, start_pos.line);
+        Error(error_type, ErrDesc { message, details })
     }
 }
 
-impl Error for InvalidSyntaxError {}
-
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}: {}\n{}", self.0, self.1.details, self.1.message,)
+    }
+}

@@ -1,35 +1,20 @@
 use crate::errors::*;
 
+use std::fmt;
+
 const DIGITS: &str = "0123456789";
 
-#[derive(Debug, Clone)]
-pub enum Token {
-    INT(i32),
-    FLOAT(f32),
-    ADD,
-    SUB,
-    MUL,
-    DIV,
-    LPAREN,
-    RPAREN,
-}
-
-fn match_tokens(t1: &Token, t2: &Token) -> bool {
+fn match_tokens(t1: &TokenType, t2: &TokenType) -> bool {
     match (t1, t2) {
-        (&Token::ADD, &Token::ADD)
-        | (&Token::SUB, &Token::SUB)
-        | (&Token::MUL, &Token::MUL)
-        | (&Token::DIV, &Token::DIV)
-        | (&Token::LPAREN, &Token::LPAREN)
-        | (&Token::RPAREN, &Token::RPAREN) => true,
+        (&TokenType::ADD, &TokenType::ADD)
+        | (&TokenType::SUB, &TokenType::SUB)
+        | (&TokenType::MUL, &TokenType::MUL)
+        | (&TokenType::DIV, &TokenType::DIV)
+        | (&TokenType::LPAREN, &TokenType::LPAREN)
+        | (&TokenType::RPAREN, &TokenType::RPAREN) => true,
+        (&TokenType::EOF, &TokenType::EOF) => true,
         _ => false,
     }
-}
-
-#[derive(Debug)]
-pub enum Node {
-    NUM(Token),
-    BINOP(Box<Node>, Token, Box<Node>),
 }
 
 #[derive(Debug, Clone)]
@@ -67,12 +52,62 @@ impl Position {
     }
 }
 
-pub fn run(file_name: String, text: String) -> Result<Node, IllegalCharError> {
+#[derive(Debug, Clone)]
+pub enum TokenType {
+    INT(i32),
+    FLOAT(f32),
+    ADD,
+    SUB,
+    MUL,
+    DIV,
+    LPAREN,
+    RPAREN,
+    EOF,
+}
+
+#[derive(Clone)]
+pub struct Token {
+    token_type: TokenType,
+    start_pos: Position,
+    end_pos: Position,
+}
+
+impl fmt::Debug for Token {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self.token_type)
+    }
+}
+
+impl Token {
+    pub fn new(token_type: TokenType, start_pos: &Position, end_pos: Option<&Position>) -> Self {
+        if let Some(end) = end_pos {
+            return Token {
+                token_type,
+                start_pos: start_pos.clone(),
+                end_pos: end.clone(),
+            };
+        }
+
+        Token {
+            token_type,
+            start_pos: start_pos.clone(),
+            end_pos: start_pos.clone(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum Node {
+    NUM(Token),
+    BINOP(Box<Node>, Token, Box<Node>),
+}
+
+pub fn run(file_name: String, text: String) -> Result<Node, Error> {
     let mut lexer = Lexer::new(file_name, text);
     let tokens = lexer.parse_tokens()?;
 
     let mut parser = Parser::new(tokens);
-    Ok(parser.parse())
+    parser.parse()
 }
 
 struct Lexer {
@@ -107,7 +142,7 @@ impl Lexer {
         };
     }
 
-    fn parse_tokens(&mut self) -> Result<Vec<Token>, IllegalCharError> {
+    fn parse_tokens(&mut self) -> Result<Vec<Token>, Error> {
         let mut tokens: Vec<Token> = Vec::new();
 
         while self.current_char != None {
@@ -117,27 +152,27 @@ impl Lexer {
                 self.advance();
             } else if match c {
                 '+' => {
-                    tokens.push(Token::ADD);
+                    tokens.push(Token::new(TokenType::ADD, &self.position, None));
                     true
                 }
                 '-' => {
-                    tokens.push(Token::SUB);
+                    tokens.push(Token::new(TokenType::SUB, &self.position, None));
                     true
                 }
                 '/' => {
-                    tokens.push(Token::DIV);
+                    tokens.push(Token::new(TokenType::DIV, &self.position, None));
                     true
                 }
                 '*' => {
-                    tokens.push(Token::MUL);
+                    tokens.push(Token::new(TokenType::MUL, &self.position, None));
                     true
                 }
                 '(' => {
-                    tokens.push(Token::MUL);
+                    tokens.push(Token::new(TokenType::MUL, &self.position, None));
                     true
                 }
                 ')' => {
-                    tokens.push(Token::MUL);
+                    tokens.push(Token::new(TokenType::MUL, &self.position, None));
                     true
                 }
                 _ => false,
@@ -147,10 +182,16 @@ impl Lexer {
                 tokens.push(self.make_number());
             } else {
                 self.advance();
-                return Err(IllegalCharError(self.position.clone(), format!("'{}'", c)));
+                return Err(Error::new(
+                    ErrTypes::IllegalCharError,
+                    &self.position,
+                    &self.position,
+                    format!("'{}'", c),
+                ));
             }
         }
 
+        tokens.push(Token::new(TokenType::EOF, &self.position, None));
         Ok(tokens)
     }
 
@@ -177,9 +218,18 @@ impl Lexer {
         }
 
         if dot_count == 0 {
-            return Token::INT(num.parse::<i32>().unwrap());
+            return Token::new(
+                TokenType::INT(num.parse::<i32>().unwrap()),
+                &self.position,
+                None,
+            );
         }
-        Token::FLOAT(num.parse::<f32>().unwrap())
+
+        Token::new(
+            TokenType::FLOAT(num.parse::<f32>().unwrap()),
+            &self.position,
+            None,
+        )
     }
 }
 
@@ -199,8 +249,19 @@ impl Parser {
         }
     }
 
-    fn parse(&mut self) -> Node {
-        self.expression()
+    fn parse(&mut self) -> Result<Node, Error> {
+        let nodes = self.expression()?;
+
+        if !match_tokens(&self.current_token.token_type, &TokenType::EOF) {
+            return Err(Error::new(
+                ErrTypes::InvalidSyntaxError,
+                &self.current_token.start_pos,
+                &self.current_token.end_pos,
+                "Expected '+', '-', '*' or '/'".to_string(),
+            ));
+        }
+
+        Ok(nodes)
     }
 
     fn advance(&mut self) {
@@ -211,42 +272,48 @@ impl Parser {
         }
     }
 
-    fn factor(&mut self) -> Node {
+    fn factor(&mut self) -> Result<Node, Error> {
         let t = self.current_token.clone();
 
-        return match t {
-            Token::INT(_) | Token::FLOAT(_) => {
+        return match t.token_type {
+            TokenType::INT(_) | TokenType::FLOAT(_) => {
                 self.advance();
-                Node::NUM(t)
+                Ok(Node::NUM(t))
             }
-            _ => panic!("test"),
+            _ => Err(Error::new(
+                ErrTypes::InvalidSyntaxError,
+                &t.start_pos,
+                &t.end_pos,
+                format!("Expected INT or FLOAT"),
+            )),
         };
     }
 
     fn binary_operation(
         &mut self,
-        func: fn(parser: &mut Parser) -> Node,
-        ops: (Token, Token),
-    ) -> Node {
-        let mut left_node = self.factor();
+        func: fn(parser: &mut Parser) -> Result<Node, Error>,
+        ops: (TokenType, TokenType),
+    ) -> Result<Node, Error> {
+        let mut left_node = self.factor()?;
 
-        while match_tokens(&self.current_token, &ops.0) || match_tokens(&self.current_token, &ops.1)
+        while match_tokens(&self.current_token.token_type, &ops.0)
+            || match_tokens(&self.current_token.token_type, &ops.1)
         {
             let op_token = self.current_token.clone();
             self.advance();
-            let right_node = func(self);
+            let right_node = func(self)?;
 
             left_node = Node::BINOP(left_node.into(), op_token, right_node.into());
         }
 
-        left_node
+        Ok(left_node)
     }
 
-    fn term(&mut self) -> Node {
-        self.binary_operation(Parser::factor, (Token::MUL, Token::DIV))
+    fn term(&mut self) -> Result<Node, Error> {
+        self.binary_operation(Parser::factor, (TokenType::MUL, TokenType::DIV))
     }
 
-    fn expression(&mut self) -> Node {
-        self.binary_operation(Parser::term, (Token::ADD, Token::SUB))
+    fn expression(&mut self) -> Result<Node, Error> {
+        self.binary_operation(Parser::term, (TokenType::ADD, TokenType::SUB))
     }
 }
