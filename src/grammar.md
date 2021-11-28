@@ -1,8 +1,8 @@
 # factor
 
     = INT|FLOAT
-    = (PLUS|MINUS) factor
     = LPAREN expr RPAREN
+    = (MINUS)* factor
 
 # term
 

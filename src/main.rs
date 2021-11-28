@@ -16,11 +16,9 @@ fn main() {
             .read_line(&mut buffer)
             .expect("Error while reading from STDIN");
 
-        match run("STDIN".to_string(), buffer) {
-            Ok(tokens) => println!("{:?}", tokens),
+        match interpret(String::from("STDIN"), buffer) {
+            Ok(result) => println!("{:?}", result.get_value()),
             Err(e) => eprintln!("{}", e),
         }
-        //let tokens = run(buffer).unwrap_or_else(|x| panic!("{}", x));
-        //println!("{:?}", tokens);
     }
 }

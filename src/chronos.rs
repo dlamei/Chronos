@@ -20,20 +20,33 @@ fn match_tokens(t1: &TokenType, t2: &TokenType) -> bool {
 }
 
 #[derive(Debug, Clone)]
+//TODO: remove file_name and text from position!!!
 pub struct Position {
     pub file_name: String,
     pub index: usize,
     pub line: usize,
     pub column: usize,
+    pub text: String,
 }
 
 impl Position {
-    fn new(file_name: String, index: usize, line: usize, column: usize) -> Self {
+    fn new(file_name: String, index: usize, line: usize, column: usize, text: String) -> Self {
         Position {
             file_name,
             index,
             line,
             column,
+            text,
+        }
+    }
+
+    fn empty() -> Self {
+        Position {
+            file_name: String::from(""),
+            index: 0,
+            line: 0,
+            column: 0,
+            text: String::from(""),
         }
     }
 
@@ -45,11 +58,10 @@ impl Position {
                 self.column = 0;
             }
 
-            Some(_) => {
+            _ => {
                 self.index += 1;
                 self.column += 1;
             }
-            _ => (),
         }
     }
 }
@@ -90,19 +102,15 @@ impl Token {
             };
         }
 
+        let mut end_pos = start_pos.clone();
+        end_pos.advance(&None);
+
         Token {
             token_type,
             start_pos: start_pos.clone(),
-            end_pos: start_pos.clone(),
+            end_pos,
         }
     }
-}
-
-#[derive(Debug)]
-pub enum Node {
-    NUM(Token),
-    BINOP(Box<Node>, Token, Box<Node>),
-    UNRYOP(Token, Box<Node>),
 }
 
 struct Lexer {
@@ -120,6 +128,7 @@ impl Lexer {
                 index: 0,
                 line: 0,
                 column: 0,
+                text,
             },
             current_char: None,
         };
@@ -176,12 +185,13 @@ impl Lexer {
             } else if DIGITS.contains(c) {
                 tokens.push(self.make_number());
             } else {
+                let start_pos = self.position.clone();
                 self.advance();
                 return Err(Error::new(
-                    ErrTypes::IllegalCharError,
+                    ErrType::IllegalCharError,
+                    &start_pos,
                     &self.position,
-                    &self.position,
-                    format!("'{}'", c),
+                    format!("Lexer found '{}'", c),
                 ));
             }
         }
@@ -234,6 +244,13 @@ struct Parser {
     current_token: Token,
 }
 
+#[derive(Debug)]
+pub enum Node {
+    NUM(Token),
+    BINOP(Box<Node>, Token, Box<Node>),
+    UNRYOP(Token, Box<Node>),
+}
+
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Self {
         let t = tokens[0].clone();
@@ -251,11 +268,11 @@ impl Parser {
             TokenType::EOF => Ok(nodes),
 
             _ => Err(Error::new(
-                ErrTypes::InvalidSyntaxError,
+                ErrType::InvalidSyntaxError,
                 &self.current_token.start_pos,
                 &self.current_token.end_pos,
                 format!(
-                    "Expected '+', '-', '*' or '/' found {:?}",
+                    "Parser expected '+', '-', '*' or '/' found {:?}",
                     self.current_token.token_type
                 ),
             )),
@@ -279,7 +296,7 @@ impl Parser {
                 Ok(Node::NUM(t))
             }
 
-            TokenType::ADD | TokenType::SUB => {
+            TokenType::SUB => {
                 self.advance();
                 let factor = self.factor()?;
                 Ok(Node::UNRYOP(t, factor.into()))
@@ -294,18 +311,21 @@ impl Parser {
                         Ok(expr)
                     }
                     _ => Err(Error::new(
-                        ErrTypes::InvalidSyntaxError,
+                        ErrType::InvalidSyntaxError,
                         &t.start_pos,
                         &self.current_token.end_pos,
-                        format!("Expected ')' found {:?}", self.current_token.token_type),
+                        format!(
+                            "Parser expected ')' found {:?}",
+                            self.current_token.token_type
+                        ),
                     )),
                 }
             }
             _ => Err(Error::new(
-                ErrTypes::InvalidSyntaxError,
+                ErrType::InvalidSyntaxError,
                 &t.start_pos,
                 &t.end_pos,
-                format!("Expected INT or FLOAT found {:?}", t.token_type),
+                format!("Parser expected INT or FLOAT found {:?}", t.token_type),
             )),
         };
     }
@@ -340,7 +360,7 @@ impl Parser {
 }
 
 #[derive(Clone, Debug)]
-enum NumberType {
+pub enum NumberType {
     INT(ChInt),
     FLOAT(ChFloat),
 }
@@ -348,8 +368,8 @@ enum NumberType {
 #[derive(Debug)]
 pub struct Number {
     value: NumberType,
-    start_pos: Option<Position>,
-    end_pos: Option<Position>,
+    start_pos: Position,
+    end_pos: Position,
 }
 
 trait AsNumberType {
@@ -369,9 +389,13 @@ impl AsNumberType for ChFloat {
 }
 
 impl Number {
-    fn set_position(&mut self, start_pos: Option<Position>, end_pos: Option<Position>) {
+    fn set_position(&mut self, start_pos: Position, end_pos: Position) {
         self.start_pos = start_pos;
         self.end_pos = end_pos;
+    }
+
+    pub fn get_value<'a>(&'a self) -> &'a NumberType {
+        &self.value
     }
 
     fn operate_on(
@@ -427,7 +451,7 @@ impl Number {
     }
 }
 
-fn visit_node(node: Node) -> Number {
+fn visit_node(node: Node) -> Result<Number, Error> {
     match node {
         Node::NUM(token) => visit_numb_node(token),
         Node::UNRYOP(op, node) => visit_unryop_node(op, *node),
@@ -435,63 +459,71 @@ fn visit_node(node: Node) -> Number {
     }
 }
 
-fn visit_numb_node(token: Token) -> Number {
+fn visit_numb_node(token: Token) -> Result<Number, Error> {
     match token.token_type {
-        TokenType::INT(value) => Number {
+        TokenType::INT(value) => Ok(Number {
             value: value.as_number_type(),
-            start_pos: Some(token.start_pos),
-            end_pos: Some(token.end_pos),
-        },
-        TokenType::FLOAT(value) => Number {
+            start_pos: token.start_pos,
+            end_pos: token.end_pos,
+        }),
+        TokenType::FLOAT(value) => Ok(Number {
             value: value.as_number_type(),
-            start_pos: Some(token.start_pos),
-            end_pos: Some(token.end_pos),
-        },
+            start_pos: token.start_pos,
+            end_pos: token.end_pos,
+        }),
         _ => panic!("called visit_numb_node on a number node that has a non number token"),
     }
 }
 
-fn visit_unryop_node(op: Token, node: Node) -> Number {
-    let mut number = match node {
-        Node::NUM(token) => visit_numb_node(token),
-        Node::UNRYOP(op, node) => visit_unryop_node(op, *node),
-        _ => panic!("invalid unary syntax expected NUM found {:?}", node),
-    };
-
-    number.set_position(Some(op.start_pos), number.end_pos.clone());
+fn visit_unryop_node(op: Token, node: Node) -> Result<Number, Error> {
+    let mut number = visit_node(node)?;
+    number.set_position(op.start_pos, number.end_pos.clone());
 
     match op.token_type {
-        TokenType::SUB => number.mult(Number {
+        TokenType::SUB => Ok(number.mult(Number {
             value: NumberType::INT(-1),
-            start_pos: None,
-            end_pos: None,
-        }),
-        TokenType::ADD => number,
+            start_pos: Position::empty(),
+            end_pos: Position::empty(),
+        })),
+        TokenType::ADD => Ok(number),
 
         _ => panic!("called visit_unryop_node on a binop node that has a non Operation token"),
     }
 }
 
-fn visit_binop_node(left: Node, op: Token, right: Node) -> Number {
-    let mut left = visit_node(left);
-    let right = visit_node(right);
+fn visit_binop_node(left: Node, op: Token, right: Node) -> Result<Number, Error> {
+    let mut left = visit_node(left)?;
+    let right = visit_node(right)?;
     left.set_position(left.start_pos.clone(), right.end_pos.clone());
 
     match op.token_type {
-        TokenType::ADD => left.add(right),
-        TokenType::SUB => left.sub(right),
-        TokenType::MUL => left.mult(right),
-        TokenType::DIV => left.div(right),
+        TokenType::ADD => Ok(left.add(right)),
+        TokenType::SUB => Ok(left.sub(right)),
+        TokenType::MUL => Ok(left.mult(right)),
+        TokenType::DIV => {
+            if match right.value {
+                NumberType::INT(v) => v == 0,
+                NumberType::FLOAT(v) => v == 0.0,
+            } {
+                return Err(Error::new(
+                    ErrType::RuntimeError,
+                    &left.start_pos,
+                    &right.end_pos,
+                    String::from("Division by 0"),
+                ));
+            }
+            Ok(left.div(right))
+        }
         _ => panic!("called visit_binop_node on a binop node that has a non Operation token"),
     }
 }
 
-pub fn run(file_name: String, text: String) -> Result<Number, Error> {
+pub fn interpret(file_name: String, text: String) -> Result<Number, Error> {
     let mut lexer = Lexer::new(file_name, text);
     let tokens = lexer.parse_tokens()?;
 
     let mut parser = Parser::new(tokens);
     let ast = parser.parse()?;
 
-    Ok(visit_node(ast))
+    visit_node(ast)
 }
