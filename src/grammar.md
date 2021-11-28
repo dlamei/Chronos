@@ -1,5 +1,13 @@
-factor = INT|FLOAT
+# factor
 
-term = factor ((MUL|DIV) factor)\*
+    = INT|FLOAT
+    = (PLUS|MINUS) factor
+    = LPAREN expr RPAREN
 
-expr = term ((PLUS|MINUS) term)\*
+# term
+
+    = factor ((MUL|DIV) factor)*
+
+# expr
+
+    = term ((PLUS|MINUS) term)*

@@ -23,7 +23,10 @@ impl Error {
         _end_pos: &Position,
         details: String,
     ) -> Self {
-        let message = format!("File: {}, Line: {}", start_pos.file_name, start_pos.line);
+        let message = format!(
+            "File: {}, Line: {}, Column: {}",
+            start_pos.file_name, start_pos.line, start_pos.column
+        );
         Error(error_type, ErrDesc { message, details })
     }
 }
