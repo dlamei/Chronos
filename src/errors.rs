@@ -1,6 +1,7 @@
 use std::fmt;
 use std::fmt::Write;
 
+use crate::chronos::Context;
 use crate::chronos::Position;
 
 #[derive(Debug)]
@@ -24,8 +25,16 @@ impl Error {
         start_pos: &Position,
         end_pos: &Position,
         details: String,
+        context: Option<&Context>,
     ) -> Self {
-        let mut message = get_error_preview(&start_pos.text, start_pos, end_pos);
+        let mut message = get_traceback(context, start_pos);
+        write!(
+            message,
+            "{}",
+            get_error_preview(&start_pos.text, start_pos, end_pos)
+        )
+        .unwrap();
+
         write!(
             message,
             "\nFile: {}, Line: {}",
@@ -43,7 +52,37 @@ impl fmt::Display for Error {
     }
 }
 
-pub fn get_error_preview(text: &String, pos_start: &Position, pos_end: &Position) -> String {
+fn get_traceback(context: Option<&Context>, pos_start: &Position) -> String {
+    let mut result = String::from("");
+
+    if let Some(context) = context {
+        let mut cntx = Box::new(context.clone());
+        let mut pos = pos_start.clone();
+
+        loop {
+            write!(
+                result,
+                "\nFile: {}, Line: {}, in: {}",
+                pos.file_name, pos.line, cntx.display_name
+            )
+            .unwrap();
+
+            if let Some(p) = cntx.parent {
+                pos = p.1.clone();
+                cntx = p.0;
+            } else {
+                break;
+            }
+        }
+
+        write!(result, "\nTraceback (most recent call last)\n").unwrap();
+    }
+
+    write!(result, "{}", "\n").unwrap();
+    result
+}
+
+fn get_error_preview(text: &String, pos_start: &Position, pos_end: &Position) -> String {
     let mut result = String::from("");
 
     let mut start = text[0..pos_start.index].rfind('\n').unwrap_or(0);

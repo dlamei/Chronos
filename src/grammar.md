@@ -1,8 +1,18 @@
-# factor
+ranked by priority
+
+#atom
 
     = INT|FLOAT
     = LPAREN expr RPAREN
+
+# power
+
+    = atom (POW factor)*
+
+# factor
+
     = (MINUS)* factor
+    = power
 
 # term
 

@@ -7,6 +7,8 @@ mod errors;
 use chronos::*;
 
 fn main() {
+    let mut c = Compiler::new();
+
     loop {
         let mut buffer = String::new();
 
@@ -16,8 +18,8 @@ fn main() {
             .read_line(&mut buffer)
             .expect("Error while reading from STDIN");
 
-        match interpret(String::from("STDIN"), buffer) {
-            Ok(result) => println!("{:?}", result.get_value()),
+        match c.interpret(String::from("STDIN"), buffer) {
+            Ok(result) => println!("{:?}", result.get_value_type()),
             Err(e) => eprintln!("{}", e),
         }
     }
