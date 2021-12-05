@@ -288,6 +288,7 @@ impl Lexer {
             keyword.push(self.current_char.unwrap())
         }
 
+        self.advance();
         match get_keyword(&keyword) {
             Ok(k) => Ok(Token::new(
                 TokenType::KEYWRD(k),
@@ -532,7 +533,6 @@ impl Parser {
     fn power(&mut self) -> Result<Node, Error> {
         self.binary_operation(
             Parser::atom,
-            //(TokenType::POW, TokenType::POW),
             vec![TokenType::POW],
             Vec::new(),
             Parser::factor,
@@ -701,15 +701,12 @@ impl Parser {
             }
             _ => self.binary_operation(
                 Parser::comp_expression,
-                //(TokenType::KEYWRD(Keyword::AND), TokenType::KEYWRD(Keyword::OR)),
                 Vec::new(),
                 vec![Keyword::AND, Keyword::OR],
                 Parser::comp_expression,
             ),
         }
     }
-
-    //self.binary_operation(Parser::term, (TokenType::ADD, TokenType::SUB), Parser::term)
 }
 
 #[derive(Clone, Debug)]
@@ -978,10 +975,10 @@ impl Number {
 
         Number {
             value: match (self.value, value) {
-                (NumberType::INT(v1), NumberType::INT(v2)) => v1 == 1 && v2 == 1,
-                (NumberType::FLOAT(v1), NumberType::FLOAT(v2)) => v1 == 1.0 && v2 == 1.0,
-                (NumberType::INT(v1), NumberType::FLOAT(v2)) => v1 == 1 && v2 == 1.0,
-                (NumberType::FLOAT(v1), NumberType::INT(v2)) => v1 == 1.0 && v2 == 1,
+                (NumberType::INT(v1), NumberType::INT(v2)) => v1 >= 1 && v2 >= 1,
+                (NumberType::FLOAT(v1), NumberType::FLOAT(v2)) => v1 >= 1.0 && v2 >= 1.0,
+                (NumberType::INT(v1), NumberType::FLOAT(v2)) => v1 >= 1 && v2 >= 1.0,
+                (NumberType::FLOAT(v1), NumberType::INT(v2)) => v1 >= 1.0 && v2 >= 1,
             }
             .as_number_type(),
             start_pos: self.start_pos,
@@ -995,10 +992,10 @@ impl Number {
 
         Number {
             value: match (self.value, value) {
-                (NumberType::INT(v1), NumberType::INT(v2)) => v1 == 1 || v2 == 1,
-                (NumberType::FLOAT(v1), NumberType::FLOAT(v2)) => v1 == 1.0 || v2 == 1.0,
-                (NumberType::INT(v1), NumberType::FLOAT(v2)) => v1 == 1 || v2 == 1.0,
-                (NumberType::FLOAT(v1), NumberType::INT(v2)) => v1 == 1.0 || v2 == 1,
+                (NumberType::INT(v1), NumberType::INT(v2)) => v1 >= 1 || v2 >= 1,
+                (NumberType::FLOAT(v1), NumberType::FLOAT(v2)) => v1 >= 1.0 || v2 >= 1.0,
+                (NumberType::INT(v1), NumberType::FLOAT(v2)) => v1 >= 1 || v2 >= 1.0,
+                (NumberType::FLOAT(v1), NumberType::INT(v2)) => v1 >= 1.0 || v2 >= 1,
             }
             .as_number_type(),
             start_pos: self.start_pos,
