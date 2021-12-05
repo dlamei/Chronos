@@ -71,6 +71,8 @@ pub enum Keyword {
     AND,
     OR,
     NOT,
+    IF,
+    ELIF,
 }
 
 fn keyword_to_string(k: Keyword) -> String {
@@ -79,6 +81,8 @@ fn keyword_to_string(k: Keyword) -> String {
         Keyword::AND => "and",
         Keyword::OR => "or",
         Keyword::NOT => "not",
+        Keyword::IF => "if",
+        Keyword::ELIF => "elif",
     })
 }
 
@@ -108,8 +112,10 @@ pub enum TokenType {
     MUL,
     DIV,
     POW,
-    LPAREN,
-    RPAREN,
+    LROUND,
+    RROUND,
+    LCURLY,
+    RCURLY,
     EOF,
 
     ID(String),
@@ -226,12 +232,22 @@ impl Lexer {
                     true
                 }
                 '(' => {
-                    tokens.push(Token::new(TokenType::LPAREN, &self.position, None));
+                    tokens.push(Token::new(TokenType::LROUND, &self.position, None));
                     self.advance();
                     true
                 }
                 ')' => {
-                    tokens.push(Token::new(TokenType::RPAREN, &self.position, None));
+                    tokens.push(Token::new(TokenType::RROUND, &self.position, None));
+                    self.advance();
+                    true
+                }
+                '{' => {
+                    tokens.push(Token::new(TokenType::LCURLY, &self.position, None));
+                    self.advance();
+                    true
+                }
+                '}' => {
+                    tokens.push(Token::new(TokenType::RCURLY, &self.position, None));
                     self.advance();
                     true
                 }
@@ -497,11 +513,11 @@ impl Parser {
                 self.advance();
                 Ok(Node::ACCESS(t))
             }
-            TokenType::LPAREN => {
+            TokenType::LROUND => {
                 self.advance();
                 let expr = self.expression()?;
                 match self.current_token.token_type {
-                    TokenType::RPAREN => {
+                    TokenType::RROUND => {
                         self.advance();
                         Ok(expr)
                     }
@@ -517,6 +533,9 @@ impl Parser {
                     )),
                 }
             }
+            TokenType::KEYWRD(Keyword::IF) => {
+                self.if_expression()
+            },
             _ => Err(Error::new(
                 ErrType::InvalidSyntaxError,
                 &t.start_pos,
@@ -555,29 +574,13 @@ impl Parser {
     fn binary_operation(
         &mut self,
         func_a: fn(parser: &mut Parser) -> Result<Node, Error>,
-        //ops: (TokenType, TokenType),
         ops: Vec<TokenType>,
         keywords: Vec<Keyword>,
         func_b: fn(parser: &mut Parser) -> Result<Node, Error>,
     ) -> Result<Node, Error> {
         let mut left_node = func_a(self)?;
-        //while match_enum(&self.current_token.token_type, &ops.0)
-        //    || match_enum(&self.current_token.token_type, &ops.1)
 
-        //while match ops {
-        //    (TokenType::KEYWRD(v1), TokenType::KEYWRD(v2)) => {
-        //        if let TokenType::KEYWRD(v) = self.current_token.token_type {
-        //            match_enum_type(&v1, &v) || match_enum_type(&v2, &v)
-        //        } else {
-        //            false
-        //        }
-        //    }
-        //    _ => {
-        //        match_enum_type(&self.current_token.token_type, &ops.0)
-        //            || match_enum_type(&self.current_token.token_type, &ops.1)
-        //    }
-        //} {
-
+        //Allowes chaining operators (e.g 1 + 1 + 1)
         while {
             let mut found = false;
             for t in &ops {
@@ -606,6 +609,46 @@ impl Parser {
         }
 
         Ok(left_node)
+    }
+
+    fn if_expression(&mut self) -> Result<Node, Error> {
+       let cases: Vec<Node> = Vec::new();
+
+        match self.current_token.token_type {
+            TokenType::KEYWRD(Keyword::IF) => {
+                self.advance();
+                let condition = self.expression()?;
+
+                match self.current_token.token_type {
+                    TokenType::LCURLY => {
+                        self.advance();
+                        let expr = self.expression()?;
+                        cases.push(expr);
+
+                        self.advance();
+                        match self.current_token.token_type {
+                            TokenType::RCURLY => {
+                                
+                                while match self.current_token.token_type {
+                                    TokenType::KEYWRD(Keyword::ELIF) => true,
+                                    _ => false,
+                                } {
+                                    self.advance();
+                                    let condition = self.expression()?;
+                                }
+
+                            }
+                            _ => Err(Error::new(ErrType::InvalidSyntaxError, &self.current_token.start_pos, &self.current_token.end_pos, format!("Parser: expected '}' found '{:?}'", self.current_token),
+                            None)),
+                        }
+                    },
+                    _ => Err(Error::new(ErrType::InvalidSyntaxError, &self.current_token.start_pos, &self.current_token.end_pos, format!("Parser: expected '{' found '{:?}'", self.current_token),
+                    None)),
+                }
+            },
+            _ => Err(Error::new(ErrType::InvalidSyntaxError, &self.current_token.start_pos, &self.current_token.end_pos, format!("Parser: expected IF found '{:?}'", self.current_token),
+            None)),
+        }
     }
 
     fn arith_expression(&mut self) -> Result<Node, Error> {
@@ -1024,6 +1067,7 @@ pub struct Context {
 pub struct SymbolTable {
     parent: Option<Rc<SymbolTable>>,
     table: HashMap<String, Number>,
+    immutable: Vec<String>,
 }
 
 impl SymbolTable {
@@ -1031,6 +1075,7 @@ impl SymbolTable {
         SymbolTable {
             parent: None,
             table: HashMap::new(),
+            immutable: Vec::new(),
         }
     }
 
@@ -1044,12 +1089,24 @@ impl SymbolTable {
         }
     }
 
-    fn set(&mut self, key: &String, value: Number) {
+    fn set_mut(&mut self, key: &String, value: Number) -> bool {
         if self.table.contains_key(key) {
-            *self.table.get_mut(key).unwrap() = value;
+            if self.immutable.contains(&key) {
+                false
+            } else {
+                *self.table.get_mut(key).unwrap() = value;
+                true
+            }
         } else {
             self.table.insert(key.to_string(), value);
+            true
         }
+    }
+
+    fn set(&mut self, key: &String, value: Number) -> bool {
+        let b = self.set_mut(key, value);
+        if b { self.immutable.push(key.to_string()) };
+        b
     }
 
     fn remove(&mut self, key: &String) {
@@ -1129,7 +1186,15 @@ fn visit_assign_node(
 
     match t.token_type {
         TokenType::ID(var_name) => {
-            context.symbol_table.borrow_mut().set(&var_name, v.clone());
+            if !context.symbol_table.borrow_mut().set_mut(&var_name, v.clone()) {
+                return Err(Error::new(
+                    ErrType::RuntimeError,
+                    &v.start_pos,
+                    &v.end_pos,
+                    format!("cannot assign {:?} to {:?}", v.value, var_name),
+                    Some(context),
+                ));
+            }
             return Ok(v);
         }
         _ => panic!("called visit_assign_node on {:?}", value),
@@ -1186,8 +1251,8 @@ pub struct Compiler {
 impl Compiler {
     pub fn new() -> Self {
         let mut table = SymbolTable::empty();
-        table.set(&String::from("False"), Number::from(0.as_number_type()));
-        table.set(&String::from("True"), Number::from(1.as_number_type()));
+        table.set(&String::from("false"), Number::from(0.as_number_type()));
+        table.set(&String::from("true"), Number::from(1.as_number_type()));
 
         Compiler {
             global_symbol_table: Rc::new(RefCell::new(table)),
