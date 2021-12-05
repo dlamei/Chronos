@@ -13,6 +13,7 @@ pub struct ErrDesc {
 #[derive(Debug)]
 pub enum ErrType {
     IllegalCharError,
+    ExpectedCharError,
     InvalidSyntaxError,
     RuntimeError,
 }

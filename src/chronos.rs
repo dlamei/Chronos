@@ -1,7 +1,8 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
+use std::mem;
 use std::rc::Rc;
-use std::cell::RefCell;
 
 use crate::errors::*;
 
@@ -11,19 +12,10 @@ const LETTERS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 type ChInt = i32;
 type ChUInt = i32;
 type ChFloat = f32;
+type ChBool = bool;
 
-fn match_tokens(t1: &TokenType, t2: &TokenType) -> bool {
-    match (t1, t2) {
-        (&TokenType::ADD, &TokenType::ADD)
-        | (&TokenType::SUB, &TokenType::SUB)
-        | (&TokenType::MUL, &TokenType::MUL)
-        | (&TokenType::DIV, &TokenType::DIV)
-        | (&TokenType::POW, &TokenType::POW)
-        | (&TokenType::LPAREN, &TokenType::LPAREN)
-        | (&TokenType::RPAREN, &TokenType::RPAREN)
-        | (&TokenType::EOF, &TokenType::EOF) => true,
-        _ => false,
-    }
+fn match_enum_type<T>(t1: &T, t2: &T) -> bool {
+    mem::discriminant(t1) == mem::discriminant(t2)
 }
 
 #[derive(Debug, Clone)]
@@ -76,22 +68,34 @@ impl Position {
 #[derive(Debug, Clone)]
 pub enum Keyword {
     LET,
+    AND,
+    OR,
+    NOT,
 }
 
 fn keyword_to_string(k: Keyword) -> String {
     String::from(match k {
         Keyword::LET => "let",
+        Keyword::AND => "and",
+        Keyword::OR => "or",
+        Keyword::NOT => "not",
     })
 }
 
 fn is_keyword(s: &String) -> bool {
     s.eq(&keyword_to_string(Keyword::LET))
+        || s.eq(&keyword_to_string(Keyword::AND))
+        || s.eq(&keyword_to_string(Keyword::OR))
+        || s.eq(&keyword_to_string(Keyword::NOT))
 }
 
-fn get_keyword(s: &String) -> Keyword {
+fn get_keyword(s: &String) -> Result<Keyword, ()> {
     match s.as_ref() {
-        "let" => Keyword::LET,
-        _ => panic!("undefined keyword: {}", s),
+        "let" => Ok(Keyword::LET),
+        "&&" => Ok(Keyword::AND),
+        "||" => Ok(Keyword::OR),
+        "!" => Ok(Keyword::NOT),
+        _ => Err(()),
     }
 }
 
@@ -110,7 +114,14 @@ pub enum TokenType {
 
     ID(String),
     KEYWRD(Keyword),
-    EQ,
+    ASSIGN,
+
+    EQUAL,
+    NEQUAL,
+    LESS,
+    LESSEQ,
+    GREATER,
+    GREATEREQ,
 }
 
 #[derive(Clone)]
@@ -191,39 +202,62 @@ impl Lexer {
             } else if match c {
                 '+' => {
                     tokens.push(Token::new(TokenType::ADD, &self.position, None));
+                    self.advance();
                     true
                 }
                 '-' => {
                     tokens.push(Token::new(TokenType::SUB, &self.position, None));
+                    self.advance();
                     true
                 }
                 '/' => {
                     tokens.push(Token::new(TokenType::DIV, &self.position, None));
+                    self.advance();
                     true
                 }
                 '*' => {
                     tokens.push(Token::new(TokenType::MUL, &self.position, None));
+                    self.advance();
                     true
                 }
                 '^' => {
                     tokens.push(Token::new(TokenType::POW, &self.position, None));
+                    self.advance();
                     true
                 }
                 '(' => {
                     tokens.push(Token::new(TokenType::LPAREN, &self.position, None));
+                    self.advance();
                     true
                 }
                 ')' => {
                     tokens.push(Token::new(TokenType::RPAREN, &self.position, None));
+                    self.advance();
                     true
                 }
                 '=' => {
-                    tokens.push(Token::new(TokenType::EQ, &self.position, None));
+                    tokens.push(self.make_equal());
+                    true
+                }
+                '!' => {
+                    tokens.push(self.make_not()?);
+                    true
+                }
+                '<' => {
+                    tokens.push(self.make_less());
+                    true
+                }
+                '>' => {
+                    tokens.push(self.make_greater());
+                    true
+                }
+
+                '&' | '|' => {
+                    tokens.push(self.make_keyword()?);
                     true
                 }
                 _ => false,
             } {
-                self.advance();
             } else if LETTERS.contains(c) {
                 tokens.push(self.make_identifier());
             } else if DIGITS.contains(c) {
@@ -235,7 +269,7 @@ impl Lexer {
                     ErrType::IllegalCharError,
                     &start_pos,
                     &self.position,
-                    format!("Lexer found '{}'", c),
+                    format!("Lexer: found '{}'", c),
                     None,
                 ));
             }
@@ -243,6 +277,96 @@ impl Lexer {
 
         tokens.push(Token::new(TokenType::EOF, &self.position, None));
         Ok(tokens)
+    }
+
+    fn make_keyword(&mut self) -> Result<Token, Error> {
+        let mut keyword = self.current_char.unwrap().to_string();
+        let start = self.position.clone();
+
+        self.advance();
+        if self.current_char != None {
+            keyword.push(self.current_char.unwrap())
+        }
+
+        match get_keyword(&keyword) {
+            Ok(k) => Ok(Token::new(
+                TokenType::KEYWRD(k),
+                &start,
+                Some(&self.position),
+            )),
+            Err(_) => Err(Error::new(
+                ErrType::IllegalCharError,
+                &start,
+                &self.position,
+                format!(
+                    "Lexer: Unknown Keyword, expected '&&', '||' or '!' found '{}'",
+                    keyword
+                ),
+                None,
+            )),
+        }
+    }
+
+    fn make_not(&mut self) -> Result<Token, Error> {
+        let start = self.position.clone();
+        self.advance();
+
+        if self.current_char != None && self.current_char.unwrap() == '=' {
+            self.advance();
+            Ok(Token::new(TokenType::NEQUAL, &start, Some(&self.position)))
+        } else {
+            Ok(Token::new(
+                TokenType::KEYWRD(Keyword::NOT),
+                &start,
+                Some(&self.position),
+            ))
+            //return Err(Error::new(
+            //    ErrType::ExpectedCharError,
+            //    &start,
+            //    &self.position,
+            //    "Lexer: Expected '=' after '!'".into(),
+            //    None,
+            //));
+        }
+    }
+
+    fn make_equal(&mut self) -> Token {
+        let start = self.position.clone();
+        let mut token_type = TokenType::ASSIGN;
+        self.advance();
+
+        if self.current_char != None && self.current_char.unwrap() == '=' {
+            self.advance();
+            token_type = TokenType::EQUAL;
+        }
+
+        Token::new(token_type, &start, Some(&self.position))
+    }
+
+    fn make_less(&mut self) -> Token {
+        let start = self.position.clone();
+        let mut token_type = TokenType::LESS;
+        self.advance();
+
+        if self.current_char != None && self.current_char.unwrap() == '=' {
+            self.advance();
+            token_type = TokenType::LESSEQ;
+        }
+
+        Token::new(token_type, &start, Some(&self.position))
+    }
+
+    fn make_greater(&mut self) -> Token {
+        let start = self.position.clone();
+        let mut token_type = TokenType::GREATER;
+        self.advance();
+
+        if self.current_char != None && self.current_char.unwrap() == '=' {
+            self.advance();
+            token_type = TokenType::GREATEREQ;
+        }
+
+        Token::new(token_type, &start, Some(&self.position))
     }
 
     fn make_identifier(&mut self) -> Token {
@@ -256,11 +380,15 @@ impl Lexer {
             self.advance();
         }
 
-        let token_type = if is_keyword(&id) {
-            TokenType::KEYWRD(get_keyword(&id))
-        } else {
-            TokenType::ID(id)
+        let token_type = match get_keyword(&id) {
+            Ok(k) => TokenType::KEYWRD(k),
+            Err(()) => TokenType::ID(id),
         };
+        //let token_type = if is_keyword(&id) {
+        //    TokenType::KEYWRD(get_keyword(&id))
+        //} else {
+        //    TokenType::ID(id)
+        //};
         Token::new(token_type, &pos_start, Some(&self.position))
     }
 
@@ -268,6 +396,8 @@ impl Lexer {
     fn make_number(&mut self) -> Token {
         let mut num: String = String::new();
         let mut dot_count: u8 = 0;
+
+        let start = self.position.clone();
 
         let s = DIGITS.to_owned() + ".";
 
@@ -289,15 +419,15 @@ impl Lexer {
         if dot_count == 0 {
             return Token::new(
                 TokenType::INT(num.parse::<ChInt>().unwrap()),
-                &self.position,
-                None,
+                &start,
+                Some(&self.position),
             );
         }
 
         Token::new(
             TokenType::FLOAT(num.parse::<ChFloat>().unwrap()),
-            &self.position,
-            None,
+            &start,
+            Some(&self.position),
         )
     }
 }
@@ -338,7 +468,7 @@ impl Parser {
                 &self.current_token.start_pos,
                 &self.current_token.end_pos,
                 format!(
-                    "Parser expected EOF found {:?}",
+                    "Parser: expected EOF found {:?}",
                     self.current_token.token_type
                 ),
                 None,
@@ -379,7 +509,7 @@ impl Parser {
                         &t.start_pos,
                         &self.current_token.end_pos,
                         format!(
-                            "Parser expected ')' found {:?}",
+                            "Parser: expected ')' found {:?}",
                             self.current_token.token_type
                         ),
                         None,
@@ -391,7 +521,7 @@ impl Parser {
                 &t.start_pos,
                 &t.end_pos,
                 format!(
-                    "Parser expected INT, FLOAT, '+', '-' or '(, found: {:?}",
+                    "Parser: expected INT, FLOAT, IDENTIFIER, '+', '-' or '(, found: {:?}",
                     t.token_type
                 ),
                 None,
@@ -402,7 +532,9 @@ impl Parser {
     fn power(&mut self) -> Result<Node, Error> {
         self.binary_operation(
             Parser::atom,
-            (TokenType::POW, TokenType::POW),
+            //(TokenType::POW, TokenType::POW),
+            vec![TokenType::POW],
+            Vec::new(),
             Parser::factor,
         )
     }
@@ -423,14 +555,49 @@ impl Parser {
     fn binary_operation(
         &mut self,
         func_a: fn(parser: &mut Parser) -> Result<Node, Error>,
-        ops: (TokenType, TokenType),
+        //ops: (TokenType, TokenType),
+        ops: Vec<TokenType>,
+        keywords: Vec<Keyword>,
         func_b: fn(parser: &mut Parser) -> Result<Node, Error>,
     ) -> Result<Node, Error> {
         let mut left_node = func_a(self)?;
+        //while match_enum(&self.current_token.token_type, &ops.0)
+        //    || match_enum(&self.current_token.token_type, &ops.1)
 
-        while match_tokens(&self.current_token.token_type, &ops.0)
-            || match_tokens(&self.current_token.token_type, &ops.1)
-        {
+        //while match ops {
+        //    (TokenType::KEYWRD(v1), TokenType::KEYWRD(v2)) => {
+        //        if let TokenType::KEYWRD(v) = self.current_token.token_type {
+        //            match_enum_type(&v1, &v) || match_enum_type(&v2, &v)
+        //        } else {
+        //            false
+        //        }
+        //    }
+        //    _ => {
+        //        match_enum_type(&self.current_token.token_type, &ops.0)
+        //            || match_enum_type(&self.current_token.token_type, &ops.1)
+        //    }
+        //} {
+
+        while {
+            let mut found = false;
+            for t in &ops {
+                if match_enum_type(t, &self.current_token.token_type) {
+                    found = true;
+                    break;
+                }
+            }
+            if !found {
+                if let TokenType::KEYWRD(k) = &self.current_token.token_type {
+                    for key in &keywords {
+                        if match_enum_type(key, &k) {
+                            found = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            found
+        } {
             let op_token = self.current_token.clone();
             self.advance();
             let right_node = func_b(self)?;
@@ -441,10 +608,54 @@ impl Parser {
         Ok(left_node)
     }
 
+    fn arith_expression(&mut self) -> Result<Node, Error> {
+        self.binary_operation(
+            Parser::term,
+            vec![TokenType::ADD, TokenType::SUB],
+            Vec::new(),
+            Parser::term,
+        )
+    }
+
+    fn comp_expression(&mut self) -> Result<Node, Error> {
+        match self.current_token.token_type {
+            TokenType::KEYWRD(Keyword::NOT) => {
+                let op = self.current_token.clone();
+                self.advance();
+                let node = self.comp_expression()?;
+                Ok(Node::UNRYOP(op, Box::new(node)))
+            }
+
+            _ => match self.binary_operation(
+                Parser::arith_expression,
+                vec![
+                    TokenType::EQUAL,
+                    TokenType::NEQUAL,
+                    TokenType::LESS,
+                    TokenType::LESSEQ,
+                    TokenType::GREATER,
+                    TokenType::GREATEREQ,
+                ],
+                Vec::new(),
+                Parser::arith_expression,
+            ) {
+                Ok(node) => Ok(node),
+                Err(_) => Err(Error::new(
+                    ErrType::InvalidSyntaxError,
+                    &self.current_token.start_pos,
+                    &self.current_token.end_pos,
+                    "Parser: Expected INT, FLOAT, IDENTIFIER, '+', '-', '(' or '!'".into(),
+                    None,
+                )),
+            },
+        }
+    }
+
     fn term(&mut self) -> Result<Node, Error> {
         self.binary_operation(
             Parser::factor,
-            (TokenType::MUL, TokenType::DIV),
+            vec![TokenType::MUL, TokenType::DIV],
+            Vec::new(),
             Parser::factor,
         )
     }
@@ -460,7 +671,7 @@ impl Parser {
                         self.advance();
 
                         match self.current_token.token_type {
-                            TokenType::EQ => {
+                            TokenType::ASSIGN => {
                                 self.advance();
                                 Ok(Node::ASSIGN(var, Box::new(self.expression()?)))
                             }
@@ -469,7 +680,7 @@ impl Parser {
                                 &self.current_token.start_pos,
                                 &self.current_token.end_pos,
                                 format!(
-                                    "Expected assignment operator: '=', found: {:?}",
+                                    "Parser: Expected assignment operator: '=', found: {:?}",
                                     self.current_token
                                 ),
                                 None,
@@ -480,18 +691,25 @@ impl Parser {
                         ErrType::InvalidSyntaxError,
                         &self.current_token.start_pos,
                         &self.current_token.end_pos,
-                        format!("Expected identifier, found: {:?}", self.current_token),
+                        format!(
+                            "Parser: Expected identifier, found: {:?}",
+                            self.current_token
+                        ),
                         None,
                     )),
                 }
             }
-            _ => {
-                self.binary_operation(Parser::term, (TokenType::ADD, TokenType::SUB), Parser::term)
-            }
+            _ => self.binary_operation(
+                Parser::comp_expression,
+                //(TokenType::KEYWRD(Keyword::AND), TokenType::KEYWRD(Keyword::OR)),
+                Vec::new(),
+                vec![Keyword::AND, Keyword::OR],
+                Parser::comp_expression,
+            ),
         }
-
-        //self.binary_operation(Parser::term, (TokenType::ADD, TokenType::SUB), Parser::term)
     }
+
+    //self.binary_operation(Parser::term, (TokenType::ADD, TokenType::SUB), Parser::term)
 }
 
 #[derive(Clone, Debug)]
@@ -511,6 +729,16 @@ pub struct Number {
 pub trait AsNumberType {
     fn as_number_type(self) -> NumberType;
     fn get_value_type(&self) -> NumberType;
+}
+
+impl AsNumberType for ChBool {
+    fn as_number_type(self) -> NumberType {
+        NumberType::INT(if self { 1 } else { 0 })
+    }
+
+    fn get_value_type(&self) -> NumberType {
+        NumberType::INT(if *self { 1 } else { 0 })
+    }
 }
 
 impl AsNumberType for ChInt {
@@ -544,6 +772,15 @@ impl AsNumberType for Number {
 }
 
 impl Number {
+    fn from(value: NumberType) -> Self {
+        Number {
+            value,
+            start_pos: Position::empty(),
+            end_pos: Position::empty(),
+            context: None,
+        }
+    }
+
     fn set_position(&mut self, start_pos: Position, end_pos: Position) {
         self.start_pos = start_pos;
         self.end_pos = end_pos;
@@ -633,6 +870,150 @@ impl Number {
             ))
         }
     }
+
+    fn equal<T: AsNumberType>(self, other: T) -> Number {
+        let value = other.as_number_type();
+
+        Number {
+            value: match (self.value, value) {
+                (NumberType::INT(v1), NumberType::INT(v2)) => v1 == v2,
+                (NumberType::FLOAT(v1), NumberType::FLOAT(v2)) => v1 == v2,
+                (NumberType::INT(v1), NumberType::FLOAT(v2)) => v1 as ChFloat == v2,
+                (NumberType::FLOAT(v1), NumberType::INT(v2)) => v1 == v2 as ChFloat,
+            }
+            .as_number_type(),
+            start_pos: self.start_pos,
+            end_pos: self.end_pos,
+            context: self.context,
+        }
+    }
+
+    fn not_equal<T: AsNumberType>(self, other: T) -> Number {
+        let value = other.as_number_type();
+
+        Number {
+            value: match (self.value, value) {
+                (NumberType::INT(v1), NumberType::INT(v2)) => v1 != v2,
+                (NumberType::FLOAT(v1), NumberType::FLOAT(v2)) => v1 != v2,
+                (NumberType::INT(v1), NumberType::FLOAT(v2)) => v1 as ChFloat != v2,
+                (NumberType::FLOAT(v1), NumberType::INT(v2)) => v1 != v2 as ChFloat,
+            }
+            .as_number_type(),
+            start_pos: self.start_pos,
+            end_pos: self.end_pos,
+            context: self.context,
+        }
+    }
+
+    fn less<T: AsNumberType>(self, other: T) -> Number {
+        let value = other.as_number_type();
+
+        Number {
+            value: match (self.value, value) {
+                (NumberType::INT(v1), NumberType::INT(v2)) => v1 < v2,
+                (NumberType::FLOAT(v1), NumberType::FLOAT(v2)) => v1 < v2,
+                (NumberType::INT(v1), NumberType::FLOAT(v2)) => (v1 as ChFloat) < v2,
+                (NumberType::FLOAT(v1), NumberType::INT(v2)) => v1 < v2 as ChFloat,
+            }
+            .as_number_type(),
+            start_pos: self.start_pos,
+            end_pos: self.end_pos,
+            context: self.context,
+        }
+    }
+
+    fn less_equal<T: AsNumberType>(self, other: T) -> Number {
+        let value = other.as_number_type();
+
+        Number {
+            value: match (self.value, value) {
+                (NumberType::INT(v1), NumberType::INT(v2)) => v1 <= v2,
+                (NumberType::FLOAT(v1), NumberType::FLOAT(v2)) => v1 <= v2,
+                (NumberType::INT(v1), NumberType::FLOAT(v2)) => (v1 as ChFloat) <= v2,
+                (NumberType::FLOAT(v1), NumberType::INT(v2)) => v1 <= v2 as ChFloat,
+            }
+            .as_number_type(),
+            start_pos: self.start_pos,
+            end_pos: self.end_pos,
+            context: self.context,
+        }
+    }
+
+    fn greater<T: AsNumberType>(self, other: T) -> Number {
+        let value = other.as_number_type();
+
+        Number {
+            value: match (self.value, value) {
+                (NumberType::INT(v1), NumberType::INT(v2)) => v1 > v2,
+                (NumberType::FLOAT(v1), NumberType::FLOAT(v2)) => v1 > v2,
+                (NumberType::INT(v1), NumberType::FLOAT(v2)) => (v1 as ChFloat) > v2,
+                (NumberType::FLOAT(v1), NumberType::INT(v2)) => v1 > v2 as ChFloat,
+            }
+            .as_number_type(),
+            start_pos: self.start_pos,
+            end_pos: self.end_pos,
+            context: self.context,
+        }
+    }
+
+    fn greater_equal<T: AsNumberType>(self, other: T) -> Number {
+        let value = other.as_number_type();
+
+        Number {
+            value: match (self.value, value) {
+                (NumberType::INT(v1), NumberType::INT(v2)) => v1 >= v2,
+                (NumberType::FLOAT(v1), NumberType::FLOAT(v2)) => v1 >= v2,
+                (NumberType::INT(v1), NumberType::FLOAT(v2)) => (v1 as ChFloat) >= v2,
+                (NumberType::FLOAT(v1), NumberType::INT(v2)) => v1 >= v2 as ChFloat,
+            }
+            .as_number_type(),
+            start_pos: self.start_pos,
+            end_pos: self.end_pos,
+            context: self.context,
+        }
+    }
+
+    fn and<T: AsNumberType>(self, other: T) -> Number {
+        let value = other.as_number_type();
+
+        Number {
+            value: match (self.value, value) {
+                (NumberType::INT(v1), NumberType::INT(v2)) => v1 == 1 && v2 == 1,
+                (NumberType::FLOAT(v1), NumberType::FLOAT(v2)) => v1 == 1.0 && v2 == 1.0,
+                (NumberType::INT(v1), NumberType::FLOAT(v2)) => v1 == 1 && v2 == 1.0,
+                (NumberType::FLOAT(v1), NumberType::INT(v2)) => v1 == 1.0 && v2 == 1,
+            }
+            .as_number_type(),
+            start_pos: self.start_pos,
+            end_pos: self.end_pos,
+            context: self.context,
+        }
+    }
+
+    fn or<T: AsNumberType>(self, other: T) -> Number {
+        let value = other.as_number_type();
+
+        Number {
+            value: match (self.value, value) {
+                (NumberType::INT(v1), NumberType::INT(v2)) => v1 == 1 || v2 == 1,
+                (NumberType::FLOAT(v1), NumberType::FLOAT(v2)) => v1 == 1.0 || v2 == 1.0,
+                (NumberType::INT(v1), NumberType::FLOAT(v2)) => v1 == 1 || v2 == 1.0,
+                (NumberType::FLOAT(v1), NumberType::INT(v2)) => v1 == 1.0 || v2 == 1,
+            }
+            .as_number_type(),
+            start_pos: self.start_pos,
+            end_pos: self.end_pos,
+            context: self.context,
+        }
+    }
+
+    fn not(mut self) -> Number {
+        self.value = match self.value {
+            NumberType::INT(value) => if value != 0 { 0 } else { 1 }.as_number_type(),
+            NumberType::FLOAT(value) => if value != 0.0 { 0.0 } else { 1.0 }.as_number_type(),
+        };
+        self
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -719,26 +1100,26 @@ fn visit_numb_node(token: &mut Token, context: &mut Context) -> Result<Number, E
 
 fn visit_access_node(token: &mut Token, context: &mut Context) -> Result<Number, Error> {
     let var = &token.token_type;
-        match var {
-            TokenType::ID(var_name) => {
-                let mut entry = context.symbol_table.borrow().get(&var_name);
+    match var {
+        TokenType::ID(var_name) => {
+            let mut entry = context.symbol_table.borrow().get(&var_name);
 
-                match &mut entry {
-                    Some(num) => {
-                        num.set_position(token.start_pos.clone(), token.end_pos.clone());
-                        Ok(num.clone())
-                    },
-                    None => Err(Error::new(
-                        ErrType::RuntimeError,
-                        &token.start_pos,
-                        &token.end_pos,
-                        format!("{:?} is not defined", var_name),
-                        Some(context),
-                    )),
+            match &mut entry {
+                Some(num) => {
+                    num.set_position(token.start_pos.clone(), token.end_pos.clone());
+                    Ok(num.clone())
                 }
+                None => Err(Error::new(
+                    ErrType::RuntimeError,
+                    &token.start_pos,
+                    &token.end_pos,
+                    format!("{:?} is not defined", var_name),
+                    Some(context),
+                )),
             }
-            _ => panic!("called visit_access_node on a non ID token"),
         }
+        _ => panic!("called visit_access_node on a non ID token"),
+    }
 }
 
 fn visit_assign_node(
@@ -751,8 +1132,8 @@ fn visit_assign_node(
 
     match t.token_type {
         TokenType::ID(var_name) => {
-                context.symbol_table.borrow_mut().set(&var_name, v.clone());
-                return Ok(v);
+            context.symbol_table.borrow_mut().set(&var_name, v.clone());
+            return Ok(v);
         }
         _ => panic!("called visit_assign_node on {:?}", value),
     }
@@ -768,8 +1149,7 @@ fn visit_unryop_node(
 
     match op.token_type {
         TokenType::SUB => Ok(number.mult(-1)),
-        TokenType::ADD => Ok(number),
-
+        TokenType::KEYWRD(Keyword::NOT) => Ok(number.not()),
         _ => panic!("called visit_unryop_node on a binop node that has a non Operation token"),
     }
 }
@@ -790,6 +1170,14 @@ fn visit_binop_node(
         TokenType::MUL => Ok(left.mult(right)),
         TokenType::DIV => left.div(right),
         TokenType::POW => left.pow(right),
+        TokenType::LESS => Ok(left.less(right)),
+        TokenType::EQUAL => Ok(left.equal(right)),
+        TokenType::NEQUAL => Ok(left.not_equal(right)),
+        TokenType::LESSEQ => Ok(left.less_equal(right)),
+        TokenType::GREATER => Ok(left.greater(right)),
+        TokenType::GREATEREQ => Ok(left.greater_equal(right)),
+        TokenType::KEYWRD(Keyword::AND) => Ok(left.and(right)),
+        TokenType::KEYWRD(Keyword::OR) => Ok(left.or(right)),
         _ => panic!("called visit_binop_node on a binop node that has a non Operation token"),
     }
 }
@@ -799,9 +1187,14 @@ pub struct Compiler {
 }
 
 impl Compiler {
-
     pub fn new() -> Self {
-        Compiler { global_symbol_table: Rc::new(RefCell::new(SymbolTable::empty())) }
+        let mut table = SymbolTable::empty();
+        table.set(&String::from("False"), Number::from(0.as_number_type()));
+        table.set(&String::from("True"), Number::from(1.as_number_type()));
+
+        Compiler {
+            global_symbol_table: Rc::new(RefCell::new(table)),
+        }
     }
 
     pub fn interpret(&mut self, file_name: String, text: String) -> Result<Number, Error> {

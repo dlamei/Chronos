@@ -2,7 +2,7 @@ ranked by priority
 
 #atom
 
-    = INT|FLOAT
+    = INT|FLOAT|IDENTIFIER
     = LPAREN expr RPAREN
 
 # power
