@@ -19,7 +19,7 @@ fn main() {
             .expect("Error while reading from STDIN");
 
         match c.interpret(String::from("STDIN"), buffer) {
-            Ok(result) => println!("{:?}", result.get_value_type()),
+            Ok(result) => println!("{}", result),
             Err(e) => eprintln!("{}", e),
         }
     }

@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
+use std::fmt::Display;
 use std::mem;
 use std::rc::Rc;
 
@@ -690,57 +691,54 @@ impl Parser {
         Ok(Node::IF(cases, else_case))
     }
 
+    //match self.current_token.token_type {
+    //    TokenType::KEYWRD(Keyword::IF) => {
+    //        self.advance();
+    //        let condition = self.expression()?;
 
+    //        match self.current_token.token_type {
+    //            TokenType::LCURLY => {
+    //                self.advance();
+    //                let expr = self.expression()?;
+    //                cases.push(expr);
 
-
-        //match self.current_token.token_type {
-        //    TokenType::KEYWRD(Keyword::IF) => {
-        //        self.advance();
-        //        let condition = self.expression()?;
-
-        //        match self.current_token.token_type {
-        //            TokenType::LCURLY => {
-        //                self.advance();
-        //                let expr = self.expression()?;
-        //                cases.push(expr);
-
-        //                self.advance();
-        //                match self.current_token.token_type {
-        //                    TokenType::RCURLY => {
-        //                        while match self.current_token.token_type {
-        //                            TokenType::KEYWRD(Keyword::ELIF) => true,
-        //                            _ => false,
-        //                        } {
-        //                            self.advance();
-        //                            let condition = self.expression()?;
-        //                        }
-        //                    }
-        //                    _ => Err(Error::new(
-        //                        ErrType::InvalidSyntaxError,
-        //                        &self.current_token.start_pos,
-        //                        &self.current_token.end_pos,
-        //                        format!("Parser: expected '}' found '{:?}'", self.current_token),
-        //                        None,
-        //                    )),
-        //                }
-        //            }
-        //            _ => Err(Error::new(
-        //                ErrType::InvalidSyntaxError,
-        //                &self.current_token.start_pos,
-        //                &self.current_token.end_pos,
-        //                format!("Parser: expected '{' found '{:?}'", self.current_token),
-        //                None,
-        //            )),
-        //        }
-        //    }
-        //    _ => Err(Error::new(
-        //        ErrType::InvalidSyntaxError,
-        //        &self.current_token.start_pos,
-        //        &self.current_token.end_pos,
-        //        format!("Parser: expected IF found '{:?}'", self.current_token),
-        //        None,
-        //    )),
-        //}
+    //                self.advance();
+    //                match self.current_token.token_type {
+    //                    TokenType::RCURLY => {
+    //                        while match self.current_token.token_type {
+    //                            TokenType::KEYWRD(Keyword::ELIF) => true,
+    //                            _ => false,
+    //                        } {
+    //                            self.advance();
+    //                            let condition = self.expression()?;
+    //                        }
+    //                    }
+    //                    _ => Err(Error::new(
+    //                        ErrType::InvalidSyntaxError,
+    //                        &self.current_token.start_pos,
+    //                        &self.current_token.end_pos,
+    //                        format!("Parser: expected '}' found '{:?}'", self.current_token),
+    //                        None,
+    //                    )),
+    //                }
+    //            }
+    //            _ => Err(Error::new(
+    //                ErrType::InvalidSyntaxError,
+    //                &self.current_token.start_pos,
+    //                &self.current_token.end_pos,
+    //                format!("Parser: expected '{' found '{:?}'", self.current_token),
+    //                None,
+    //            )),
+    //        }
+    //    }
+    //    _ => Err(Error::new(
+    //        ErrType::InvalidSyntaxError,
+    //        &self.current_token.start_pos,
+    //        &self.current_token.end_pos,
+    //        format!("Parser: expected IF found '{:?}'", self.current_token),
+    //        None,
+    //    )),
+    //}
     //}
 
     fn arith_expression(&mut self) -> Result<Node, Error> {
@@ -848,6 +846,12 @@ impl Parser {
 pub enum NumberType {
     INT(ChInt),
     FLOAT(ChFloat),
+}
+
+#[derive(Clone, Debug)]
+pub struct None {
+    start_pos: Position,
+    end_pos: Position,
 }
 
 #[derive(Debug, Clone)]
@@ -1156,6 +1160,54 @@ impl Number {
 }
 
 #[derive(Debug, Clone)]
+pub enum ChType {
+    NUMBER(Number),
+    NONE(None),
+}
+
+impl Display for ChType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ChType::NUMBER(n) => write!(f, "{:?}", n.get_value_type()),
+            ChType::NONE(_) => write!(f, "none"),
+        }
+    }
+}
+
+impl ChType {
+    pub fn get_start(&self) -> Position {
+        match self {
+            ChType::NUMBER(num) => num.start_pos.clone(),
+            ChType::NONE(none) => none.start_pos.clone(),
+        }
+    }
+
+    pub fn get_end(&self) -> Position {
+        match self {
+            ChType::NUMBER(num) => num.end_pos.clone(),
+            ChType::NONE(none) => none.end_pos.clone(),
+        }
+    }
+
+    pub fn set_pos(&mut self, start_pos: Position, end_pos: Position) {
+        match self {
+            ChType::NUMBER(num) => num.set_position(start_pos, end_pos),
+            ChType::NONE(none) => {
+                none.start_pos = start_pos;
+                none.end_pos = end_pos;
+            }
+        }
+    }
+
+    pub fn is_true(&self) -> bool {
+        match self {
+            ChType::NUMBER(num) => num.is_true(),
+            ChType::NONE(_) => false,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Context {
     pub display_name: String,
     pub parent: Option<(Box<Context>, Position)>,
@@ -1165,7 +1217,7 @@ pub struct Context {
 #[derive(Debug, Clone)]
 pub struct SymbolTable {
     parent: Option<Rc<SymbolTable>>,
-    table: HashMap<String, Number>,
+    table: HashMap<String, ChType>,
     immutable: Vec<String>,
 }
 
@@ -1178,7 +1230,7 @@ impl SymbolTable {
         }
     }
 
-    fn get(&self, key: &String) -> Option<Number> {
+    fn get(&self, key: &String) -> Option<ChType> {
         match self.table.get(key) {
             Some(v) => Some(v.clone()),
             None => match &self.parent {
@@ -1188,7 +1240,7 @@ impl SymbolTable {
         }
     }
 
-    fn set_mut(&mut self, key: &String, value: Number) -> bool {
+    fn set_mut(&mut self, key: &String, value: ChType) -> bool {
         if self.table.contains_key(key) {
             if self.immutable.contains(&key) {
                 false
@@ -1202,7 +1254,7 @@ impl SymbolTable {
         }
     }
 
-    fn set(&mut self, key: &String, value: Number) -> bool {
+    fn set(&mut self, key: &String, value: ChType) -> bool {
         let b = self.set_mut(key, value);
         if b {
             self.immutable.push(key.to_string())
@@ -1225,7 +1277,7 @@ impl Context {
     }
 }
 
-fn visit_node(node: &mut Node, context: &mut Context) -> Result<Number, Error> {
+fn visit_node(node: &mut Node, context: &mut Context) -> Result<ChType, Error> {
     match node {
         Node::NUM(token) => visit_numb_node(token, context),
         Node::UNRYOP(op, node) => visit_unryop_node(op, node, context),
@@ -1236,25 +1288,25 @@ fn visit_node(node: &mut Node, context: &mut Context) -> Result<Number, Error> {
     }
 }
 
-fn visit_numb_node(token: &mut Token, context: &mut Context) -> Result<Number, Error> {
+fn visit_numb_node(token: &mut Token, context: &mut Context) -> Result<ChType, Error> {
     match token.token_type {
-        TokenType::INT(value) => Ok(Number {
+        TokenType::INT(value) => Ok(ChType::NUMBER(Number {
             value: value.as_number_type(),
             start_pos: token.start_pos.clone(),
             end_pos: token.end_pos.clone(),
             context: Some(context.clone()),
-        }),
-        TokenType::FLOAT(value) => Ok(Number {
+        })),
+        TokenType::FLOAT(value) => Ok(ChType::NUMBER(Number {
             value: value.as_number_type(),
             start_pos: token.start_pos.clone(),
             end_pos: token.end_pos.clone(),
             context: Some(context.clone()),
-        }),
+        })),
         _ => panic!("called visit_numb_node on a number node that has a non number token"),
     }
 }
 
-fn visit_access_node(token: &mut Token, context: &mut Context) -> Result<Number, Error> {
+fn visit_access_node(token: &mut Token, context: &mut Context) -> Result<ChType, Error> {
     let var = &token.token_type;
     match var {
         TokenType::ID(var_name) => {
@@ -1262,7 +1314,7 @@ fn visit_access_node(token: &mut Token, context: &mut Context) -> Result<Number,
 
             match &mut entry {
                 Some(num) => {
-                    num.set_position(token.start_pos.clone(), token.end_pos.clone());
+                    num.set_pos(token.start_pos.clone(), token.end_pos.clone());
                     Ok(num.clone())
                 }
                 None => Err(Error::new(
@@ -1282,27 +1334,45 @@ fn visit_assign_node(
     id: &mut Token,
     value: &mut Node,
     context: &mut Context,
-) -> Result<Number, Error> {
-    let v = visit_node(value, context)?;
+) -> Result<ChType, Error> {
     let t = id.clone();
+    let ch_type = visit_node(value, context)?;
 
     match t.token_type {
-        TokenType::ID(var_name) => {
-            if !context
-                .symbol_table
-                .borrow_mut()
-                .set_mut(&var_name, v.clone())
-            {
-                return Err(Error::new(
-                    ErrType::RuntimeError,
-                    &v.start_pos,
-                    &v.end_pos,
-                    format!("cannot assign {:?} to {:?}", v.value, var_name),
-                    Some(context),
-                ));
+        TokenType::ID(var_name) => match ch_type {
+            ChType::NUMBER(num) => {
+                if !context
+                    .symbol_table
+                    .borrow_mut()
+                    .set_mut(&var_name, ChType::NUMBER(num.clone()))
+                {
+                    return Err(Error::new(
+                        ErrType::RuntimeError,
+                        &num.start_pos,
+                        &num.end_pos,
+                        format!("cannot assign {:?} to {:?}", num.value, var_name),
+                        Some(context),
+                    ));
+                }
+                Ok(ChType::NUMBER(num))
             }
-            return Ok(v);
-        }
+            ChType::NONE(none) => {
+                if !context
+                    .symbol_table
+                    .borrow_mut()
+                    .set_mut(&var_name, ChType::NONE(none.clone()))
+                {
+                    return Err(Error::new(
+                        ErrType::RuntimeError,
+                        &none.start_pos,
+                        &none.end_pos,
+                        format!("cannot assign 'none' to {:?}", var_name),
+                        Some(context),
+                    ));
+                }
+                Ok(ChType::NONE(none.clone()))
+            }
+        },
         _ => panic!("called visit_assign_node on {:?}", value),
     }
 }
@@ -1311,14 +1381,23 @@ fn visit_unryop_node(
     op: &mut Token,
     node: &mut Node,
     context: &mut Context,
-) -> Result<Number, Error> {
-    let mut number = visit_node(node, context)?;
-    number.set_position(op.start_pos.clone(), number.end_pos.clone());
+) -> Result<ChType, Error> {
+    let mut ch_type = visit_node(node, context)?;
+    ch_type.set_pos(op.start_pos.clone(), ch_type.get_end());
 
-    match op.token_type {
-        TokenType::SUB => Ok(number.mult(-1)),
-        TokenType::KEYWRD(Keyword::NOT) => Ok(number.not()),
-        _ => panic!("called visit_unryop_node on a binop node that has a non Operation token"),
+    match ch_type {
+        ChType::NUMBER(n) => match op.token_type {
+            TokenType::SUB => Ok(ChType::NUMBER(n.mult(-1))),
+            TokenType::KEYWRD(Keyword::NOT) => Ok(ChType::NUMBER(n.not())),
+            _ => panic!("called visit_unryop_node on a binop node that has a non Operation token"),
+        },
+        ChType::NONE(none) => Err(Error::new(
+            ErrType::RuntimeError,
+            &none.start_pos,
+            &none.end_pos,
+            String::from("undefined operation for type: 'none'"),
+            Some(context),
+        )),
     }
 }
 
@@ -1327,32 +1406,58 @@ fn visit_binop_node(
     op: &mut Token,
     right: &mut Node,
     context: &mut Context,
-) -> Result<Number, Error> {
+) -> Result<ChType, Error> {
     let mut left = visit_node(left, context)?;
     let right = visit_node(right, context)?;
-    left.set_position(left.start_pos.clone(), right.end_pos.clone());
+    left.set_pos(left.get_start(), right.get_end());
 
-    match op.token_type {
-        TokenType::ADD => Ok(left.add(right)),
-        TokenType::SUB => Ok(left.sub(right)),
-        TokenType::MUL => Ok(left.mult(right)),
-        TokenType::DIV => left.div(right),
-        TokenType::POW => left.pow(right),
-        TokenType::LESS => Ok(left.less(right)),
-        TokenType::EQUAL => Ok(left.equal(right)),
-        TokenType::NEQUAL => Ok(left.not_equal(right)),
-        TokenType::LESSEQ => Ok(left.less_equal(right)),
-        TokenType::GREATER => Ok(left.greater(right)),
-        TokenType::GREATEREQ => Ok(left.greater_equal(right)),
-        TokenType::KEYWRD(Keyword::AND) => Ok(left.and(right)),
-        TokenType::KEYWRD(Keyword::OR) => Ok(left.or(right)),
-        _ => panic!("called visit_binop_node on a binop node that has a non Operation token"),
+    let start = left.get_start();
+    let end = left.get_end();
+
+    match (left, right) {
+        (ChType::NUMBER(n1), ChType::NUMBER(n2)) => Ok(ChType::NUMBER(match op.token_type {
+            TokenType::ADD => n1.add(n2),
+            TokenType::SUB => n1.sub(n2),
+            TokenType::MUL => n1.mult(n2),
+            TokenType::DIV => n1.div(n2)?,
+            TokenType::POW => n1.pow(n2)?,
+            TokenType::LESS => n1.less(n2),
+            TokenType::EQUAL => n1.equal(n2),
+            TokenType::NEQUAL => n1.not_equal(n2),
+            TokenType::LESSEQ => n1.less_equal(n2),
+            TokenType::GREATER => n1.greater(n2),
+            TokenType::GREATEREQ => n1.greater_equal(n2),
+            TokenType::KEYWRD(Keyword::AND) => n1.and(n2),
+            TokenType::KEYWRD(Keyword::OR) => n1.or(n2),
+            _ => panic!("called visit_binop_node on a binop node that has a non Operation token"),
+        })),
+        _ => Err(Error::new(
+            ErrType::RuntimeError,
+            &start,
+            &end,
+            format!("operation not defined for type: 'none'"),
+            Some(context),
+        )),
     }
 }
 
-fn visit_if_node(cases: &mut Vec<(Node, Node)>, else_case: &mut Option<Box<Node>>, context: &mut Context) -> Result<Number, Error> {
+fn visit_if_node(
+    cases: &mut Vec<(Node, Node)>,
+    else_case: &mut Option<Box<Node>>,
+    context: &mut Context,
+) -> Result<ChType, Error> {
+    let mut start = Position::empty();
+    let mut end = Position::empty();
+    let mut first_cond = true;
+
     for (condition, expr) in cases {
         let cond = visit_node(condition, context)?;
+
+        if first_cond {
+            start = cond.get_start();
+            end = cond.get_end();
+            first_cond = false;
+        }
 
         if cond.is_true() {
             return visit_node(expr, context);
@@ -1361,7 +1466,10 @@ fn visit_if_node(cases: &mut Vec<(Node, Node)>, else_case: &mut Option<Box<Node>
 
     match else_case {
         Some(node) => visit_node(node, context),
-        _ => panic!("test"),
+        _ => Ok(ChType::NONE(None {
+            start_pos: start,
+            end_pos: end,
+        })),
     }
 }
 
@@ -1372,15 +1480,28 @@ pub struct Compiler {
 impl Compiler {
     pub fn new() -> Self {
         let mut table = SymbolTable::empty();
-        table.set(&String::from("false"), Number::from(0.as_number_type()));
-        table.set(&String::from("true"), Number::from(1.as_number_type()));
+        table.set(
+            &String::from("false"),
+            ChType::NUMBER(Number::from(0.as_number_type())),
+        );
+        table.set(
+            &String::from("true"),
+            ChType::NUMBER(Number::from(1.as_number_type())),
+        );
+        table.set(
+            &String::from("none"),
+            ChType::NONE(None {
+                start_pos: Position::empty(),
+                end_pos: Position::empty(),
+            }),
+        );
 
         Compiler {
             global_symbol_table: Rc::new(RefCell::new(table)),
         }
     }
 
-    pub fn interpret(&mut self, file_name: String, text: String) -> Result<Number, Error> {
+    pub fn interpret(&mut self, file_name: String, text: String) -> Result<ChType, Error> {
         let mut lexer = Lexer::new(file_name, text);
         let tokens = lexer.parse_tokens()?;
 
