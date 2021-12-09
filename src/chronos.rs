@@ -75,6 +75,7 @@ pub enum Keyword {
     IF,
     ELIF,
     ELSE,
+    WHILE
 }
 
 fn keyword_to_string(k: Keyword) -> String {
@@ -86,6 +87,7 @@ fn keyword_to_string(k: Keyword) -> String {
         Keyword::IF => "if",
         Keyword::ELIF => "elif",
         Keyword::ELSE => "else",
+        Keyword::WHILE => "while",
     })
 }
 
@@ -105,6 +107,7 @@ fn get_keyword(s: &String) -> Result<Keyword, ()> {
         "if" => Ok(Keyword::IF),
         "elif" => Ok(Keyword::ELIF),
         "else" => Ok(Keyword::ELSE),
+        "while" => Ok(Keyword::WHILE),
         _ => Err(()),
     }
 }
@@ -469,6 +472,7 @@ pub enum Node {
     ASSIGN(Token, Box<Node>),
     ACCESS(Token),
     IF(Vec<(Node, Node)>, Option<Box<Node>>),
+    WHILE(Box<Node>, Box<Node>),
 }
 
 impl Parser {
@@ -541,6 +545,7 @@ impl Parser {
                 }
             }
             TokenType::KEYWRD(Keyword::IF) => self.if_expression(),
+            TokenType::KEYWRD(Keyword::WHILE) => self.while_expression(),
             _ => Err(Error::new(
                 ErrType::InvalidSyntaxError,
                 &t.start_pos,
@@ -649,7 +654,7 @@ impl Parser {
         let expr = self.expression()?;
         cases.push((condition, expr));
 
-        if !match_enum_type(&self.current_token.token_type, &TokenType::RCURLY) {
+        if !matches!(self.current_token.token_type, TokenType::RCURLY) {
             return Err(Error::new(
                 ErrType::InvalidSyntaxError,
                 &self.current_token.start_pos,
@@ -660,9 +665,41 @@ impl Parser {
         }
         self.advance();
 
-        if let TokenType::KEYWRD(Keyword::ELSE) = self.current_token.token_type {
+        while matches!(self.current_token.token_type, TokenType::KEYWRD(Keyword::ELIF)) {
             self.advance();
-            if !match_enum_type(&self.current_token.token_type, &TokenType::LCURLY) {
+            let cond = self.expression()?;
+
+            if !matches!(self.current_token.token_type, TokenType::LCURLY) {
+                return Err(Error::new(
+                    ErrType::InvalidSyntaxError,
+                    &self.current_token.start_pos,
+                    &self.current_token.end_pos,
+                    format!("Parser: expected LCURLY found '{:?}'", self.current_token),
+                    None,
+                ));
+            }
+            self.advance();
+
+            let expr = self.expression()?;
+            cases.push((cond, expr));
+
+            if !matches!(self.current_token.token_type, TokenType::RCURLY) {
+                return Err(Error::new(
+                    ErrType::InvalidSyntaxError,
+                    &self.current_token.start_pos,
+                    &self.current_token.end_pos,
+                    format!("Parser: expected RCURLY found '{:?}'", self.current_token),
+                    None,
+                ));
+            }
+            self.advance();
+
+        }
+
+        if matches!(self.current_token.token_type, TokenType::KEYWRD(Keyword::ELSE)) {
+        //if let TokenType::KEYWRD(Keyword::ELSE) = self.current_token.token_type {
+            self.advance();
+            if !matches!(self.current_token.token_type, TokenType::LCURLY) {
                 return Err(Error::new(
                     ErrType::InvalidSyntaxError,
                     &self.current_token.start_pos,
@@ -675,7 +712,7 @@ impl Parser {
 
             else_case = Some(Box::new(self.expression()?));
 
-            if !match_enum_type(&self.current_token.token_type, &TokenType::RCURLY) {
+            if !matches!(&self.current_token.token_type, &TokenType::RCURLY) {
                 return Err(Error::new(
                     ErrType::InvalidSyntaxError,
                     &self.current_token.start_pos,
@@ -691,55 +728,46 @@ impl Parser {
         Ok(Node::IF(cases, else_case))
     }
 
-    //match self.current_token.token_type {
-    //    TokenType::KEYWRD(Keyword::IF) => {
-    //        self.advance();
-    //        let condition = self.expression()?;
+    fn while_expression(&mut self) -> Result<Node, Error> {
+        if !matches!(self.current_token.token_type, TokenType::KEYWRD(Keyword::WHILE)) {
+            return Err(Error::new(
+                ErrType::InvalidSyntaxError,
+                &self.current_token.start_pos,
+                &self.current_token.end_pos,
+                format!("Parser: expected IF found '{:?}'", self.current_token),
+                None,
+            ));
+        }
 
-    //        match self.current_token.token_type {
-    //            TokenType::LCURLY => {
-    //                self.advance();
-    //                let expr = self.expression()?;
-    //                cases.push(expr);
+        self.advance();
+        let cond = self.expression()?;
+        
+        if !match_enum_type(&self.current_token.token_type, &TokenType::LCURLY) {
+            return Err(Error::new(
+                ErrType::InvalidSyntaxError,
+                &self.current_token.start_pos,
+                &self.current_token.end_pos,
+                format!("Parser: expected LCURLY found '{:?}'", self.current_token),
+                None,
+            ));
+        }
 
-    //                self.advance();
-    //                match self.current_token.token_type {
-    //                    TokenType::RCURLY => {
-    //                        while match self.current_token.token_type {
-    //                            TokenType::KEYWRD(Keyword::ELIF) => true,
-    //                            _ => false,
-    //                        } {
-    //                            self.advance();
-    //                            let condition = self.expression()?;
-    //                        }
-    //                    }
-    //                    _ => Err(Error::new(
-    //                        ErrType::InvalidSyntaxError,
-    //                        &self.current_token.start_pos,
-    //                        &self.current_token.end_pos,
-    //                        format!("Parser: expected '}' found '{:?}'", self.current_token),
-    //                        None,
-    //                    )),
-    //                }
-    //            }
-    //            _ => Err(Error::new(
-    //                ErrType::InvalidSyntaxError,
-    //                &self.current_token.start_pos,
-    //                &self.current_token.end_pos,
-    //                format!("Parser: expected '{' found '{:?}'", self.current_token),
-    //                None,
-    //            )),
-    //        }
-    //    }
-    //    _ => Err(Error::new(
-    //        ErrType::InvalidSyntaxError,
-    //        &self.current_token.start_pos,
-    //        &self.current_token.end_pos,
-    //        format!("Parser: expected IF found '{:?}'", self.current_token),
-    //        None,
-    //    )),
-    //}
-    //}
+        self.advance();
+        let body = self.expression()?;
+
+        if !match_enum_type(&self.current_token.token_type, &TokenType::RCURLY) {
+            return Err(Error::new(
+                ErrType::InvalidSyntaxError,
+                &self.current_token.start_pos,
+                &self.current_token.end_pos,
+                format!("Parser: expected RCURLY found '{:?}'", self.current_token),
+                None,
+            ));
+        }
+
+        self.advance();
+        Ok(Node::WHILE(cond.into(), body.into()))
+    }
 
     fn arith_expression(&mut self) -> Result<Node, Error> {
         self.binary_operation(
@@ -1207,6 +1235,14 @@ impl ChType {
     }
 }
 
+pub fn compare_chtype(t1: &ChType, t2: &ChType) -> bool {
+    match (t1, t2) {
+        (ChType::NUMBER(n1), ChType::NUMBER(n2)) => n1.clone().equal(n2.clone()).is_true(),
+        (ChType::NONE(_), ChType::NONE(_)) => true,
+        _ => false,
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Context {
     pub display_name: String,
@@ -1285,6 +1321,7 @@ fn visit_node(node: &mut Node, context: &mut Context) -> Result<ChType, Error> {
         Node::ACCESS(id) => visit_access_node(id, context),
         Node::ASSIGN(id, value) => visit_assign_node(id, value, context),
         Node::IF(cases, else_case) => visit_if_node(cases, else_case, context),
+        Node::WHILE(cond, body) => visit_while_node(cond, body, context),
     }
 }
 
@@ -1471,6 +1508,24 @@ fn visit_if_node(
             end_pos: end,
         })),
     }
+}
+
+fn visit_while_node(condition: &mut Node, body: &mut Node, context: &mut Context) -> Result<ChType, Error> {
+    let mut start = Position::empty();
+    let mut end = Position::empty();
+    let mut first_cond = true;
+
+    while visit_node(condition, context)?.is_true() {
+        let res = visit_node(body, context)?;
+
+        if first_cond {
+            start = res.get_start();
+            end = res.get_end();
+            first_cond = false;
+        }
+    }
+
+    Ok(ChType::NONE(None { start_pos: start, end_pos: end }))
 }
 
 pub struct Compiler {
