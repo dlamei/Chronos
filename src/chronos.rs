@@ -13,7 +13,6 @@ const LETTERS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 type ChInt = i32;
 type ChUInt = i32;
 type ChFloat = f32;
-type ChBool = bool;
 
 fn match_enum_type<T>(t1: &T, t2: &T) -> bool {
     mem::discriminant(t1) == mem::discriminant(t2)
@@ -75,7 +74,7 @@ pub enum Keyword {
     IF,
     ELIF,
     ELSE,
-    WHILE
+    WHILE,
 }
 
 fn keyword_to_string(k: Keyword) -> String {
@@ -512,6 +511,11 @@ impl Parser {
         }
     }
 
+    fn retreat(&mut self) {
+        self.token_index -= 1;
+        self.current_token = self.tokens[self.token_index].clone();
+    }
+
     fn atom(&mut self) -> Result<Node, Error> {
         let t = self.current_token.clone();
 
@@ -665,7 +669,10 @@ impl Parser {
         }
         self.advance();
 
-        while matches!(self.current_token.token_type, TokenType::KEYWRD(Keyword::ELIF)) {
+        while matches!(
+            self.current_token.token_type,
+            TokenType::KEYWRD(Keyword::ELIF)
+        ) {
             self.advance();
             let cond = self.expression()?;
 
@@ -693,11 +700,13 @@ impl Parser {
                 ));
             }
             self.advance();
-
         }
 
-        if matches!(self.current_token.token_type, TokenType::KEYWRD(Keyword::ELSE)) {
-        //if let TokenType::KEYWRD(Keyword::ELSE) = self.current_token.token_type {
+        if matches!(
+            self.current_token.token_type,
+            TokenType::KEYWRD(Keyword::ELSE)
+        ) {
+            //if let TokenType::KEYWRD(Keyword::ELSE) = self.current_token.token_type {
             self.advance();
             if !matches!(self.current_token.token_type, TokenType::LCURLY) {
                 return Err(Error::new(
@@ -729,7 +738,10 @@ impl Parser {
     }
 
     fn while_expression(&mut self) -> Result<Node, Error> {
-        if !matches!(self.current_token.token_type, TokenType::KEYWRD(Keyword::WHILE)) {
+        if !matches!(
+            self.current_token.token_type,
+            TokenType::KEYWRD(Keyword::WHILE)
+        ) {
             return Err(Error::new(
                 ErrType::InvalidSyntaxError,
                 &self.current_token.start_pos,
@@ -741,7 +753,7 @@ impl Parser {
 
         self.advance();
         let cond = self.expression()?;
-        
+
         if !match_enum_type(&self.current_token.token_type, &TokenType::LCURLY) {
             return Err(Error::new(
                 ErrType::InvalidSyntaxError,
@@ -822,43 +834,41 @@ impl Parser {
     }
 
     fn expression(&mut self) -> Result<Node, Error> {
+        //match self.current_token.token_type {
+        //    TokenType::KEYWRD(Keyword::LET) => {
+        //        self.advance();
+
         match self.current_token.token_type {
-            TokenType::KEYWRD(Keyword::LET) => {
+            TokenType::ID(_) => {
+                let var = self.current_token.clone();
                 self.advance();
 
                 match self.current_token.token_type {
-                    TokenType::ID(_) => {
-                        let var = self.current_token.clone();
-                        self.advance();
-
-                        match self.current_token.token_type {
-                            TokenType::ASSIGN => {
-                                self.advance();
-                                Ok(Node::ASSIGN(var, Box::new(self.expression()?)))
-                            }
-                            _ => Err(Error::new(
-                                ErrType::InvalidSyntaxError,
-                                &self.current_token.start_pos,
-                                &self.current_token.end_pos,
-                                format!(
-                                    "Parser: Expected assignment operator: '=', found: {:?}",
-                                    self.current_token
-                                ),
-                                None,
-                            )),
-                        }
+                        TokenType::ASSIGN => {
+                            self.advance();
+                            Ok(Node::ASSIGN(var, Box::new(self.expression()?)))
+                        },
+                        _ => {
+                            self.retreat();
+                            self.binary_operation(
+                                Parser::comp_expression,
+                                Vec::new(),
+                                vec![Keyword::AND, Keyword::OR],
+                                Parser::comp_expression,
+                                )
+                        },
+                        //_ => 
+                        //    Err(Error::new(
+                        //    ErrType::InvalidSyntaxError,
+                        //    &self.current_token.start_pos,
+                        //    &self.current_token.end_pos,
+                        //    format!(
+                        //        "Parser: Expected assignment operator: '=', found: {:?}",
+                        //        self.current_token
+                        //    ),
+                        //    None,
+                        //)),
                     }
-                    _ => Err(Error::new(
-                        ErrType::InvalidSyntaxError,
-                        &self.current_token.start_pos,
-                        &self.current_token.end_pos,
-                        format!(
-                            "Parser: Expected identifier, found: {:?}",
-                            self.current_token
-                        ),
-                        None,
-                    )),
-                }
             }
             _ => self.binary_operation(
                 Parser::comp_expression,
@@ -866,7 +876,25 @@ impl Parser {
                 vec![Keyword::AND, Keyword::OR],
                 Parser::comp_expression,
             ),
+            //        _ => Err(Error::new(
+            //            ErrType::InvalidSyntaxError,
+            //            &self.current_token.start_pos,
+            //            &self.current_token.end_pos,
+            //            format!(
+            //                "Parser: Expected identifier, found: {:?}",
+            //                self.current_token
+            //            ),
+            //            None,
+            //        )),
         }
+        //}
+        //_ => self.binary_operation(
+        //    Parser::comp_expression,
+        //    Vec::new(),
+        //    vec![Keyword::AND, Keyword::OR],
+        //    Parser::comp_expression,
+        //),
+        //}
     }
 }
 
@@ -877,13 +905,20 @@ pub enum NumberType {
 }
 
 #[derive(Clone, Debug)]
-pub struct None {
+pub struct ChNone {
+    start_pos: Position,
+    end_pos: Position,
+}
+
+#[derive(Clone, Debug)]
+pub struct ChBool {
+    value: bool,
     start_pos: Position,
     end_pos: Position,
 }
 
 #[derive(Debug, Clone)]
-pub struct Number {
+pub struct ChNumber {
     value: NumberType,
     start_pos: Position,
     end_pos: Position,
@@ -895,7 +930,7 @@ pub trait AsNumberType {
     fn get_value_type(&self) -> NumberType;
 }
 
-impl AsNumberType for ChBool {
+impl AsNumberType for bool {
     fn as_number_type(self) -> NumberType {
         NumberType::INT(if self { 1 } else { 0 })
     }
@@ -925,7 +960,7 @@ impl AsNumberType for ChFloat {
     }
 }
 
-impl AsNumberType for Number {
+impl AsNumberType for ChNumber {
     fn as_number_type(self) -> NumberType {
         self.value
     }
@@ -935,9 +970,9 @@ impl AsNumberType for Number {
     }
 }
 
-impl Number {
+impl ChNumber {
     fn from(value: NumberType) -> Self {
-        Number {
+        ChNumber {
             value,
             start_pos: Position::empty(),
             end_pos: Position::empty(),
@@ -1035,10 +1070,10 @@ impl Number {
         }
     }
 
-    fn equal<T: AsNumberType>(self, other: T) -> Number {
+    fn equal<T: AsNumberType>(self, other: T) -> ChNumber {
         let value = other.as_number_type();
 
-        Number {
+        ChNumber {
             value: match (self.value, value) {
                 (NumberType::INT(v1), NumberType::INT(v2)) => v1 == v2,
                 (NumberType::FLOAT(v1), NumberType::FLOAT(v2)) => v1 == v2,
@@ -1052,10 +1087,10 @@ impl Number {
         }
     }
 
-    fn not_equal<T: AsNumberType>(self, other: T) -> Number {
+    fn not_equal<T: AsNumberType>(self, other: T) -> ChNumber {
         let value = other.as_number_type();
 
-        Number {
+        ChNumber {
             value: match (self.value, value) {
                 (NumberType::INT(v1), NumberType::INT(v2)) => v1 != v2,
                 (NumberType::FLOAT(v1), NumberType::FLOAT(v2)) => v1 != v2,
@@ -1069,10 +1104,10 @@ impl Number {
         }
     }
 
-    fn less<T: AsNumberType>(self, other: T) -> Number {
+    fn less<T: AsNumberType>(self, other: T) -> ChNumber {
         let value = other.as_number_type();
 
-        Number {
+        ChNumber {
             value: match (self.value, value) {
                 (NumberType::INT(v1), NumberType::INT(v2)) => v1 < v2,
                 (NumberType::FLOAT(v1), NumberType::FLOAT(v2)) => v1 < v2,
@@ -1086,10 +1121,10 @@ impl Number {
         }
     }
 
-    fn less_equal<T: AsNumberType>(self, other: T) -> Number {
+    fn less_equal<T: AsNumberType>(self, other: T) -> ChNumber {
         let value = other.as_number_type();
 
-        Number {
+        ChNumber {
             value: match (self.value, value) {
                 (NumberType::INT(v1), NumberType::INT(v2)) => v1 <= v2,
                 (NumberType::FLOAT(v1), NumberType::FLOAT(v2)) => v1 <= v2,
@@ -1103,10 +1138,10 @@ impl Number {
         }
     }
 
-    fn greater<T: AsNumberType>(self, other: T) -> Number {
+    fn greater<T: AsNumberType>(self, other: T) -> ChNumber {
         let value = other.as_number_type();
 
-        Number {
+        ChNumber {
             value: match (self.value, value) {
                 (NumberType::INT(v1), NumberType::INT(v2)) => v1 > v2,
                 (NumberType::FLOAT(v1), NumberType::FLOAT(v2)) => v1 > v2,
@@ -1120,10 +1155,10 @@ impl Number {
         }
     }
 
-    fn greater_equal<T: AsNumberType>(self, other: T) -> Number {
+    fn greater_equal<T: AsNumberType>(self, other: T) -> ChNumber {
         let value = other.as_number_type();
 
-        Number {
+        ChNumber {
             value: match (self.value, value) {
                 (NumberType::INT(v1), NumberType::INT(v2)) => v1 >= v2,
                 (NumberType::FLOAT(v1), NumberType::FLOAT(v2)) => v1 >= v2,
@@ -1137,10 +1172,10 @@ impl Number {
         }
     }
 
-    fn and<T: AsNumberType>(self, other: T) -> Number {
+    fn and<T: AsNumberType>(self, other: T) -> ChNumber {
         let value = other.as_number_type();
 
-        Number {
+        ChNumber {
             value: match (self.value, value) {
                 (NumberType::INT(v1), NumberType::INT(v2)) => v1 >= 1 && v2 >= 1,
                 (NumberType::FLOAT(v1), NumberType::FLOAT(v2)) => v1 >= 1.0 && v2 >= 1.0,
@@ -1154,10 +1189,10 @@ impl Number {
         }
     }
 
-    fn or<T: AsNumberType>(self, other: T) -> Number {
+    fn or<T: AsNumberType>(self, other: T) -> ChNumber {
         let value = other.as_number_type();
 
-        Number {
+        ChNumber {
             value: match (self.value, value) {
                 (NumberType::INT(v1), NumberType::INT(v2)) => v1 >= 1 || v2 >= 1,
                 (NumberType::FLOAT(v1), NumberType::FLOAT(v2)) => v1 >= 1.0 || v2 >= 1.0,
@@ -1171,7 +1206,7 @@ impl Number {
         }
     }
 
-    fn not(mut self) -> Number {
+    fn not(mut self) -> ChNumber {
         self.value = match self.value {
             NumberType::INT(value) => if value != 0 { 0 } else { 1 }.as_number_type(),
             NumberType::FLOAT(value) => if value != 0.0 { 0.0 } else { 1.0 }.as_number_type(),
@@ -1189,8 +1224,9 @@ impl Number {
 
 #[derive(Debug, Clone)]
 pub enum ChType {
-    NUMBER(Number),
-    NONE(None),
+    NUMBER(ChNumber),
+    //BOOL(ChBool),
+    NONE(ChNone),
 }
 
 impl Display for ChType {
@@ -1198,6 +1234,7 @@ impl Display for ChType {
         match self {
             ChType::NUMBER(n) => write!(f, "{:?}", n.get_value_type()),
             ChType::NONE(_) => write!(f, "none"),
+            //ChType::BOOL(b) => write!(f, "{}", if b.value { "true" } else { "false" }),
         }
     }
 }
@@ -1269,9 +1306,9 @@ impl SymbolTable {
     fn get(&self, key: &String) -> Option<ChType> {
         match self.table.get(key) {
             Some(v) => Some(v.clone()),
-            None => match &self.parent {
+            ChNone => match &self.parent {
                 Some(p) => p.get(key),
-                None => None,
+                ChNone => None,
             },
         }
     }
@@ -1327,13 +1364,13 @@ fn visit_node(node: &mut Node, context: &mut Context) -> Result<ChType, Error> {
 
 fn visit_numb_node(token: &mut Token, context: &mut Context) -> Result<ChType, Error> {
     match token.token_type {
-        TokenType::INT(value) => Ok(ChType::NUMBER(Number {
+        TokenType::INT(value) => Ok(ChType::NUMBER(ChNumber {
             value: value.as_number_type(),
             start_pos: token.start_pos.clone(),
             end_pos: token.end_pos.clone(),
             context: Some(context.clone()),
         })),
-        TokenType::FLOAT(value) => Ok(ChType::NUMBER(Number {
+        TokenType::FLOAT(value) => Ok(ChType::NUMBER(ChNumber {
             value: value.as_number_type(),
             start_pos: token.start_pos.clone(),
             end_pos: token.end_pos.clone(),
@@ -1354,7 +1391,7 @@ fn visit_access_node(token: &mut Token, context: &mut Context) -> Result<ChType,
                     num.set_pos(token.start_pos.clone(), token.end_pos.clone());
                     Ok(num.clone())
                 }
-                None => Err(Error::new(
+                ChNone => Err(Error::new(
                     ErrType::RuntimeError,
                     &token.start_pos,
                     &token.end_pos,
@@ -1503,14 +1540,18 @@ fn visit_if_node(
 
     match else_case {
         Some(node) => visit_node(node, context),
-        _ => Ok(ChType::NONE(None {
+        _ => Ok(ChType::NONE(ChNone {
             start_pos: start,
             end_pos: end,
         })),
     }
 }
 
-fn visit_while_node(condition: &mut Node, body: &mut Node, context: &mut Context) -> Result<ChType, Error> {
+fn visit_while_node(
+    condition: &mut Node,
+    body: &mut Node,
+    context: &mut Context,
+) -> Result<ChType, Error> {
     let mut start = Position::empty();
     let mut end = Position::empty();
     let mut first_cond = true;
@@ -1525,7 +1566,10 @@ fn visit_while_node(condition: &mut Node, body: &mut Node, context: &mut Context
         }
     }
 
-    Ok(ChType::NONE(None { start_pos: start, end_pos: end }))
+    Ok(ChType::NONE(ChNone {
+        start_pos: start,
+        end_pos: end,
+    }))
 }
 
 pub struct Compiler {
@@ -1537,15 +1581,15 @@ impl Compiler {
         let mut table = SymbolTable::empty();
         table.set(
             &String::from("false"),
-            ChType::NUMBER(Number::from(0.as_number_type())),
+            ChType::NUMBER(ChNumber::from(0.as_number_type())),
         );
         table.set(
             &String::from("true"),
-            ChType::NUMBER(Number::from(1.as_number_type())),
+            ChType::NUMBER(ChNumber::from(1.as_number_type())),
         );
         table.set(
             &String::from("none"),
-            ChType::NONE(None {
+            ChType::NONE(ChNone {
                 start_pos: Position::empty(),
                 end_pos: Position::empty(),
             }),
