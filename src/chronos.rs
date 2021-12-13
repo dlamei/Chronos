@@ -67,7 +67,6 @@ impl Position {
 
 #[derive(Debug, Clone)]
 pub enum Keyword {
-    LET,
     AND,
     OR,
     NOT,
@@ -75,31 +74,26 @@ pub enum Keyword {
     ELIF,
     ELSE,
     WHILE,
+    FOR,
+    FUNC,
 }
 
-fn keyword_to_string(k: Keyword) -> String {
-    String::from(match k {
-        Keyword::LET => "let",
-        Keyword::AND => "and",
-        Keyword::OR => "or",
-        Keyword::NOT => "not",
-        Keyword::IF => "if",
-        Keyword::ELIF => "elif",
-        Keyword::ELSE => "else",
-        Keyword::WHILE => "while",
-    })
-}
-
-//fn is_keyword(s: &String) -> bool {
-//    s.eq(&keyword_to_string(Keyword::LET))
-//        || s.eq(&keyword_to_string(Keyword::AND))
-//        || s.eq(&keyword_to_string(Keyword::OR))
-//        || s.eq(&keyword_to_string(Keyword::NOT))
+//fn keyword_to_string(k: Keyword) -> String {
+//    String::from(match k {
+//        Keyword::LET => "let",
+//        Keyword::AND => "and",
+//        Keyword::OR => "or",
+//        Keyword::NOT => "not",
+//        Keyword::IF => "if",
+//        Keyword::ELIF => "elif",
+//        Keyword::ELSE => "else",
+//        Keyword::WHILE => "while",
+//        Keyword::FOR => "for",
+//    })
 //}
 
 fn get_keyword(s: &String) -> Result<Keyword, ()> {
     match s.as_ref() {
-        "let" => Ok(Keyword::LET),
         "&&" => Ok(Keyword::AND),
         "||" => Ok(Keyword::OR),
         "!" => Ok(Keyword::NOT),
@@ -107,6 +101,8 @@ fn get_keyword(s: &String) -> Result<Keyword, ()> {
         "elif" => Ok(Keyword::ELIF),
         "else" => Ok(Keyword::ELSE),
         "while" => Ok(Keyword::WHILE),
+        "for" => Ok(Keyword::FOR),
+        "fn" => Ok(Keyword::FUNC),
         _ => Err(()),
     }
 }
@@ -116,7 +112,9 @@ pub enum TokenType {
     INT(ChInt),
     FLOAT(ChFloat),
     ADD,
+    INCRMNT,
     SUB,
+    DECRMNT,
     MUL,
     DIV,
     POW,
@@ -124,6 +122,8 @@ pub enum TokenType {
     RROUND,
     LCURLY,
     RCURLY,
+    SEMICLN,
+    COMMA,
     EOF,
 
     ID(String),
@@ -152,7 +152,7 @@ impl fmt::Debug for Token {
 }
 
 impl Token {
-    pub fn new(token_type: TokenType, start_pos: &Position, end_pos: Option<&Position>) -> Self {
+    pub fn new(token_type: TokenType, start_pos: Position, end_pos: Option<Position>) -> Self {
         if let Some(end) = end_pos {
             return Token {
                 token_type,
@@ -215,47 +215,58 @@ impl Lexer {
                 self.advance();
             } else if match c {
                 '+' => {
-                    tokens.push(Token::new(TokenType::ADD, &self.position, None));
-                    self.advance();
+                    //tokens.push(Token::new(TokenType::ADD, &self.position, None));
+                    tokens.push(self.make_add()?);
+                    //self.advance();
                     true
                 }
                 '-' => {
-                    tokens.push(Token::new(TokenType::SUB, &self.position, None));
+                    tokens.push(self.make_sub()?);
                     self.advance();
                     true
                 }
                 '/' => {
-                    tokens.push(Token::new(TokenType::DIV, &self.position, None));
+                    tokens.push(Token::new(TokenType::DIV, self.position.clone(), None));
                     self.advance();
                     true
                 }
                 '*' => {
-                    tokens.push(Token::new(TokenType::MUL, &self.position, None));
+                    tokens.push(Token::new(TokenType::MUL, self.position.clone(), None));
                     self.advance();
                     true
                 }
                 '^' => {
-                    tokens.push(Token::new(TokenType::POW, &self.position, None));
+                    tokens.push(Token::new(TokenType::POW, self.position.clone(), None));
                     self.advance();
                     true
                 }
                 '(' => {
-                    tokens.push(Token::new(TokenType::LROUND, &self.position, None));
+                    tokens.push(Token::new(TokenType::LROUND, self.position.clone(), None));
                     self.advance();
                     true
                 }
                 ')' => {
-                    tokens.push(Token::new(TokenType::RROUND, &self.position, None));
+                    tokens.push(Token::new(TokenType::RROUND, self.position.clone(), None));
                     self.advance();
                     true
                 }
                 '{' => {
-                    tokens.push(Token::new(TokenType::LCURLY, &self.position, None));
+                    tokens.push(Token::new(TokenType::LCURLY, self.position.clone(), None));
                     self.advance();
                     true
                 }
                 '}' => {
-                    tokens.push(Token::new(TokenType::RCURLY, &self.position, None));
+                    tokens.push(Token::new(TokenType::RCURLY, self.position.clone(), None));
+                    self.advance();
+                    true
+                }
+                ',' => {
+                    tokens.push(Token::new(TokenType::COMMA, self.position.clone(), None));
+                    self.advance();
+                    true
+                }
+                ';' => {
+                    tokens.push(Token::new(TokenType::SEMICLN, self.position.clone(), None));
                     self.advance();
                     true
                 }
@@ -299,8 +310,42 @@ impl Lexer {
             }
         }
 
-        tokens.push(Token::new(TokenType::EOF, &self.position, None));
+        tokens.push(Token::new(TokenType::EOF, self.position.clone(), None));
         Ok(tokens)
+    }
+
+    fn make_add(&mut self) -> Result<Token, Error> {
+        let start = self.position.clone();
+        self.advance();
+
+        match self.current_char.unwrap() {
+            '=' => {
+                self.advance();
+                Ok(Token::new(
+                    TokenType::INCRMNT,
+                    start,
+                    Some(self.position.clone()),
+                ))
+            }
+            _ => Ok(Token::new(TokenType::ADD, start, None)),
+        }
+    }
+
+    fn make_sub(&mut self) -> Result<Token, Error> {
+        let start = self.position.clone();
+        self.advance();
+
+        match self.current_char.unwrap() {
+            '=' => {
+                self.advance();
+                Ok(Token::new(
+                    TokenType::DECRMNT,
+                    start,
+                    Some(self.position.clone()),
+                ))
+            }
+            _ => Ok(Token::new(TokenType::SUB, start, None)),
+        }
     }
 
     fn make_keyword(&mut self) -> Result<Token, Error> {
@@ -316,8 +361,8 @@ impl Lexer {
         match get_keyword(&keyword) {
             Ok(k) => Ok(Token::new(
                 TokenType::KEYWRD(k),
-                &start,
-                Some(&self.position),
+                start,
+                Some(self.position.clone()),
             )),
             Err(_) => Err(Error::new(
                 ErrType::IllegalCharError,
@@ -328,6 +373,7 @@ impl Lexer {
                     keyword
                 ),
                 None,
+                //ChType::BOOL(b) => write!(f, "{}", if b.value { "true" } else { "false" }),
             )),
         }
     }
@@ -338,15 +384,19 @@ impl Lexer {
 
         if self.current_char != None && self.current_char.unwrap() == '=' {
             self.advance();
-            Ok(Token::new(TokenType::NEQUAL, &start, Some(&self.position)))
+            Ok(Token::new(
+                TokenType::NEQUAL,
+                start,
+                Some(self.position.clone()),
+            ))
         } else {
             Ok(Token::new(
                 TokenType::KEYWRD(Keyword::NOT),
-                &start,
-                Some(&self.position),
+                start,
+                Some(self.position.clone()),
             ))
-            //return Err(Error::new(
-            //    ErrType::ExpectedCharError,
+            //return Err(Error::ne.clone()w(
+            //    ErrType::Expecte.clone()dCharError,
             //    &start,
             //    &self.position,
             //    "Lexer: Expected '=' after '!'".into(),
@@ -365,7 +415,7 @@ impl Lexer {
             token_type = TokenType::EQUAL;
         }
 
-        Token::new(token_type, &start, Some(&self.position))
+        Token::new(token_type, start, Some(self.position.clone()))
     }
 
     fn make_less(&mut self) -> Token {
@@ -378,7 +428,7 @@ impl Lexer {
             token_type = TokenType::LESSEQ;
         }
 
-        Token::new(token_type, &start, Some(&self.position))
+        Token::new(token_type, start, Some(self.position.clone()))
     }
 
     fn make_greater(&mut self) -> Token {
@@ -391,7 +441,7 @@ impl Lexer {
             token_type = TokenType::GREATEREQ;
         }
 
-        Token::new(token_type, &start, Some(&self.position))
+        Token::new(token_type, start, Some(self.position.clone()))
     }
 
     fn make_identifier(&mut self) -> Token {
@@ -414,7 +464,7 @@ impl Lexer {
         //} else {
         //    TokenType::ID(id)
         //};
-        Token::new(token_type, &pos_start, Some(&self.position))
+        Token::new(token_type, pos_start, Some(self.position.clone()))
     }
 
     //TODO: don't use strings
@@ -444,15 +494,15 @@ impl Lexer {
         if dot_count == 0 {
             return Token::new(
                 TokenType::INT(num.parse::<ChInt>().unwrap()),
-                &start,
-                Some(&self.position),
+                start,
+                Some(self.position.clone()),
             );
         }
 
         Token::new(
             TokenType::FLOAT(num.parse::<ChFloat>().unwrap()),
-            &start,
-            Some(&self.position),
+            start,
+            Some(self.position.clone()),
         )
     }
 }
@@ -472,6 +522,9 @@ pub enum Node {
     ACCESS(Token),
     IF(Vec<(Node, Node)>, Option<Box<Node>>),
     WHILE(Box<Node>, Box<Node>),
+    FOR(Option<Box<Node>>, Box<Node>, Option<Box<Node>>, Box<Node>),
+    FUNCDEF(Option<Token>, Vec<Token>, Box<Node>),
+    CALL(Box<Node>, Vec<Node>),
 }
 
 impl Parser {
@@ -550,6 +603,8 @@ impl Parser {
             }
             TokenType::KEYWRD(Keyword::IF) => self.if_expression(),
             TokenType::KEYWRD(Keyword::WHILE) => self.while_expression(),
+            TokenType::KEYWRD(Keyword::FOR) => self.for_expression(),
+            TokenType::KEYWRD(Keyword::FUNC) => self.func_expression(),
             _ => Err(Error::new(
                 ErrType::InvalidSyntaxError,
                 &t.start_pos,
@@ -565,11 +620,49 @@ impl Parser {
 
     fn power(&mut self) -> Result<Node, Error> {
         self.binary_operation(
-            Parser::atom,
+            Parser::call,
             vec![TokenType::POW],
             Vec::new(),
             Parser::factor,
         )
+    }
+
+    fn call(&mut self) -> Result<Node, Error> {
+        let res = self.atom()?;
+
+        if matches!(self.current_token.token_type, TokenType::LROUND) {
+            self.advance();
+            let mut arg_nodes: Vec<Node> = Vec::new();
+
+            if matches!(self.current_token.token_type, TokenType::RROUND) {
+                self.advance();
+            } else {
+                arg_nodes.push(self.expression()?);
+
+                while matches!(self.current_token.token_type, TokenType::COMMA) {
+                    self.advance();
+                    arg_nodes.push(self.expression()?);
+                }
+
+                if !matches!(
+                    self.current_token.token_type,
+                    TokenType::RROUND,
+                ) {
+                    return Err(Error::new(
+                        ErrType::InvalidSyntaxError,
+                        &self.current_token.start_pos,
+                        &self.current_token.end_pos,
+                        format!("Parser: expected RROUND found '{:?}'", self.current_token),
+                        None,
+                    ));
+                }
+
+                self.advance();
+            }
+            Ok(Node::CALL(res.into(), arg_nodes))
+        } else {
+            Ok(res)
+        }
     }
 
     fn factor(&mut self) -> Result<Node, Error> {
@@ -623,6 +716,20 @@ impl Parser {
         }
 
         Ok(left_node)
+    }
+
+    fn expect_token(&self, token: TokenType) -> Result<(), Error> {
+        if !match_enum_type (&self.current_token.token_type, &token) {
+            Err(Error::new(
+                ErrType::InvalidSyntaxError,
+                &self.current_token.start_pos,
+                &self.current_token.end_pos,
+                format!("Parser: expected {:?} found '{:?}'", token, self.current_token),
+                None,
+            ))
+        } else {
+            Ok(())
+        }
     }
 
     fn if_expression(&mut self) -> Result<Node, Error> {
@@ -737,6 +844,110 @@ impl Parser {
         Ok(Node::IF(cases, else_case))
     }
 
+    fn func_expression(&mut self) -> Result<Node, Error> {
+        if !matches!(
+            self.current_token.token_type,
+            TokenType::KEYWRD(Keyword::FUNC)
+        ) {
+            return Err(Error::new(
+                ErrType::InvalidSyntaxError,
+                &self.current_token.start_pos,
+                &self.current_token.end_pos,
+                format!("Parser: expected FUNC found '{:?}'", self.current_token),
+                None,
+            ));
+        }
+
+        self.advance();
+
+        let mut var_name: Option<Token> = None;
+
+        if matches!(self.current_token.token_type, TokenType::ID(_)) {
+            var_name = Some(self.current_token.clone());
+            self.advance();
+        }
+
+        self.expect_token(TokenType::LROUND)?;
+        self.advance();
+
+        let mut arg_tokens: Vec<Token> = Vec::new();
+
+        if matches!(self.current_token.token_type, TokenType::ID(_),) {
+            arg_tokens.push(self.current_token.clone());
+            self.advance();
+
+            while matches!(self.current_token.token_type, TokenType::COMMA) {
+                self.advance();
+                self.expect_token(TokenType::ID(String::from("")))?;
+
+                arg_tokens.push(self.current_token.clone());
+            }
+            self.advance();
+            self.expect_token(TokenType::RROUND)?;
+
+        } else {
+            self.expect_token(TokenType::RROUND)?;
+        }
+
+        self.advance();
+
+        self.expect_token(TokenType::LCURLY)?;
+        self.advance();
+
+        let body = self.expression()?;
+
+        self.expect_token(TokenType::RCURLY)?;
+        self.advance();
+
+        Ok(Node::FUNCDEF(var_name, arg_tokens, body.into()))
+    }
+
+    fn for_expression(&mut self) -> Result<Node, Error> {
+        let mut c1: Option<Box<Node>> = None;
+        let mut c3: Option<Box<Node>> = None;
+
+        if !matches!(
+            self.current_token.token_type,
+            TokenType::KEYWRD(Keyword::FOR)
+        ) {
+            return Err(Error::new(
+                ErrType::InvalidSyntaxError,
+                &self.current_token.start_pos,
+                &self.current_token.end_pos,
+                format!("Parser: expected FOR found '{:?}'", self.current_token),
+                None,
+            ));
+        }
+
+        self.advance();
+
+        if !match_enum_type(&self.current_token.token_type, &TokenType::SEMICLN) {
+            c1 = Some(self.expression()?.into());
+        }
+
+        self.expect_token(TokenType::SEMICLN)?;
+        self.advance();
+
+        let c2 = self.expression()?;
+
+        self.expect_token(TokenType::SEMICLN)?;
+        self.advance();
+
+        if !match_enum_type(&self.current_token.token_type, &TokenType::LCURLY) {
+            c3 = Some(self.expression()?.into());
+        }
+
+        self.expect_token(TokenType::LCURLY)?;
+        self.advance();
+
+        let body = self.expression()?;
+
+        self.expect_token(TokenType::RCURLY)?;
+        self.advance();
+
+        Ok(Node::FOR(c1, c2.into(), c3, body.into()))
+    }
+
     fn while_expression(&mut self) -> Result<Node, Error> {
         if !matches!(
             self.current_token.token_type,
@@ -746,7 +957,7 @@ impl Parser {
                 ErrType::InvalidSyntaxError,
                 &self.current_token.start_pos,
                 &self.current_token.end_pos,
-                format!("Parser: expected IF found '{:?}'", self.current_token),
+                format!("Parser: expected WHILE found '{:?}'", self.current_token),
                 None,
             ));
         }
@@ -754,30 +965,14 @@ impl Parser {
         self.advance();
         let cond = self.expression()?;
 
-        if !match_enum_type(&self.current_token.token_type, &TokenType::LCURLY) {
-            return Err(Error::new(
-                ErrType::InvalidSyntaxError,
-                &self.current_token.start_pos,
-                &self.current_token.end_pos,
-                format!("Parser: expected LCURLY found '{:?}'", self.current_token),
-                None,
-            ));
-        }
-
+        self.expect_token(TokenType::LCURLY)?;
         self.advance();
+
         let body = self.expression()?;
 
-        if !match_enum_type(&self.current_token.token_type, &TokenType::RCURLY) {
-            return Err(Error::new(
-                ErrType::InvalidSyntaxError,
-                &self.current_token.start_pos,
-                &self.current_token.end_pos,
-                format!("Parser: expected RCURLY found '{:?}'", self.current_token),
-                None,
-            ));
-        }
-
+        self.expect_token(TokenType::RCURLY)?;
         self.advance();
+
         Ok(Node::WHILE(cond.into(), body.into()))
     }
 
@@ -803,6 +998,8 @@ impl Parser {
                 Parser::arith_expression,
                 vec![
                     TokenType::EQUAL,
+                    TokenType::INCRMNT,
+                    TokenType::DECRMNT,
                     TokenType::NEQUAL,
                     TokenType::LESS,
                     TokenType::LESSEQ,
@@ -813,13 +1010,14 @@ impl Parser {
                 Parser::arith_expression,
             ) {
                 Ok(node) => Ok(node),
-                Err(_) => Err(Error::new(
-                    ErrType::InvalidSyntaxError,
-                    &self.current_token.start_pos,
-                    &self.current_token.end_pos,
-                    format!("Parser: expected INT, FLOAT, IDENTIFIER, '+', '-', '(' or '!'"),
-                    None,
-                )),
+                Err(e) => Err(e),
+                //Err(_) => Err(Error::new(
+                //    ErrType::InvalidSyntaxError,
+                //    &self.current_token.start_pos,
+                //    &self.current_token.end_pos,
+                //    format!("Parser: expected INT, FLOAT, IDENTIFIER, '+', '-', '(' or '!'"),
+                //    None,
+                //)),
             },
         }
     }
@@ -834,41 +1032,26 @@ impl Parser {
     }
 
     fn expression(&mut self) -> Result<Node, Error> {
-        //match self.current_token.token_type {
-        //    TokenType::KEYWRD(Keyword::LET) => {
-        //        self.advance();
-
         match self.current_token.token_type {
             TokenType::ID(_) => {
                 let var = self.current_token.clone();
                 self.advance();
 
                 match self.current_token.token_type {
-                        TokenType::ASSIGN => {
-                            self.advance();
-                            Ok(Node::ASSIGN(var, Box::new(self.expression()?)))
-                        },
-                        _ => {
-                            self.retreat();
-                            self.binary_operation(
-                                Parser::comp_expression,
-                                Vec::new(),
-                                vec![Keyword::AND, Keyword::OR],
-                                Parser::comp_expression,
-                                )
-                        },
-                        //_ => 
-                        //    Err(Error::new(
-                        //    ErrType::InvalidSyntaxError,
-                        //    &self.current_token.start_pos,
-                        //    &self.current_token.end_pos,
-                        //    format!(
-                        //        "Parser: Expected assignment operator: '=', found: {:?}",
-                        //        self.current_token
-                        //    ),
-                        //    None,
-                        //)),
+                    TokenType::ASSIGN => {
+                        self.advance();
+                        Ok(Node::ASSIGN(var, Box::new(self.expression()?)))
                     }
+                    _ => {
+                        self.retreat();
+                        self.binary_operation(
+                            Parser::comp_expression,
+                            Vec::new(),
+                            vec![Keyword::AND, Keyword::OR],
+                            Parser::comp_expression,
+                        )
+                    }
+                }
             }
             _ => self.binary_operation(
                 Parser::comp_expression,
@@ -876,25 +1059,7 @@ impl Parser {
                 vec![Keyword::AND, Keyword::OR],
                 Parser::comp_expression,
             ),
-            //        _ => Err(Error::new(
-            //            ErrType::InvalidSyntaxError,
-            //            &self.current_token.start_pos,
-            //            &self.current_token.end_pos,
-            //            format!(
-            //                "Parser: Expected identifier, found: {:?}",
-            //                self.current_token
-            //            ),
-            //            None,
-            //        )),
         }
-        //}
-        //_ => self.binary_operation(
-        //    Parser::comp_expression,
-        //    Vec::new(),
-        //    vec![Keyword::AND, Keyword::OR],
-        //    Parser::comp_expression,
-        //),
-        //}
     }
 }
 
@@ -980,6 +1145,15 @@ impl ChNumber {
         }
     }
 
+    fn as_token(self) -> Token {
+        match self.value {
+            NumberType::INT(v) => Token::new(TokenType::INT(v), self.start_pos, Some(self.end_pos)),
+            NumberType::FLOAT(v) => {
+                Token::new(TokenType::FLOAT(v), self.start_pos, Some(self.end_pos))
+            }
+        }
+    }
+
     fn set_position(&mut self, start_pos: Position, end_pos: Position) {
         self.start_pos = start_pos;
         self.end_pos = end_pos;
@@ -1014,6 +1188,34 @@ impl ChNumber {
             other,
             |v1: ChInt, v2: ChInt| v1 + v2,
             |v1: ChFloat, v2: ChFloat| v1 + v2,
+        )
+    }
+
+    fn increment<T: AsNumberType>(self, other: T) -> Self {
+        self.operate_on(
+            other,
+            |mut v1: ChInt, v2: ChInt| {
+                v1 += v2;
+                v1
+            },
+            |mut v1: ChFloat, v2: ChFloat| {
+                v1 += v2;
+                v1
+            },
+        )
+    }
+
+    fn decrement<T: AsNumberType>(self, other: T) -> Self {
+        self.operate_on(
+            other,
+            |mut v1: ChInt, v2: ChInt| {
+                v1 -= v2;
+                v1
+            },
+            |mut v1: ChFloat, v2: ChFloat| {
+                v1 -= v2;
+                v1
+            },
         )
     }
 
@@ -1225,7 +1427,6 @@ impl ChNumber {
 #[derive(Debug, Clone)]
 pub enum ChType {
     NUMBER(ChNumber),
-    //BOOL(ChBool),
     NONE(ChNone),
 }
 
@@ -1234,7 +1435,6 @@ impl Display for ChType {
         match self {
             ChType::NUMBER(n) => write!(f, "{:?}", n.get_value_type()),
             ChType::NONE(_) => write!(f, "none"),
-            //ChType::BOOL(b) => write!(f, "{}", if b.value { "true" } else { "false" }),
         }
     }
 }
@@ -1306,9 +1506,9 @@ impl SymbolTable {
     fn get(&self, key: &String) -> Option<ChType> {
         match self.table.get(key) {
             Some(v) => Some(v.clone()),
-            ChNone => match &self.parent {
+            None => match &self.parent {
                 Some(p) => p.get(key),
-                ChNone => None,
+                None => None,
             },
         }
     }
@@ -1359,6 +1559,9 @@ fn visit_node(node: &mut Node, context: &mut Context) -> Result<ChType, Error> {
         Node::ASSIGN(id, value) => visit_assign_node(id, value, context),
         Node::IF(cases, else_case) => visit_if_node(cases, else_case, context),
         Node::WHILE(cond, body) => visit_while_node(cond, body, context),
+        Node::FOR(c1, c2, c3, body) => visit_for_node(c1, c2, c3, body, context),
+        Node::FUNCDEF(_name, _args, _body) => panic!("not yet implemented"),
+        Node::CALL(_name, _args) => panic!("not yet implemented"),
     }
 }
 
@@ -1391,7 +1594,7 @@ fn visit_access_node(token: &mut Token, context: &mut Context) -> Result<ChType,
                     num.set_pos(token.start_pos.clone(), token.end_pos.clone());
                     Ok(num.clone())
                 }
-                ChNone => Err(Error::new(
+                None => Err(Error::new(
                     ErrType::RuntimeError,
                     &token.start_pos,
                     &token.end_pos,
@@ -1424,7 +1627,7 @@ fn visit_assign_node(
                         ErrType::RuntimeError,
                         &num.start_pos,
                         &num.end_pos,
-                        format!("cannot assign {:?} to {:?}", num.value, var_name),
+                        format!("cannot assign {:?} to const {:?}", num.value, var_name),
                         Some(context),
                     ));
                 }
@@ -1481,6 +1684,10 @@ fn visit_binop_node(
     right: &mut Node,
     context: &mut Context,
 ) -> Result<ChType, Error> {
+    if matches!(op.token_type, TokenType::INCRMNT) || matches!(op.token_type, TokenType::DECRMNT) {
+        return in_de_crement(left, op, right, context);
+    }
+
     let mut left = visit_node(left, context)?;
     let right = visit_node(right, context)?;
     left.set_pos(left.get_start(), right.get_end());
@@ -1510,6 +1717,54 @@ fn visit_binop_node(
             &start,
             &end,
             format!("operation not defined for type: 'none'"),
+            Some(context),
+        )),
+    }
+}
+
+fn in_de_crement(
+    left_node: &mut Node,
+    op: &mut Token,
+    right_node: &mut Node,
+    context: &mut Context,
+) -> Result<ChType, Error> {
+    let mut left = visit_node(left_node, context)?;
+    let right = visit_node(right_node, context)?;
+    let start = left.get_start();
+    let end = left.get_end();
+
+    match left_node {
+        Node::ACCESS(var_name) => {
+            left.set_pos(left.get_start(), right.get_end());
+
+            match (left, right) {
+                (ChType::NUMBER(n1), ChType::NUMBER(n2)) => match op.token_type {
+                    TokenType::INCRMNT => {
+                        let n = n1.increment(n2);
+                        let mut node = Node::NUM(n.as_token());
+                        visit_assign_node(&mut var_name.clone(), &mut node, context)
+                    }
+                    TokenType::DECRMNT => {
+                        let n = n1.decrement(n2);
+                        let mut node = Node::NUM(n.as_token());
+                        visit_assign_node(&mut var_name.clone(), &mut node, context)
+                    }
+                    _ => panic!("called in/decrement on wrong token, found {:?}", op),
+                },
+                _ => Err(Error::new(
+                    ErrType::RuntimeError,
+                    &start,
+                    &end,
+                    format!("operation not defined for type: 'none'"),
+                    Some(context),
+                )),
+            }
+        }
+        _ => Err(Error::new(
+            ErrType::RuntimeError,
+            &start,
+            &end,
+            format!("expected LVALUE, found {:?}", left_node),
             Some(context),
         )),
     }
@@ -1545,6 +1800,40 @@ fn visit_if_node(
             end_pos: end,
         })),
     }
+}
+
+fn visit_for_node(
+    c1: &mut Option<Box<Node>>,
+    c2: &mut Box<Node>,
+    c3: &mut Option<Box<Node>>,
+    body: &mut Node,
+    context: &mut Context,
+) -> Result<ChType, Error> {
+    let mut start = Position::empty();
+    let mut end = Position::empty();
+    let mut first_cond = true;
+
+    if let Some(c) = c1 {
+        visit_node(c, context)?;
+    }
+
+    while visit_node(c2, context)?.is_true() {
+        let res = visit_node(body, context)?;
+        if let Some(c) = c3 {
+            visit_node(c, context)?;
+        }
+
+        if first_cond {
+            start = res.get_start();
+            end = res.get_end();
+            first_cond = false;
+        }
+    }
+
+    Ok(ChType::NONE(ChNone {
+        start_pos: start,
+        end_pos: end,
+    }))
 }
 
 fn visit_while_node(
@@ -1603,14 +1892,12 @@ impl Compiler {
     pub fn interpret(&mut self, file_name: String, text: String) -> Result<ChType, Error> {
         let mut lexer = Lexer::new(file_name, text);
         let tokens = lexer.parse_tokens()?;
-
         let mut parser = Parser::new(tokens);
         let mut ast = parser.parse()?;
+        println!("{:?}", ast);
 
         let mut context = Context::from("<program>", &mut self.global_symbol_table);
 
-        let res = visit_node(&mut ast, &mut context);
-
-        res
+        visit_node(&mut ast, &mut context)
     }
 }
