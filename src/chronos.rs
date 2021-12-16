@@ -93,16 +93,17 @@ fn get_keyword(s: &String) -> Result<Keyword, ()> {
     }
 }
 
-fn is_comparison(tok: &TokenType) -> bool {
+fn returns_bool(tok: &TokenType) -> bool {
     match tok {
         TokenType::EQUAL
         | TokenType::NEQUAL
         | TokenType::LESS
         | TokenType::LESSEQ
         | TokenType::GREATER
-        | TokenType::GREATEREQ 
+        | TokenType::GREATEREQ
         | TokenType::KEYWRD(Keyword::AND)
-        | TokenType::KEYWRD(Keyword::OR) => true,
+        | TokenType::KEYWRD(Keyword::OR)
+        | TokenType::KEYWRD(Keyword::NOT) => true,
         _ => false,
     }
 }
@@ -222,7 +223,6 @@ impl Lexer {
                 }
                 '-' => {
                     tokens.push(self.make_sub()?);
-                    self.advance();
                     true
                 }
                 '/' => {
@@ -684,7 +684,6 @@ impl Parser {
     ) -> Result<Node, Error> {
         let mut left_node = func_a(self)?;
 
-        //Allowes chaining operators (e.g 1 + 1 + 1)
         while {
             let mut found = false;
             for t in &ops {
@@ -1091,7 +1090,7 @@ impl HasPosition for ChNone {
 }
 
 impl ChOperators for ChNone {
-    fn equal(self, other: ChType) -> Result<ChBool, Error> {
+    fn equal(self, other: ChType) -> Result<ChType, Error> {
         Ok(ChBool {
             value: match other {
                 ChType::NONE(_) => true,
@@ -1099,10 +1098,10 @@ impl ChOperators for ChNone {
             },
             start_pos: self.start_pos,
             end_pos: self.end_pos,
-        })
+        }.as_type())
     }
 
-    fn not_equal(self, other: ChType) -> Result<ChBool, Error> {
+    fn not_equal(self, other: ChType) -> Result<ChType, Error> {
         Ok(ChBool {
             value: match other {
                 ChType::NONE(_) => false,
@@ -1110,15 +1109,23 @@ impl ChOperators for ChNone {
             },
             start_pos: self.start_pos,
             end_pos: self.end_pos,
-        })
+        }.as_type())
     }
 
-    fn is_true(&self) -> Result<bool, Error> {
-        Ok(false)
+    fn is_true(&self) -> bool {
+        false
     }
 }
 
-impl IsChValue for ChNone {}
+impl IsChValue for ChNone {
+    fn get_desc(&self) -> String {
+        String::from("None")
+    }
+
+    fn as_type(self) -> ChType {
+        ChType::NONE(self)
+    }
+}
 
 impl AsNumberType for ChNone {
     fn convert(self) -> Result<NumberType, Error> {
@@ -1139,7 +1146,7 @@ impl Display for ChNone {
 }
 
 pub trait ChOperators {
-    fn add<T: AsNumberType>(self, _other: T) -> Result<Self, Error>
+    fn add(self, _other: ChType) -> Result<ChType, Error>
     where
         Self: IsChValue + Sized,
     {
@@ -1147,11 +1154,14 @@ pub trait ChOperators {
             ErrType::RuntimeError,
             &self.get_start(),
             &self.get_end(),
-            format!("operation 'add' not defined for type: {}", self),
+            format!(
+                "operation 'add' not defined for type: {}",
+                self.get_desc()
+            ),
             None,
         ))
     }
-    fn increment<T: AsNumberType>(self, _other: T) -> Result<Self, Error>
+    fn increment(self, _other: ChType) -> Result<ChType, Error>
     where
         Self: IsChValue + Sized,
     {
@@ -1159,11 +1169,14 @@ pub trait ChOperators {
             ErrType::RuntimeError,
             &self.get_start(),
             &self.get_end(),
-            format!("operation 'increment' not defined for type: {}", self),
+            format!(
+                "operation 'increment' not defined for type: {}",
+                self.get_desc()
+            ),
             None,
         ))
     }
-    fn decrement<T: AsNumberType>(self, _other: T) -> Result<Self, Error>
+    fn decrement(self, _other: ChType) -> Result<ChType, Error>
     where
         Self: IsChValue + Sized,
     {
@@ -1171,11 +1184,14 @@ pub trait ChOperators {
             ErrType::RuntimeError,
             &self.get_start(),
             &self.get_end(),
-            format!("operation 'decrement' not defined for type: {}", self),
+            format!(
+                "operation 'decrement' not defined for type: {}",
+                self.get_desc()
+            ),
             None,
         ))
     }
-    fn sub<T: AsNumberType>(self, _other: T) -> Result<Self, Error>
+    fn sub(self, _other: ChType) -> Result<ChType, Error>
     where
         Self: IsChValue + Sized,
     {
@@ -1183,11 +1199,14 @@ pub trait ChOperators {
             ErrType::RuntimeError,
             &self.get_start(),
             &self.get_end(),
-            format!("operation 'sub' not defined for type: {}", self),
+            format!(
+                "operation 'sub' not defined for type: {}",
+                self.get_desc()
+            ),
             None,
         ))
     }
-    fn mult<T: AsNumberType>(self, _other: T) -> Result<Self, Error>
+    fn mult(self, _other: ChType) -> Result<ChType, Error>
     where
         Self: IsChValue + Sized,
     {
@@ -1195,11 +1214,14 @@ pub trait ChOperators {
             ErrType::RuntimeError,
             &self.get_start(),
             &self.get_end(),
-            format!("operation 'mult' not defined for type: {}", self),
+            format!(
+                "operation 'mult' not defined for type: {}",
+                self.get_desc()
+            ),
             None,
         ))
     }
-    fn div<T: AsNumberType>(self, _other: T) -> Result<Self, Error>
+    fn div(self, _other: ChType) -> Result<ChType, Error>
     where
         Self: IsChValue + Sized,
     {
@@ -1207,11 +1229,14 @@ pub trait ChOperators {
             ErrType::RuntimeError,
             &self.get_start(),
             &self.get_end(),
-            format!("operation 'div' not defined for type: {}", self),
+            format!(
+                "operation 'div' not defined for type: {}",
+                self.get_desc()
+            ),
             None,
         ))
     }
-    fn pow<T: AsNumberType>(self, _other: T) -> Result<Self, Error>
+    fn pow(self, _other: ChType) -> Result<ChType, Error>
     where
         Self: IsChValue + Sized,
     {
@@ -1219,11 +1244,14 @@ pub trait ChOperators {
             ErrType::RuntimeError,
             &self.get_start(),
             &self.get_end(),
-            format!("operation 'pow' not defined for type: {}", self),
+            format!(
+                "operation 'pow' not defined for type: {}",
+                self.get_desc()
+            ),
             None,
         ))
     }
-    fn equal(self, _other: ChType) -> Result<ChBool, Error>
+    fn equal(self, _other: ChType) -> Result<ChType, Error>
     where
         Self: IsChValue + Sized,
     {
@@ -1231,11 +1259,14 @@ pub trait ChOperators {
             ErrType::RuntimeError,
             &self.get_start(),
             &self.get_end(),
-            format!("operation 'equal' not defined for type: {}", self),
+            format!(
+                "operation 'equal' not defined for type: {}",
+                self.get_desc()
+            ),
             None,
         ))
     }
-    fn not_equal(self, _other: ChType) -> Result<ChBool, Error>
+    fn not_equal(self, _other: ChType) -> Result<ChType, Error>
     where
         Self: IsChValue + Sized,
     {
@@ -1243,11 +1274,14 @@ pub trait ChOperators {
             ErrType::RuntimeError,
             &self.get_start(),
             &self.get_end(),
-            format!("operation 'not equal' not defined for type: {}", self),
+            format!(
+                "operation 'not equal' not defined for type: {}",
+                self.get_desc()
+            ),
             None,
         ))
     }
-    fn less<T: AsNumberType>(self, _other: T) -> Result<ChBool, Error>
+    fn less(self, _other: ChType) -> Result<ChType, Error>
     where
         Self: IsChValue + Sized,
     {
@@ -1255,11 +1289,14 @@ pub trait ChOperators {
             ErrType::RuntimeError,
             &self.get_start(),
             &self.get_end(),
-            format!("operation 'less' not defined for type: {}", self),
+            format!(
+                "operation 'less' not defined for type: {}",
+                self.get_desc()
+            ),
             None,
         ))
     }
-    fn less_equal<T: AsNumberType>(self, _other: T) -> Result<ChBool, Error>
+    fn less_equal(self, _other: ChType) -> Result<ChType, Error>
     where
         Self: IsChValue + Sized,
     {
@@ -1267,11 +1304,14 @@ pub trait ChOperators {
             ErrType::RuntimeError,
             &self.get_start(),
             &self.get_end(),
-            format!("operation 'less equal' not defined for type: {}", self),
+            format!(
+                "operation 'less equal' not defined for type: {}",
+                self.get_desc()
+            ),
             None,
         ))
     }
-    fn greater<T: AsNumberType>(self, _other: T) -> Result<ChBool, Error>
+    fn greater(self, _other: ChType) -> Result<ChType, Error>
     where
         Self: IsChValue + Sized,
     {
@@ -1279,11 +1319,14 @@ pub trait ChOperators {
             ErrType::RuntimeError,
             &self.get_start(),
             &self.get_end(),
-            format!("operation 'greater' not defined for type: {}", self),
+            format!(
+                "operation 'greater' not defined for type: {}",
+                self.get_desc()
+            ),
             None,
         ))
     }
-    fn greater_equal<T: AsNumberType>(self, _other: T) -> Result<ChBool, Error>
+    fn greater_equal(self, _other: ChType) -> Result<ChType, Error>
     where
         Self: IsChValue + Sized,
     {
@@ -1291,11 +1334,14 @@ pub trait ChOperators {
             ErrType::RuntimeError,
             &self.get_start(),
             &self.get_end(),
-            format!("operation 'greater equal' not defined for type: {}", self),
+            format!(
+                "operation 'greater equal' not defined for type: {}",
+                self.get_desc()
+            ),
             None,
         ))
     }
-    fn and(self, _other: ChType) -> Result<ChBool, Error>
+    fn and(self, _other: ChType) -> Result<ChType, Error>
     where
         Self: IsChValue + Sized,
     {
@@ -1303,11 +1349,14 @@ pub trait ChOperators {
             ErrType::RuntimeError,
             &self.get_start(),
             &self.get_end(),
-            format!("operation 'and' not defined for type: {}", self),
+            format!(
+                "operation 'and' not defined for type: {}",
+                self.get_desc()
+            ),
             None,
         ))
     }
-    fn or(self, _other: ChType) -> Result<ChBool, Error>
+    fn or(self, _other: ChType) -> Result<ChType, Error>
     where
         Self: IsChValue + Sized,
     {
@@ -1315,11 +1364,14 @@ pub trait ChOperators {
             ErrType::RuntimeError,
             &self.get_start(),
             &self.get_end(),
-            format!("operation 'or' not defined for type: {}", self),
+            format!(
+                "operation 'or' not defined for type: {}",
+                self.get_desc()
+            ),
             None,
         ))
     }
-    fn not(self) -> Result<ChBool, Error>
+    fn not(self) -> Result<ChType, Error>
     where
         Self: IsChValue + Sized,
     {
@@ -1327,12 +1379,22 @@ pub trait ChOperators {
             ErrType::RuntimeError,
             &self.get_start(),
             &self.get_end(),
-            format!("operation 'not' not defined for type: {}", self),
+            format!(
+                "operation 'not' not defined for type: {}",
+                self.get_desc()
+            ),
             None,
         ))
     }
 
-    fn is_true(&self) -> Result<bool, Error>
+    fn is_true(&self) -> bool
+    where
+        Self: IsChValue + Sized,
+    {
+        false
+    }
+
+    fn negate(self) -> Result<ChType, Error>
     where
         Self: IsChValue + Sized,
     {
@@ -1340,7 +1402,10 @@ pub trait ChOperators {
             ErrType::RuntimeError,
             &self.get_start(),
             &self.get_end(),
-            format!("operation 'is true' not defined for type: {}", self),
+            format!(
+                "operation 'negate' not defined for type: {}",
+                self.get_desc()
+            ),
             None,
         ))
     }
@@ -1351,6 +1416,43 @@ pub struct ChFunction {
     name: String,
     args: Vec<Token>,
     body: Node,
+    start_pos: Position,
+    end_pos: Position,
+}
+
+impl Display for ChFunction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "function")
+    }
+}
+
+impl HasPosition for ChFunction {
+    fn get_start(&self) -> Position {
+        self.start_pos.clone()
+    }
+
+    fn get_end(&self) -> Position {
+        self.end_pos.clone()
+    }
+
+    fn set_position(&mut self, start_pos: Position, end_pos: Position) {
+        self.start_pos = start_pos;
+        self.end_pos = end_pos;
+    }
+}
+
+impl AsNumberType for ChFunction {}
+
+impl ChOperators for ChFunction {}
+
+impl IsChValue for ChFunction {
+    fn get_desc(&self) -> String {
+        String::from("function")
+    }
+
+    fn as_type(self) -> ChType {
+        ChType::FUNCTION(self)
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -1392,7 +1494,7 @@ impl HasPosition for ChBool {
 }
 
 impl ChOperators for ChBool {
-    fn equal(self, other: ChType) -> Result<ChBool, Error> {
+    fn equal(self, other: ChType) -> Result<ChType, Error> {
         Ok(ChBool {
             value: match other {
                 ChType::BOOL(b) => self.value == b.value,
@@ -1400,11 +1502,10 @@ impl ChOperators for ChBool {
             },
             start_pos: self.start_pos,
             end_pos: self.end_pos,
-        })
+        }.as_type())
     }
 
-    fn not_equal(self, other: ChType) -> Result<ChBool, Error>
-    {
+    fn not_equal(self, other: ChType) -> Result<ChType, Error> {
         Ok(ChBool {
             value: match other {
                 ChType::BOOL(b) => self.value != b.value,
@@ -1412,27 +1513,32 @@ impl ChOperators for ChBool {
             },
             start_pos: self.start_pos,
             end_pos: self.end_pos,
-        })
+        }.as_type())
     }
 
-    fn is_true(&self) -> Result<bool, Error> {
-        Ok(self.value)
+    fn not(mut self) -> Result<ChType, Error> {
+        self.value = !self.value;
+        Ok(self.as_type())
     }
 
-    fn and(self, other: ChType) -> Result<ChBool, Error> {
+    fn is_true(&self) -> bool {
+        self.value
+    }
+
+    fn and(self, other: ChType) -> Result<ChType, Error> {
         Ok(ChBool {
-            value: self.value && other.is_true()?,
+            value: self.value && other.is_true(),
             start_pos: self.start_pos,
             end_pos: self.end_pos,
-        })
+        }.as_type())
     }
 
-    fn or(self, other: ChType) -> Result<ChBool, Error> {
+    fn or(self, other: ChType) -> Result<ChType, Error> {
         Ok(ChBool {
-            value: self.value || other.is_true()?,
+            value: self.value || other.is_true(),
             start_pos: self.start_pos,
             end_pos: self.end_pos,
-        })
+        }.as_type())
     }
 }
 
@@ -1450,7 +1556,15 @@ impl AsNumberType for ChBool {
     }
 }
 
-impl IsChValue for ChBool {}
+impl IsChValue for ChBool {
+    fn get_desc(&self) -> String {
+        String::from("Bool")
+    }
+
+    fn as_type(self) -> ChType {
+        ChType::BOOL(self)
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct ChNumber {
@@ -1460,9 +1574,20 @@ pub struct ChNumber {
     context: Option<Context>,
 }
 
-pub trait IsChValue: Display + HasPosition + ChOperators + AsNumberType {}
+pub trait IsChValue: Display + HasPosition + ChOperators + AsNumberType {
+    fn get_desc(&self) -> String;
+    fn as_type(self) -> ChType;
+}
 
-impl IsChValue for ChNumber {}
+impl IsChValue for ChNumber {
+    fn get_desc(&self) -> String {
+        String::from("Number")
+    }
+
+    fn as_type(self) -> ChType {
+        ChType::NUMBER(self)
+    }
+}
 
 impl Display for ChNumber {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -1477,7 +1602,13 @@ pub trait AsNumberType {
     {
         panic!("value can't be converted");
     }
-    fn convert(self) -> Result<NumberType, Error>;
+    fn convert(self) -> Result<NumberType, Error>
+        where
+            Self: Sized + HasPosition
+    {
+        Err(Error::new(ErrType::RuntimeError, &self.get_start(), &self.get_end(), format!("could not convert to Number"), None))
+    }
+
     fn get_value_type(&self) -> NumberType
     where
         Self: Sized,
@@ -1497,6 +1628,7 @@ impl AsNumberType for ChType {
         match self {
             ChType::NUMBER(n) => n.as_number_type(),
             ChType::BOOL(b) => b.as_number_type(),
+            ChType::FUNCTION(f) => f.as_number_type(),
             ChType::NONE(_) => 0.as_number_type(),
         }
     }
@@ -1505,6 +1637,7 @@ impl AsNumberType for ChType {
         match self {
             ChType::NUMBER(n) => Ok(n.as_number_type()),
             ChType::BOOL(b) => Ok(b.as_number_type()),
+            ChType::FUNCTION(f) => Ok(f.as_number_type()),
             ChType::NONE(_) => Err(Error::new(
                 ErrType::RuntimeError,
                 &self.get_start(),
@@ -1519,7 +1652,7 @@ impl AsNumberType for ChType {
         match self {
             ChType::NUMBER(n) => n.get_value_type(),
             ChType::BOOL(b) => b.get_value_type(),
-            ChType::NONE(_) => panic!("could not get value type of type NONE"),
+            ChType::FUNCTION(_) | ChType::NONE(_) => panic!("could not get value type of type {}", self),
         }
     }
 }
@@ -1640,59 +1773,69 @@ impl ChNumber {
 }
 
 impl ChOperators for ChNumber {
-    fn add<T: AsNumberType>(self, other: T) -> Result<Self, Error> {
-        Ok(self.operate_on(
-            other.convert()?,
-            |v1: ChInt, v2: ChInt| v1 + v2,
-            |v1: ChFloat, v2: ChFloat| v1 + v2,
-        ))
+    fn add(self, other: ChType) -> Result<ChType, Error> {
+        Ok(self
+            .operate_on(
+                other.convert()?,
+                |v1: ChInt, v2: ChInt| v1 + v2,
+                |v1: ChFloat, v2: ChFloat| v1 + v2,
+            )
+            .as_type())
     }
 
-    fn increment<T: AsNumberType>(self, other: T) -> Result<Self, Error> {
-        Ok(self.operate_on(
-            other.convert()?,
-            |mut v1: ChInt, v2: ChInt| {
-                v1 += v2;
-                v1
-            },
-            |mut v1: ChFloat, v2: ChFloat| {
-                v1 += v2;
-                v1
-            },
-        ))
+    fn increment(self, other: ChType) -> Result<ChType, Error> {
+        Ok(self
+            .operate_on(
+                other.convert()?,
+                |mut v1: ChInt, v2: ChInt| {
+                    v1 += v2;
+                    v1
+                },
+                |mut v1: ChFloat, v2: ChFloat| {
+                    v1 += v2;
+                    v1
+                },
+            )
+            .as_type())
     }
 
-    fn decrement<T: AsNumberType>(self, other: T) -> Result<Self, Error> {
-        Ok(self.operate_on(
-            other.convert()?,
-            |mut v1: ChInt, v2: ChInt| {
-                v1 -= v2;
-                v1
-            },
-            |mut v1: ChFloat, v2: ChFloat| {
-                v1 -= v2;
-                v1
-            },
-        ))
+    fn decrement(self, other: ChType) -> Result<ChType, Error> {
+        Ok(self
+            .operate_on(
+                other.convert()?,
+                |mut v1: ChInt, v2: ChInt| {
+                    v1 -= v2;
+                    v1
+                },
+                |mut v1: ChFloat, v2: ChFloat| {
+                    v1 -= v2;
+                    v1
+                },
+            )
+            .as_type())
     }
 
-    fn sub<T: AsNumberType>(self, other: T) -> Result<Self, Error> {
-        Ok(self.operate_on(
-            other.convert()?,
-            |v1: ChInt, v2: ChInt| v1 - v2,
-            |v1: ChFloat, v2: ChFloat| v1 - v2,
-        ))
+    fn sub(self, other: ChType) -> Result<ChType, Error> {
+        Ok(self
+            .operate_on(
+                other.convert()?,
+                |v1: ChInt, v2: ChInt| v1 - v2,
+                |v1: ChFloat, v2: ChFloat| v1 - v2,
+            )
+            .as_type())
     }
 
-    fn mult<T: AsNumberType>(self, other: T) -> Result<Self, Error> {
-        Ok(self.operate_on(
-            other.convert()?,
-            |v1: ChInt, v2: ChInt| v1 * v2,
-            |v1: ChFloat, v2: ChFloat| v1 * v2,
-        ))
+    fn mult(self, other: ChType) -> Result<ChType, Error> {
+        Ok(self
+            .operate_on(
+                other.convert()?,
+                |v1: ChInt, v2: ChInt| v1 * v2,
+                |v1: ChFloat, v2: ChFloat| v1 * v2,
+            )
+            .as_type())
     }
 
-    fn div<T: AsNumberType>(self, other: T) -> Result<Self, Error> {
+    fn div(self, other: ChType) -> Result<ChType, Error> {
         if match other.get_value_type() {
             NumberType::INT(v) => v == 0,
             NumberType::FLOAT(v) => v == 0.0,
@@ -1705,31 +1848,35 @@ impl ChOperators for ChNumber {
                 self.context.as_ref(),
             ));
         } else {
-            Ok(self.operate_on(
-                other.convert()?,
-                |v1: ChInt, v2: ChInt| v1 / v2,
-                |v1: ChFloat, v2: ChFloat| v1 / v2,
-            ))
+            Ok(self
+                .operate_on(
+                    other.convert()?,
+                    |v1: ChInt, v2: ChInt| v1 / v2,
+                    |v1: ChFloat, v2: ChFloat| v1 / v2,
+                )
+                .as_type())
         }
     }
 
-    fn pow<T: AsNumberType>(mut self, other: T) -> Result<Self, Error> {
+    fn pow(mut self, other: ChType) -> Result<ChType, Error> {
         if match other.get_value_type() {
             NumberType::INT(v) => v == 0,
             _ => false,
         } {
             self.value = 0.as_number_type();
-            Ok(self)
+            Ok(self.as_type())
         } else {
-            Ok(self.operate_on(
-                other.convert()?,
-                |v1: ChInt, v2: ChInt| v1.pow(v2.try_into().unwrap_or(0)),
-                |v1: ChFloat, v2: ChFloat| v1.powf(v2),
-            ))
+            Ok(self
+                .operate_on(
+                    other.convert()?,
+                    |v1: ChInt, v2: ChInt| v1.pow(v2.try_into().unwrap_or(0)),
+                    |v1: ChFloat, v2: ChFloat| v1.powf(v2),
+                )
+                .as_type())
         }
     }
 
-    fn equal(self, other: ChType) -> Result<ChBool, Error> {
+    fn equal(self, other: ChType) -> Result<ChType, Error> {
         let value = other.convert();
 
         Ok(ChBool {
@@ -1744,15 +1891,30 @@ impl ChOperators for ChNumber {
             },
             start_pos: self.start_pos,
             end_pos: self.end_pos,
-        })
+        }
+        .as_type())
     }
 
-    fn not_equal(self, other: ChType) -> Result<ChBool, Error> {
-        let s = self.equal(other)?;
-        s.not()
+    fn not_equal(self, other: ChType) -> Result<ChType, Error> {
+        let value = other.convert();
+
+        Ok(ChBool {
+            value: match value {
+                Ok(v) => match (self.value, v) {
+                    (NumberType::INT(v1), NumberType::INT(v2)) => v1 != v2,
+                    (NumberType::FLOAT(v1), NumberType::FLOAT(v2)) => v1 != v2,
+                    (NumberType::INT(v1), NumberType::FLOAT(v2)) => v1 as ChFloat != v2,
+                    (NumberType::FLOAT(v1), NumberType::INT(v2)) => v1 != v2 as ChFloat,
+                },
+                Err(_) => false,
+            },
+            start_pos: self.start_pos,
+            end_pos: self.end_pos,
+        }
+        .as_type())
     }
 
-    fn less<T: AsNumberType>(self, other: T) -> Result<ChBool, Error> {
+    fn less(self, other: ChType) -> Result<ChType, Error> {
         let value = other.convert()?;
 
         Ok(ChBool {
@@ -1764,10 +1926,11 @@ impl ChOperators for ChNumber {
             },
             start_pos: self.start_pos,
             end_pos: self.end_pos,
-        })
+        }
+        .as_type())
     }
 
-    fn less_equal<T: AsNumberType>(self, other: T) -> Result<ChBool, Error> {
+    fn less_equal(self, other: ChType) -> Result<ChType, Error> {
         let value = other.convert()?;
 
         Ok(ChBool {
@@ -1779,10 +1942,11 @@ impl ChOperators for ChNumber {
             },
             start_pos: self.start_pos,
             end_pos: self.end_pos,
-        })
+        }
+        .as_type())
     }
 
-    fn greater<T: AsNumberType>(self, other: T) -> Result<ChBool, Error> {
+    fn greater(self, other: ChType) -> Result<ChType, Error> {
         let value = other.convert()?;
 
         Ok(ChBool {
@@ -1794,10 +1958,11 @@ impl ChOperators for ChNumber {
             },
             start_pos: self.start_pos,
             end_pos: self.end_pos,
-        })
+        }
+        .as_type())
     }
 
-    fn greater_equal<T: AsNumberType>(self, other: T) -> Result<ChBool, Error> {
+    fn greater_equal(self, other: ChType) -> Result<ChType, Error> {
         let value = other.convert()?;
 
         Ok(ChBool {
@@ -1809,10 +1974,11 @@ impl ChOperators for ChNumber {
             },
             start_pos: self.start_pos,
             end_pos: self.end_pos,
-        })
+        }
+        .as_type())
     }
 
-    fn and(self, other: ChType) -> Result<ChBool, Error> {
+    fn and(self, other: ChType) -> Result<ChType, Error> {
         let value = other.convert()?;
 
         Ok(ChBool {
@@ -1824,10 +1990,11 @@ impl ChOperators for ChNumber {
             },
             start_pos: self.start_pos,
             end_pos: self.end_pos,
-        })
+        }
+        .as_type())
     }
 
-    fn or(self, other: ChType) -> Result<ChBool, Error> {
+    fn or(self, other: ChType) -> Result<ChType, Error> {
         let value = other.convert()?;
 
         Ok(ChBool {
@@ -1839,33 +2006,43 @@ impl ChOperators for ChNumber {
             },
             start_pos: self.start_pos,
             end_pos: self.end_pos,
-        })
+        }
+        .as_type())
     }
 
-    fn not(mut self) -> Result<ChBool, Error> {
+    fn not(mut self) -> Result<ChType, Error> {
         self.value = match self.value {
             NumberType::INT(value) => if value != 0 { 0 } else { 1 }.as_number_type(),
             NumberType::FLOAT(value) => if value != 0.0 { 0.0 } else { 1.0 }.as_number_type(),
         };
         Ok(ChBool {
-            value: self.is_true()?,
+            value: self.is_true(),
             start_pos: self.start_pos,
             end_pos: self.end_pos,
-        })
+        }
+        .as_type())
     }
 
-    fn is_true(&self) -> Result<bool, Error> {
-        Ok(match self.value {
+    fn is_true(&self) -> bool {
+        match self.value {
             NumberType::INT(value) => value != 0,
             NumberType::FLOAT(value) => value != 0.0,
-        })
+        }
+    }
+
+    fn negate(mut self) -> Result<ChType, Error> {
+        match self.value {
+            NumberType::INT(v) => self.value = NumberType::INT(-v),
+            NumberType::FLOAT(v) => self.value = NumberType::FLOAT(-v),
+        }
+        Ok(self.as_type())
     }
 }
 
 #[derive(Debug, Clone)]
 pub enum ChType {
     NUMBER(ChNumber),
-    //FUNCTION(ChFunction),
+    FUNCTION(ChFunction),
     BOOL(ChBool),
     NONE(ChNone),
 }
@@ -1876,6 +2053,7 @@ impl Display for ChType {
             ChType::NUMBER(n) => write!(f, "{}", n),
             ChType::NONE(n) => write!(f, "{}", n),
             ChType::BOOL(b) => write!(f, "{}", b),
+            ChType::FUNCTION(func) => write!(f, "{}", func),
         }
     }
 }
@@ -1886,6 +2064,7 @@ impl HasPosition for ChType {
             ChType::NUMBER(num) => num.start_pos.clone(),
             ChType::BOOL(b) => b.start_pos.clone(),
             ChType::NONE(none) => none.start_pos.clone(),
+            ChType::FUNCTION(f) =>f.start_pos.clone(),
         }
     }
 
@@ -1893,6 +2072,7 @@ impl HasPosition for ChType {
         match self {
             ChType::NUMBER(num) => num.end_pos.clone(),
             ChType::BOOL(b) => b.end_pos.clone(),
+            ChType::FUNCTION(f) => f.end_pos.clone(),
             ChType::NONE(none) => none.end_pos.clone(),
         }
     }
@@ -1901,17 +2081,19 @@ impl HasPosition for ChType {
         match self {
             ChType::NUMBER(num) => num.set_position(start_pos, end_pos),
             ChType::BOOL(b) => b.set_position(start_pos, end_pos),
+            ChType::FUNCTION(f) => f.set_position(start_pos, end_pos),
             ChType::NONE(none) => none.set_position(start_pos, end_pos),
         }
     }
 }
 
 impl ChType {
-    pub fn is_true(&self) -> Result<bool, Error> {
+    pub fn is_true(&self) -> bool {
         match self {
             ChType::NUMBER(n) => n.is_true(),
             ChType::NONE(n) => n.is_true(),
             ChType::BOOL(n) => n.is_true(),
+            ChType::FUNCTION(f) => f.is_true(),
         }
     }
 }
@@ -2052,57 +2234,30 @@ fn visit_assign_node(
     let ch_type = visit_node(value, context)?;
 
     match t.token_type {
-        TokenType::ID(var_name) => match ch_type {
-            ChType::NUMBER(num) => {
-                if !context
-                    .symbol_table
-                    .borrow_mut()
-                    .set_mut(&var_name, ChType::NUMBER(num.clone()))
-                {
+        TokenType::ID(var_name) => 
+        {
+            if !context.symbol_table.borrow_mut().set_mut(&var_name, ch_type.clone())
+            {
                     return Err(Error::new(
                         ErrType::RuntimeError,
-                        &num.start_pos,
-                        &num.end_pos,
-                        format!("cannot assign {:?} to const {:?}", num.value, var_name),
+                        &ch_type.get_start(),
+                        &ch_type.get_end(),
+                        format!("cannot assign {:?} to const {:?}", ch_type, var_name),
                         Some(context),
                     ));
-                }
-                Ok(ChType::NUMBER(num))
+
             }
-            ChType::NONE(none) => {
-                if !context
-                    .symbol_table
-                    .borrow_mut()
-                    .set_mut(&var_name, ChType::NONE(none.clone()))
-                {
-                    return Err(Error::new(
-                        ErrType::RuntimeError,
-                        &none.start_pos,
-                        &none.end_pos,
-                        format!("cannot assign 'none' to {:?}", var_name),
-                        Some(context),
-                    ));
-                }
-                Ok(ChType::NONE(none.clone()))
-            }
-            ChType::BOOL(b) => {
-                if !context
-                    .symbol_table
-                    .borrow_mut()
-                    .set_mut(&var_name, ChType::BOOL(b.clone()))
-                {
-                    return Err(Error::new(
-                        ErrType::RuntimeError,
-                        &b.start_pos,
-                        &b.end_pos,
-                        format!("cannot assign 'none' to {:?}", var_name),
-                        Some(context),
-                    ));
-                }
-                Ok(ChType::BOOL(b.clone()))
-            }
-        },
+            Ok(ch_type)
+        }
         _ => panic!("called visit_assign_node on {:?}", value),
+    }
+}
+
+fn unryop_chvalue<T: IsChValue>(op_token: &Token, value: T) -> Result<ChType, Error> {
+    match op_token.token_type {
+        TokenType::SUB => value.negate(),
+        TokenType::KEYWRD(Keyword::NOT) => value.not(),
+        _ => panic!("called unryop_self on {:?}", op_token),
     }
 }
 
@@ -2115,38 +2270,20 @@ fn visit_unryop_node(
     ch_type.set_position(op.start_pos.clone(), ch_type.get_end());
 
     match ch_type {
-        ChType::NUMBER(n) => match op.token_type {
-            TokenType::SUB => Ok(ChType::NUMBER(n.mult(-1)?)),
-            TokenType::KEYWRD(Keyword::NOT) => Ok(ChType::BOOL(n.not()?)),
-            _ => panic!("called visit_unryop_node on a binop node that has a non Operation token"),
-        },
-        _ => Err(Error::new(
-            ErrType::RuntimeError,
-            &ch_type.get_start(),
-            &ch_type.get_end(),
-            format!("undefined operation for type: '{:?}'", ch_type),
-            Some(context),
-        )),
+        ChType::NUMBER(n) => unryop_chvalue(op, n),
+        ChType::BOOL(n) => unryop_chvalue(op, n),
+        ChType::FUNCTION(n) => unryop_chvalue(op, n),
+        ChType::NONE(n) => unryop_chvalue(op, n),
     }
 }
 
-fn chvalue_binop<T: IsChValue>(left: T, op_token: &Token, right: ChType) -> Result<T, Error> {
+fn binop_chvalue<T: IsChValue>(left: T, op_token: &Token, right: ChType) -> Result<ChType, Error> {
     match op_token.token_type {
         TokenType::ADD => left.add(right),
         TokenType::SUB => left.sub(right),
         TokenType::MUL => left.mult(right),
         TokenType::DIV => left.div(right),
         TokenType::POW => left.pow(right),
-        _ => panic!("called chvalue_binop on {:?}", op_token.token_type),
-    }
-}
-
-fn chvalue_comparison<T: IsChValue>(
-    left: T,
-    op_token: &Token,
-    right: ChType,
-) -> Result<ChBool, Error> {
-    match op_token.token_type {
         TokenType::LESS => left.less(right),
         TokenType::EQUAL => left.equal(right),
         TokenType::NEQUAL => left.not_equal(right),
@@ -2155,7 +2292,7 @@ fn chvalue_comparison<T: IsChValue>(
         TokenType::GREATEREQ => left.greater_equal(right),
         TokenType::KEYWRD(Keyword::AND) => left.and(right),
         TokenType::KEYWRD(Keyword::OR) => left.or(right),
-        _ => panic!("called chvalue_comparison on {:?}", op_token.token_type),
+        _ => panic!("called binop_bool on {:?}", op_token.token_type),
     }
 }
 
@@ -2173,30 +2310,12 @@ fn visit_binop_node(
     let right = visit_node(right, context)?;
     left.set_position(left.get_start(), right.get_end());
 
-    //let start = left.get_start();
-    //let end = left.get_end();
-
-    if is_comparison(&op.token_type) {
-        match left {
-            ChType::NUMBER(n) => Ok(ChType::BOOL(chvalue_comparison(n, op, right)?)),
-            ChType::NONE(n) => Ok(ChType::BOOL(chvalue_comparison(n, op, right)?)),
-            ChType::BOOL(n) => Ok(ChType::BOOL(chvalue_comparison(n, op, right)?)),
-        }
-    } else {
-        match left {
-            ChType::NUMBER(n) => Ok(ChType::NUMBER(chvalue_binop(n, op, right)?)),
-            ChType::NONE(n) => Ok(ChType::NONE(chvalue_binop(n, op, right)?)),
-            ChType::BOOL(n) => Ok(ChType::BOOL(chvalue_binop(n, op, right)?)),
-        }
+    match left {
+        ChType::NUMBER(n) => binop_chvalue(n, op, right),
+        ChType::NONE(n) => binop_chvalue(n, op, right),
+        ChType::FUNCTION(n) => binop_chvalue(n, op, right),
+        ChType::BOOL(n) => binop_chvalue(n, op, right),
     }
-    //_ => Err(Error::new(
-    //    ErrType::RuntimeError,
-    //    &start,
-    //    &end,
-    //    format!("operation not defined for type: 'none'"),
-    //    Some(context),
-    //)),
-    //}
 }
 
 fn in_de_crement(
@@ -2217,14 +2336,22 @@ fn in_de_crement(
             match (left, right) {
                 (ChType::NUMBER(n1), ChType::NUMBER(n2)) => match op.token_type {
                     TokenType::INCRMNT => {
-                        let n = n1.increment(n2)?;
-                        let mut node = Node::NUM(n.as_token());
-                        visit_assign_node(&mut var_name.clone(), &mut node, context)
+                        let n = n1.increment(ChType::NUMBER(n2))?;
+                        if let ChType::NUMBER(n) = n {
+                            let mut node = Node::NUM(n.as_token());
+                            visit_assign_node(&mut var_name.clone(), &mut node, context)
+                        } else {
+                            panic!("increment didn't return a Number");
+                        }
                     }
                     TokenType::DECRMNT => {
-                        let n = n1.decrement(n2)?;
-                        let mut node = Node::NUM(n.as_token());
-                        visit_assign_node(&mut var_name.clone(), &mut node, context)
+                        let n = n1.decrement(ChType::NUMBER(n2))?;
+                        if let ChType::NUMBER(n) = n {
+                            let mut node = Node::NUM(n.as_token());
+                            visit_assign_node(&mut var_name.clone(), &mut node, context)
+                        } else {
+                            panic!("increment didn't return a Number");
+                        }
                     }
                     _ => panic!("called in/decrement on invalid token, found {:?}", op),
                 },
@@ -2265,7 +2392,7 @@ fn visit_if_node(
             first_cond = false;
         }
 
-        if cond.is_true()? {
+        if cond.is_true() {
             return visit_node(expr, context);
         }
     }
@@ -2294,7 +2421,7 @@ fn visit_for_node(
         visit_node(c, context)?;
     }
 
-    while visit_node(c2, context)?.is_true()? {
+    while visit_node(c2, context)?.is_true() {
         let res = visit_node(body, context)?;
         if let Some(c) = c3 {
             visit_node(c, context)?;
@@ -2322,7 +2449,7 @@ fn visit_while_node(
     let mut end = Position::empty();
     let mut first_cond = true;
 
-    while visit_node(condition, context)?.is_true()? {
+    while visit_node(condition, context)?.is_true() {
         let res = visit_node(body, context)?;
 
         if first_cond {
@@ -2365,7 +2492,6 @@ impl Compiler {
         let tokens = lexer.parse_tokens()?;
         let mut parser = Parser::new(tokens);
         let mut ast = parser.parse()?;
-        println!("{:?}", ast);
 
         let mut context = Context::from("<program>", &mut self.global_symbol_table);
 
