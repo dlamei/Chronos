@@ -11,7 +11,6 @@ const DIGITS: &str = "0123456789";
 const LETTERS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 type ChInt = i32;
-type ChUInt = i32;
 type ChFloat = f32;
 
 fn match_enum_type<T>(t1: &T, t2: &T) -> bool {
@@ -1098,7 +1097,8 @@ impl ChOperators for ChNone {
             },
             start_pos: self.start_pos,
             end_pos: self.end_pos,
-        }.as_type())
+        }
+        .as_type())
     }
 
     fn not_equal(self, other: ChType) -> Result<ChType, Error> {
@@ -1109,7 +1109,8 @@ impl ChOperators for ChNone {
             },
             start_pos: self.start_pos,
             end_pos: self.end_pos,
-        }.as_type())
+        }
+        .as_type())
     }
 
     fn is_true(&self) -> bool {
@@ -1154,10 +1155,7 @@ pub trait ChOperators {
             ErrType::RuntimeError,
             &self.get_start(),
             &self.get_end(),
-            format!(
-                "operation 'add' not defined for type: {}",
-                self.get_desc()
-            ),
+            format!("operation 'add' not defined for type: {}", self.get_desc()),
             None,
         ))
     }
@@ -1199,10 +1197,7 @@ pub trait ChOperators {
             ErrType::RuntimeError,
             &self.get_start(),
             &self.get_end(),
-            format!(
-                "operation 'sub' not defined for type: {}",
-                self.get_desc()
-            ),
+            format!("operation 'sub' not defined for type: {}", self.get_desc()),
             None,
         ))
     }
@@ -1214,10 +1209,7 @@ pub trait ChOperators {
             ErrType::RuntimeError,
             &self.get_start(),
             &self.get_end(),
-            format!(
-                "operation 'mult' not defined for type: {}",
-                self.get_desc()
-            ),
+            format!("operation 'mult' not defined for type: {}", self.get_desc()),
             None,
         ))
     }
@@ -1229,10 +1221,7 @@ pub trait ChOperators {
             ErrType::RuntimeError,
             &self.get_start(),
             &self.get_end(),
-            format!(
-                "operation 'div' not defined for type: {}",
-                self.get_desc()
-            ),
+            format!("operation 'div' not defined for type: {}", self.get_desc()),
             None,
         ))
     }
@@ -1244,10 +1233,7 @@ pub trait ChOperators {
             ErrType::RuntimeError,
             &self.get_start(),
             &self.get_end(),
-            format!(
-                "operation 'pow' not defined for type: {}",
-                self.get_desc()
-            ),
+            format!("operation 'pow' not defined for type: {}", self.get_desc()),
             None,
         ))
     }
@@ -1289,10 +1275,7 @@ pub trait ChOperators {
             ErrType::RuntimeError,
             &self.get_start(),
             &self.get_end(),
-            format!(
-                "operation 'less' not defined for type: {}",
-                self.get_desc()
-            ),
+            format!("operation 'less' not defined for type: {}", self.get_desc()),
             None,
         ))
     }
@@ -1349,10 +1332,7 @@ pub trait ChOperators {
             ErrType::RuntimeError,
             &self.get_start(),
             &self.get_end(),
-            format!(
-                "operation 'and' not defined for type: {}",
-                self.get_desc()
-            ),
+            format!("operation 'and' not defined for type: {}", self.get_desc()),
             None,
         ))
     }
@@ -1364,10 +1344,7 @@ pub trait ChOperators {
             ErrType::RuntimeError,
             &self.get_start(),
             &self.get_end(),
-            format!(
-                "operation 'or' not defined for type: {}",
-                self.get_desc()
-            ),
+            format!("operation 'or' not defined for type: {}", self.get_desc()),
             None,
         ))
     }
@@ -1379,10 +1356,7 @@ pub trait ChOperators {
             ErrType::RuntimeError,
             &self.get_start(),
             &self.get_end(),
-            format!(
-                "operation 'not' not defined for type: {}",
-                self.get_desc()
-            ),
+            format!("operation 'not' not defined for type: {}", self.get_desc()),
             None,
         ))
     }
@@ -1418,6 +1392,11 @@ pub struct ChFunction {
     body: Node,
     start_pos: Position,
     end_pos: Position,
+    context: Rc<RefCell<Context>>,
+}
+
+impl ChFunction {
+    fn execute() {}
 }
 
 impl Display for ChFunction {
@@ -1502,7 +1481,8 @@ impl ChOperators for ChBool {
             },
             start_pos: self.start_pos,
             end_pos: self.end_pos,
-        }.as_type())
+        }
+        .as_type())
     }
 
     fn not_equal(self, other: ChType) -> Result<ChType, Error> {
@@ -1513,7 +1493,8 @@ impl ChOperators for ChBool {
             },
             start_pos: self.start_pos,
             end_pos: self.end_pos,
-        }.as_type())
+        }
+        .as_type())
     }
 
     fn not(mut self) -> Result<ChType, Error> {
@@ -1530,7 +1511,8 @@ impl ChOperators for ChBool {
             value: self.value && other.is_true(),
             start_pos: self.start_pos,
             end_pos: self.end_pos,
-        }.as_type())
+        }
+        .as_type())
     }
 
     fn or(self, other: ChType) -> Result<ChType, Error> {
@@ -1538,7 +1520,8 @@ impl ChOperators for ChBool {
             value: self.value || other.is_true(),
             start_pos: self.start_pos,
             end_pos: self.end_pos,
-        }.as_type())
+        }
+        .as_type())
     }
 }
 
@@ -1571,7 +1554,7 @@ pub struct ChNumber {
     value: NumberType,
     start_pos: Position,
     end_pos: Position,
-    context: Option<Context>,
+    context: Option<Rc<RefCell<Context>>>,
 }
 
 pub trait IsChValue: Display + HasPosition + ChOperators + AsNumberType {
@@ -1603,10 +1586,16 @@ pub trait AsNumberType {
         panic!("value can't be converted");
     }
     fn convert(self) -> Result<NumberType, Error>
-        where
-            Self: Sized + HasPosition
+    where
+        Self: Sized + HasPosition,
     {
-        Err(Error::new(ErrType::RuntimeError, &self.get_start(), &self.get_end(), format!("could not convert to Number"), None))
+        Err(Error::new(
+            ErrType::RuntimeError,
+            &self.get_start(),
+            &self.get_end(),
+            format!("could not convert to Number"),
+            None,
+        ))
     }
 
     fn get_value_type(&self) -> NumberType
@@ -1652,7 +1641,9 @@ impl AsNumberType for ChType {
         match self {
             ChType::NUMBER(n) => n.get_value_type(),
             ChType::BOOL(b) => b.get_value_type(),
-            ChType::FUNCTION(_) | ChType::NONE(_) => panic!("could not get value type of type {}", self),
+            ChType::FUNCTION(_) | ChType::NONE(_) => {
+                panic!("could not get value type of type {}", self)
+            }
         }
     }
 }
@@ -1747,7 +1738,7 @@ impl ChNumber {
         }
     }
 
-    fn set_context(&mut self, context: Option<Context>) {
+    fn set_context(&mut self, context: Option<Rc<RefCell<Context>>>) {
         self.context = context;
     }
 
@@ -1845,7 +1836,7 @@ impl ChOperators for ChNumber {
                 &self.start_pos,
                 &self.end_pos,
                 String::from("Division by 0"),
-                self.context.as_ref(),
+                self.context,
             ));
         } else {
             Ok(self
@@ -2064,7 +2055,7 @@ impl HasPosition for ChType {
             ChType::NUMBER(num) => num.start_pos.clone(),
             ChType::BOOL(b) => b.start_pos.clone(),
             ChType::NONE(none) => none.start_pos.clone(),
-            ChType::FUNCTION(f) =>f.start_pos.clone(),
+            ChType::FUNCTION(f) => f.start_pos.clone(),
         }
     }
 
@@ -2101,8 +2092,19 @@ impl ChType {
 #[derive(Debug, Clone)]
 pub struct Context {
     pub display_name: String,
-    pub parent: Option<(Box<Context>, Position)>,
-    pub symbol_table: Rc<RefCell<SymbolTable>>,
+    pub parent: Option<(Rc<RefCell<Context>>, Position)>,
+    //pub symbol_table: Rc<RefCell<SymbolTable>>,
+    pub symbol_table: SymbolTable,
+}
+
+impl Context {
+    fn empty(display_name: String) -> Self {
+        Context {
+            display_name,
+            parent: None,
+            symbol_table: SymbolTable::empty(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -2158,17 +2160,7 @@ impl SymbolTable {
     }
 }
 
-impl Context {
-    fn from(display_name: &str, symbol_table: &mut Rc<RefCell<SymbolTable>>) -> Self {
-        Context {
-            display_name: display_name.to_string(),
-            parent: None,
-            symbol_table: Rc::clone(symbol_table),
-        }
-    }
-}
-
-fn visit_node(node: &mut Node, context: &mut Context) -> Result<ChType, Error> {
+fn visit_node(node: &mut Node, context: &mut Rc<RefCell<Context>>) -> Result<ChType, Error> {
     match node {
         Node::NUM(token) => visit_numb_node(token, context),
         Node::UNRYOP(op, node) => visit_unryop_node(op, node, context),
@@ -2183,7 +2175,7 @@ fn visit_node(node: &mut Node, context: &mut Context) -> Result<ChType, Error> {
     }
 }
 
-fn visit_numb_node(token: &mut Token, context: &mut Context) -> Result<ChType, Error> {
+fn visit_numb_node(token: &mut Token, context: &mut Rc<RefCell<Context>>) -> Result<ChType, Error> {
     match token.token_type {
         TokenType::INT(value) => Ok(ChType::NUMBER(ChNumber {
             value: value.as_number_type(),
@@ -2201,11 +2193,14 @@ fn visit_numb_node(token: &mut Token, context: &mut Context) -> Result<ChType, E
     }
 }
 
-fn visit_access_node(token: &mut Token, context: &mut Context) -> Result<ChType, Error> {
+fn visit_access_node(
+    token: &mut Token,
+    context: &mut Rc<RefCell<Context>>,
+) -> Result<ChType, Error> {
     let var = &token.token_type;
     match var {
         TokenType::ID(var_name) => {
-            let mut entry = context.symbol_table.borrow().get(&var_name);
+            let mut entry = context.borrow().symbol_table.get(&var_name);
 
             match &mut entry {
                 Some(num) => {
@@ -2217,7 +2212,7 @@ fn visit_access_node(token: &mut Token, context: &mut Context) -> Result<ChType,
                     &token.start_pos,
                     &token.end_pos,
                     format!("{:?} is not defined", var_name),
-                    Some(context),
+                    Some(context.clone()),
                 )),
             }
         }
@@ -2228,24 +2223,25 @@ fn visit_access_node(token: &mut Token, context: &mut Context) -> Result<ChType,
 fn visit_assign_node(
     id: &mut Token,
     value: &mut Node,
-    context: &mut Context,
+    context: &mut Rc<RefCell<Context>>,
 ) -> Result<ChType, Error> {
     let t = id.clone();
     let ch_type = visit_node(value, context)?;
 
     match t.token_type {
-        TokenType::ID(var_name) => 
-        {
-            if !context.symbol_table.borrow_mut().set_mut(&var_name, ch_type.clone())
+        TokenType::ID(var_name) => {
+            if !context
+                .borrow_mut()
+                .symbol_table
+                .set_mut(&var_name, ch_type.clone())
             {
-                    return Err(Error::new(
-                        ErrType::RuntimeError,
-                        &ch_type.get_start(),
-                        &ch_type.get_end(),
-                        format!("cannot assign {:?} to const {:?}", ch_type, var_name),
-                        Some(context),
-                    ));
-
+                return Err(Error::new(
+                    ErrType::RuntimeError,
+                    &ch_type.get_start(),
+                    &ch_type.get_end(),
+                    format!("cannot assign {:?} to const {:?}", ch_type, var_name),
+                    Some(context.clone()),
+                ));
             }
             Ok(ch_type)
         }
@@ -2264,7 +2260,7 @@ fn unryop_chvalue<T: IsChValue>(op_token: &Token, value: T) -> Result<ChType, Er
 fn visit_unryop_node(
     op: &mut Token,
     node: &mut Node,
-    context: &mut Context,
+    context: &mut Rc<RefCell<Context>>,
 ) -> Result<ChType, Error> {
     let mut ch_type = visit_node(node, context)?;
     ch_type.set_position(op.start_pos.clone(), ch_type.get_end());
@@ -2300,7 +2296,7 @@ fn visit_binop_node(
     left: &mut Node,
     op: &mut Token,
     right: &mut Node,
-    context: &mut Context,
+    context: &mut Rc<RefCell<Context>>,
 ) -> Result<ChType, Error> {
     if matches!(op.token_type, TokenType::INCRMNT) || matches!(op.token_type, TokenType::DECRMNT) {
         return in_de_crement(left, op, right, context);
@@ -2322,7 +2318,7 @@ fn in_de_crement(
     left_node: &mut Node,
     op: &mut Token,
     right_node: &mut Node,
-    context: &mut Context,
+    context: &mut Rc<RefCell<Context>>,
 ) -> Result<ChType, Error> {
     let mut left = visit_node(left_node, context)?;
     let right = visit_node(right_node, context)?;
@@ -2360,7 +2356,7 @@ fn in_de_crement(
                     &start,
                     &end,
                     format!("operation not defined for type: 'none'"),
-                    Some(context),
+                    Some(context.clone()),
                 )),
             }
         }
@@ -2369,7 +2365,7 @@ fn in_de_crement(
             &start,
             &end,
             format!("expected LVALUE, found {:?}", left_node),
-            Some(context),
+            Some(context.clone()),
         )),
     }
 }
@@ -2377,7 +2373,7 @@ fn in_de_crement(
 fn visit_if_node(
     cases: &mut Vec<(Node, Node)>,
     else_case: &mut Option<Box<Node>>,
-    context: &mut Context,
+    context: &mut Rc<RefCell<Context>>,
 ) -> Result<ChType, Error> {
     let mut start = Position::empty();
     let mut end = Position::empty();
@@ -2411,7 +2407,7 @@ fn visit_for_node(
     c2: &mut Box<Node>,
     c3: &mut Option<Box<Node>>,
     body: &mut Node,
-    context: &mut Context,
+    context: &mut Rc<RefCell<Context>>,
 ) -> Result<ChType, Error> {
     let mut start = Position::empty();
     let mut end = Position::empty();
@@ -2443,7 +2439,7 @@ fn visit_for_node(
 fn visit_while_node(
     condition: &mut Node,
     body: &mut Node,
-    context: &mut Context,
+    context: &mut Rc<RefCell<Context>>,
 ) -> Result<ChType, Error> {
     let mut start = Position::empty();
     let mut end = Position::empty();
@@ -2465,8 +2461,44 @@ fn visit_while_node(
     }))
 }
 
+fn visit_funcdef_node(
+    func_name: &mut Option<Token>,
+    args: &mut Vec<Token>,
+    body: &mut Node,
+    context: &mut Rc<RefCell<Context>>,
+) -> Result<ChType, Error> {
+    let start = Position::empty();
+    let end = Position::empty();
+
+    let name = match func_name {
+        Some(tok) => match &tok.token_type {
+            TokenType::ID(s) => s,
+            _ => {
+                return Err(Error::new(
+                    ErrType::InvalidSyntaxError,
+                    &start,
+                    &end,
+                    format!("expected ID found '{:?}'", tok),
+                    Some(context.clone()),
+                ))
+            }
+        },
+        _ => "anonymous",
+    }
+    .to_string();
+
+    Ok(ChType::FUNCTION(ChFunction {
+        name,
+        args: args.clone(),
+        body: body.clone(),
+        start_pos: start,
+        end_pos: end,
+        context: context.clone(),
+    }))
+}
+
 pub struct Compiler {
-    pub global_symbol_table: Rc<RefCell<SymbolTable>>,
+    pub global_context: Rc<RefCell<Context>>,
 }
 
 impl Compiler {
@@ -2483,7 +2515,7 @@ impl Compiler {
         );
 
         Compiler {
-            global_symbol_table: Rc::new(RefCell::new(table)),
+            global_context: Rc::new(RefCell::new(Context::empty("<program>".to_string()))),
         }
     }
 
@@ -2493,8 +2525,6 @@ impl Compiler {
         let mut parser = Parser::new(tokens);
         let mut ast = parser.parse()?;
 
-        let mut context = Context::from("<program>", &mut self.global_symbol_table);
-
-        visit_node(&mut ast, &mut context)
+        visit_node(&mut ast, &mut self.global_context)
     }
 }

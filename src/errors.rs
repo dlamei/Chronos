@@ -1,5 +1,7 @@
+use std::cell::RefCell;
 use std::fmt;
 use std::fmt::Write;
+use std::rc::Rc;
 
 use crate::chronos::Context;
 use crate::chronos::Position;
@@ -26,7 +28,7 @@ impl Error {
         start_pos: &Position,
         end_pos: &Position,
         details: String,
-        context: Option<&Context>,
+        context: Option<Rc<RefCell<Context>>>,
     ) -> Self {
         let mut message = get_traceback(context, start_pos);
         write!(
@@ -53,27 +55,33 @@ impl fmt::Display for Error {
     }
 }
 
-fn get_traceback(context: Option<&Context>, pos_start: &Position) -> String {
+fn get_traceback(context: Option<Rc<RefCell<Context>>>, pos_start: &Position) -> String {
     let mut result = String::from("");
 
     if let Some(context) = context {
-        let mut cntx = Box::new(context.clone());
+        let mut cntx = context;
         let mut pos = pos_start.clone();
 
         loop {
             write!(
                 result,
                 "\nFile: {}, Line: {}, in: {}",
-                pos.file_name, pos.line, cntx.display_name
+                pos.file_name,
+                pos.line,
+                cntx.borrow().display_name
             )
             .unwrap();
 
-            if let Some(p) = cntx.parent {
+            let parent: Rc<RefCell<Context>>;
+
+            if let Some(p) = cntx.borrow().parent.clone() {
                 pos = p.1.clone();
-                cntx = p.0;
+                parent = p.0;
             } else {
                 break;
             }
+
+            cntx = parent;
         }
 
         write!(result, "\nTraceback (most recent call last)\n").unwrap();
