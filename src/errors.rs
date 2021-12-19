@@ -90,8 +90,10 @@ fn get_traceback(context: &Option<Rc<RefCell<Context>>>, pos_start: &Position) -
             let parent: Rc<RefCell<Context>>;
 
             if let Some(p) = cntx.borrow().parent.clone() {
-                pos = p.1.clone();
-                parent = p.0;
+                //pos = p.1.clone();
+                //pos = p.
+                pos = p.borrow().position.clone().unwrap_or(Position::empty());
+                parent = p;
             } else {
                 break;
             }

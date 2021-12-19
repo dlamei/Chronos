@@ -38,7 +38,7 @@ impl Position {
         }
     }
 
-    fn empty() -> Self {
+    pub fn empty() -> Self {
         Position {
             file_name: String::from(""),
             index: 0,
@@ -2188,7 +2188,8 @@ impl ChType {
 #[derive(Debug, Clone)]
 pub struct Context {
     pub display_name: String,
-    pub parent: Option<(Rc<RefCell<Context>>, Position)>,
+    pub parent: Option<Rc<RefCell<Context>>>,
+    pub position: Option<Position>,
     pub symbol_table: Rc<RefCell<SymbolTable>>,
 }
 
@@ -2197,6 +2198,7 @@ impl Context {
         Context {
             display_name,
             parent: None,
+            position: None,
             symbol_table: Rc::new(RefCell::new(SymbolTable::empty())),
         }
     }
@@ -2208,18 +2210,44 @@ impl Context {
     ) -> Rc<RefCell<Self>> {
         Rc::new(RefCell::new(Context {
             display_name,
-            parent: Some((parent.clone(), position)),
+            parent: Some(parent.clone()),
+            position: Some(position),
             symbol_table: SymbolTable::from_parent(parent.borrow().symbol_table.clone()),
         }))
     }
 
+    fn set_pos(&mut self, position: Position) {
+        match &mut self.position {
+            Some(p) => {
+               *p = position;  
+            }
+            _ => (),
+        }
+    }
+
     fn count_parents(&self) -> i32 {
         if let Some(p) = &self.parent {
-            p.0.borrow().count_parents() + 1
+            p.borrow().count_parents() + 1
         } else {
             0
         }
     }
+
+    //fn push(mut self, new_self: Context, position: Position) -> Self {
+    //    let parent = self;
+    //    self = new_self;
+    //    self.parent = Some((Rc::new(RefCell::new(parent)), position));
+    //    self
+    //}
+
+    //fn pop(mut self) -> Self {
+    //    if let Some(p) = self.parent {
+    //        self = p.0.borrow().clone();
+    //        self
+    //    } else {
+    //        panic!("can't pop! Context has no parent!")
+    //    }
+    //}
 }
 
 #[derive(Debug, Clone)]
@@ -2547,14 +2575,16 @@ fn visit_for_node(
     let mut end = Position::empty();
     let mut first_cond = true;
 
+    let mut n_context = Context::from_parent(String::from("<for-loop>"), context.clone(), start.clone());
+
     if let Some(c) = c1 {
-        visit_node(c, context)?;
+        visit_node(c, &mut n_context)?;
     }
 
-    while visit_node(c2, context)?.is_true() {
-        let res = visit_node(body, context)?;
+    while visit_node(c2, &mut n_context)?.is_true() {
+        let res = visit_node(body, &mut n_context)?;
         if let Some(c) = c3 {
-            visit_node(c, context)?;
+            visit_node(c, &mut n_context)?;
         }
 
         if first_cond {
@@ -2697,6 +2727,7 @@ impl Compiler {
             global_context: Rc::new(RefCell::new(Context {
                 display_name: "<program>".to_string(),
                 parent: None,
+                position: None,
                 symbol_table: Rc::new(RefCell::new(table)),
             })),
         }
