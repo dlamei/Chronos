@@ -522,7 +522,7 @@ pub enum Node {
     IF(Vec<(Node, Node)>, Option<Box<Node>>),
     WHILE(Box<Node>, Box<Node>),
     FOR(Option<Box<Node>>, Box<Node>, Option<Box<Node>>, Box<Node>),
-    FUNCDEF(Option<Token>, Vec<Token>, Box<Node>),
+    FUNCDEF(Option<Token>, Vec<Token>, Box<Node>, Position, Position),
     CALL(Box<Node>, Vec<Node>),
 }
 
@@ -843,6 +843,9 @@ impl Parser {
     }
 
     fn func_expression(&mut self) -> Result<Node, Error> {
+        let mut start: Option<Position> = None;
+        let end: Option<Position>;
+
         if !matches!(
             self.current_token.token_type,
             TokenType::KEYWRD(Keyword::FUNC)
@@ -862,6 +865,7 @@ impl Parser {
 
         if matches!(self.current_token.token_type, TokenType::ID(_)) {
             var_name = Some(self.current_token.clone());
+            start = Some(self.current_token.start_pos.clone());
             self.advance();
         }
 
@@ -872,6 +876,10 @@ impl Parser {
 
         if matches!(self.current_token.token_type, TokenType::ID(_),) {
             arg_tokens.push(self.current_token.clone());
+            if let None = start {
+                start = Some(self.current_token.start_pos.clone());
+            }
+
             self.advance();
 
             while matches!(self.current_token.token_type, TokenType::COMMA) {
@@ -879,8 +887,9 @@ impl Parser {
                 self.expect_token(TokenType::ID(String::from("")))?;
 
                 arg_tokens.push(self.current_token.clone());
+                self.advance();
             }
-            self.advance();
+
             self.expect_token(TokenType::RROUND)?;
         } else {
             self.expect_token(TokenType::RROUND)?;
@@ -889,14 +898,28 @@ impl Parser {
         self.advance();
 
         self.expect_token(TokenType::LCURLY)?;
+
+        if let None = start {
+            start = Some(self.current_token.start_pos.clone());
+        }
+
         self.advance();
 
         let body = self.expression()?;
 
         self.expect_token(TokenType::RCURLY)?;
+
+        end = Some(self.current_token.end_pos.clone());
+
         self.advance();
 
-        Ok(Node::FUNCDEF(var_name, arg_tokens, body.into()))
+        Ok(Node::FUNCDEF(
+            var_name,
+            arg_tokens,
+            body.into(),
+            start.unwrap_or(Position::empty()),
+            end.unwrap_or(Position::empty()),
+        ))
     }
 
     fn for_expression(&mut self) -> Result<Node, Error> {
@@ -1072,6 +1095,8 @@ pub struct ChNone {
     start_pos: Position,
     end_pos: Position,
 }
+
+impl HasContext for ChNone {}
 
 impl HasPosition for ChNone {
     fn get_start(&self) -> Position {
@@ -1388,7 +1413,7 @@ pub trait ChOperators {
 #[derive(Clone, Debug)]
 pub struct ChFunction {
     name: String,
-    args: Vec<Token>,
+    args_name: Vec<Token>,
     body: Node,
     start_pos: Position,
     end_pos: Position,
@@ -1396,12 +1421,65 @@ pub struct ChFunction {
 }
 
 impl ChFunction {
-    fn execute() {}
+    fn execute(&mut self, mut args: Vec<ChType>) -> Result<ChType, Error> {
+        let mut n_context = Context::from_parent(
+            self.name.clone(),
+            self.context.clone(),
+            self.start_pos.clone(),
+        );
+
+        if args.len() != self.args_name.len() {
+            return Err(Error::new(
+                ErrType::RuntimeError,
+                &self.start_pos,
+                &self.end_pos,
+                format!(
+                    "expected {} arguments, found {} in function '{}'",
+                    self.args_name.len(),
+                    args.len(),
+                    self.name,
+                ),
+                Some(self.context.clone()),
+            ));
+        }
+
+        //for (i, value) in args.iter().enumerate() {
+        for i in 0..args.len() {
+            let value = args.get_mut(i).unwrap();
+            let n = &self.args_name[i];
+            let name = match &n.token_type {
+                TokenType::ID(s) => s,
+                _ => {
+                    return Err(Error::new(
+                        ErrType::RuntimeError,
+                        &n.start_pos,
+                        &n.end_pos,
+                        format!("could not resolve {:?} as an argument", n),
+                        Some(n_context.clone()),
+                    ))
+                }
+            };
+            value.set_context(self.context.clone());
+            n_context
+                .borrow_mut()
+                .symbol_table
+                .borrow_mut()
+                .set_mut(&name, value.clone());
+        }
+
+        visit_node(&mut self.body, &mut n_context)
+    }
 }
 
 impl Display for ChFunction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "function")
+        write!(f, "function<{}, {:?}>", self.name, self.args_name)
+    }
+}
+
+impl HasContext for ChFunction {
+    fn set_context(&mut self, context: Rc<RefCell<Context>>) {
+        self.context = context;
     }
 }
 
@@ -1450,6 +1528,8 @@ impl ChBool {
         }
     }
 }
+
+impl HasContext for ChBool {}
 
 impl Display for ChBool {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -1554,10 +1634,16 @@ pub struct ChNumber {
     value: NumberType,
     start_pos: Position,
     end_pos: Position,
-    context: Option<Rc<RefCell<Context>>>,
+    //context: Rc<RefCell<Context>>,
 }
 
-pub trait IsChValue: Display + HasPosition + ChOperators + AsNumberType {
+impl HasContext for ChNumber {
+    //fn set_context(&mut self, context: Rc<RefCell<Context>>) {
+    //    self.context = context;
+    //}
+}
+
+pub trait IsChValue: Display + HasPosition + HasContext + ChOperators + AsNumberType {
     fn get_desc(&self) -> String;
     fn as_type(self) -> ChType;
 }
@@ -1610,6 +1696,10 @@ pub trait HasPosition {
     fn get_start(&self) -> Position;
     fn get_end(&self) -> Position;
     fn set_position(&mut self, start_pos: Position, end_pos: Position);
+}
+
+pub trait HasContext {
+    fn set_context(&mut self, _context: Rc<RefCell<Context>>) {}
 }
 
 impl AsNumberType for ChType {
@@ -1720,12 +1810,12 @@ impl HasPosition for ChNumber {
 }
 
 impl ChNumber {
-    fn from(value: NumberType) -> Self {
+    fn from(value: NumberType, context: &mut Rc<RefCell<Context>>) -> Self {
         ChNumber {
             value,
             start_pos: Position::empty(),
             end_pos: Position::empty(),
-            context: None,
+            //context: context.clone(),
         }
     }
 
@@ -1736,10 +1826,6 @@ impl ChNumber {
                 Token::new(TokenType::FLOAT(v), self.start_pos, Some(self.end_pos))
             }
         }
-    }
-
-    fn set_context(&mut self, context: Option<Rc<RefCell<Context>>>) {
-        self.context = context;
     }
 
     fn operate_on(
@@ -1836,7 +1922,8 @@ impl ChOperators for ChNumber {
                 &self.start_pos,
                 &self.end_pos,
                 String::from("Division by 0"),
-                self.context,
+                None,
+                //Some(self.context),
             ));
         } else {
             Ok(self
@@ -2038,6 +2125,15 @@ pub enum ChType {
     NONE(ChNone),
 }
 
+impl HasContext for ChType {
+    fn set_context(&mut self, context: Rc<RefCell<Context>>) {
+        match self {
+            ChType::FUNCTION(func) => func.set_context(context),
+            _ => (),
+        }
+    }
+}
+
 impl Display for ChType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -2093,8 +2189,7 @@ impl ChType {
 pub struct Context {
     pub display_name: String,
     pub parent: Option<(Rc<RefCell<Context>>, Position)>,
-    //pub symbol_table: Rc<RefCell<SymbolTable>>,
-    pub symbol_table: SymbolTable,
+    pub symbol_table: Rc<RefCell<SymbolTable>>,
 }
 
 impl Context {
@@ -2102,14 +2197,34 @@ impl Context {
         Context {
             display_name,
             parent: None,
-            symbol_table: SymbolTable::empty(),
+            symbol_table: Rc::new(RefCell::new(SymbolTable::empty())),
+        }
+    }
+
+    fn from_parent(
+        display_name: String,
+        parent: Rc<RefCell<Context>>,
+        position: Position,
+    ) -> Rc<RefCell<Self>> {
+        Rc::new(RefCell::new(Context {
+            display_name,
+            parent: Some((parent.clone(), position)),
+            symbol_table: SymbolTable::from_parent(parent.borrow().symbol_table.clone()),
+        }))
+    }
+
+    fn count_parents(&self) -> i32 {
+        if let Some(p) = &self.parent {
+            p.0.borrow().count_parents() + 1
+        } else {
+            0
         }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct SymbolTable {
-    parent: Option<Rc<SymbolTable>>,
+    parent: Option<Rc<RefCell<SymbolTable>>>,
     table: HashMap<String, ChType>,
     immutable: Vec<String>,
 }
@@ -2123,11 +2238,19 @@ impl SymbolTable {
         }
     }
 
+    pub fn from_parent(parent: Rc<RefCell<SymbolTable>>) -> Rc<RefCell<Self>> {
+        Rc::new(RefCell::new(SymbolTable {
+            parent: Some(parent),
+            table: HashMap::new(),
+            immutable: Vec::new(),
+        }))
+    }
+
     fn get(&self, key: &String) -> Option<ChType> {
         match self.table.get(key) {
             Some(v) => Some(v.clone()),
             None => match &self.parent {
-                Some(p) => p.get(key),
+                Some(p) => p.borrow().get(key),
                 None => None,
             },
         }
@@ -2170,8 +2293,10 @@ fn visit_node(node: &mut Node, context: &mut Rc<RefCell<Context>>) -> Result<ChT
         Node::IF(cases, else_case) => visit_if_node(cases, else_case, context),
         Node::WHILE(cond, body) => visit_while_node(cond, body, context),
         Node::FOR(c1, c2, c3, body) => visit_for_node(c1, c2, c3, body, context),
-        Node::FUNCDEF(_name, _args, _body) => panic!("not yet implemented"),
-        Node::CALL(_name, _args) => panic!("not yet implemented"),
+        Node::FUNCDEF(name, args, body, start, end) => {
+            visit_funcdef_node(name, args, body, start, end, context)
+        }
+        Node::CALL(name, args) => visit_call_node(name, args, context),
     }
 }
 
@@ -2181,13 +2306,13 @@ fn visit_numb_node(token: &mut Token, context: &mut Rc<RefCell<Context>>) -> Res
             value: value.as_number_type(),
             start_pos: token.start_pos.clone(),
             end_pos: token.end_pos.clone(),
-            context: Some(context.clone()),
+            //context: context.clone(),
         })),
         TokenType::FLOAT(value) => Ok(ChType::NUMBER(ChNumber {
             value: value.as_number_type(),
             start_pos: token.start_pos.clone(),
             end_pos: token.end_pos.clone(),
-            context: Some(context.clone()),
+            //context: context.clone(),
         })),
         _ => panic!("called visit_numb_node on a number node that has a non number token"),
     }
@@ -2200,11 +2325,12 @@ fn visit_access_node(
     let var = &token.token_type;
     match var {
         TokenType::ID(var_name) => {
-            let mut entry = context.borrow().symbol_table.get(&var_name);
+            let mut entry = context.borrow().symbol_table.borrow().get(&var_name);
 
             match &mut entry {
                 Some(num) => {
                     num.set_position(token.start_pos.clone(), token.end_pos.clone());
+                    num.set_context(context.clone());
                     Ok(num.clone())
                 }
                 None => Err(Error::new(
@@ -2233,6 +2359,7 @@ fn visit_assign_node(
             if !context
                 .borrow_mut()
                 .symbol_table
+                .borrow_mut()
                 .set_mut(&var_name, ch_type.clone())
             {
                 return Err(Error::new(
@@ -2301,17 +2428,24 @@ fn visit_binop_node(
     if matches!(op.token_type, TokenType::INCRMNT) || matches!(op.token_type, TokenType::DECRMNT) {
         return in_de_crement(left, op, right, context);
     }
-
     let mut left = visit_node(left, context)?;
     let right = visit_node(right, context)?;
+
     left.set_position(left.get_start(), right.get_end());
 
-    match left {
+    match match left {
         ChType::NUMBER(n) => binop_chvalue(n, op, right),
         ChType::NONE(n) => binop_chvalue(n, op, right),
         ChType::FUNCTION(n) => binop_chvalue(n, op, right),
         ChType::BOOL(n) => binop_chvalue(n, op, right),
+    } {
+        Ok(res) => Ok(res),
+        Err(mut e) => {
+            e.set_context(context.clone());
+            Err(e)
+        },
     }
+
 }
 
 fn in_de_crement(
@@ -2355,7 +2489,7 @@ fn in_de_crement(
                     ErrType::RuntimeError,
                     &start,
                     &end,
-                    format!("operation not defined for type: 'none'"),
+                    format!("operation not defined"),
                     Some(context.clone()),
                 )),
             }
@@ -2465,11 +2599,10 @@ fn visit_funcdef_node(
     func_name: &mut Option<Token>,
     args: &mut Vec<Token>,
     body: &mut Node,
+    start: &mut Position,
+    end: &mut Position,
     context: &mut Rc<RefCell<Context>>,
 ) -> Result<ChType, Error> {
-    let start = Position::empty();
-    let end = Position::empty();
-
     let name = match func_name {
         Some(tok) => match &tok.token_type {
             TokenType::ID(s) => s,
@@ -2486,15 +2619,61 @@ fn visit_funcdef_node(
         _ => "anonymous",
     }
     .to_string();
-
-    Ok(ChType::FUNCTION(ChFunction {
-        name,
-        args: args.clone(),
+    
+    let func = ChType::FUNCTION(ChFunction {
+        name: name.clone(),
+        args_name: args.clone(),
         body: body.clone(),
-        start_pos: start,
-        end_pos: end,
+        start_pos: start.clone(),
+        end_pos: end.clone(),
         context: context.clone(),
-    }))
+    });
+
+    if let Some(_) = func_name {
+        context.borrow_mut().symbol_table.borrow_mut().set_mut(&name, func.clone());
+    }
+
+    Ok(func)
+
+    //Ok(ChType::FUNCTION(ChFunction {
+    //    name,
+    //    args_name: args.clone(),
+    //    body: body.clone(),
+    //    start_pos: start.clone(),
+    //    end_pos: end.clone(),
+    //    context: context.clone(),
+    //}))
+}
+
+fn visit_call_node(
+    func_name: &mut Node,
+    args: &mut Vec<Node>,
+    context: &mut Rc<RefCell<Context>>,
+) -> Result<ChType, Error> {
+    let c = visit_node(func_name, context)?;
+
+    let mut call = match c {
+        ChType::FUNCTION(func) => func,
+        _ => {
+            return Err(Error::new(
+                ErrType::RuntimeError,
+                &c.get_start(),
+                &c.get_end(),
+                format!("expected FUNCTION found {}", c),
+                Some(context.clone()),
+            ))
+        }
+    }
+    .clone();
+
+    let mut arg_values: Vec<ChType> = Vec::new();
+
+    for arg in args {
+        arg_values.push(visit_node(arg, context)?);
+    }
+
+    call.set_context(context.clone());
+    call.execute(arg_values)
 }
 
 pub struct Compiler {
@@ -2515,7 +2694,11 @@ impl Compiler {
         );
 
         Compiler {
-            global_context: Rc::new(RefCell::new(Context::empty("<program>".to_string()))),
+            global_context: Rc::new(RefCell::new(Context {
+                display_name: "<program>".to_string(),
+                parent: None,
+                symbol_table: Rc::new(RefCell::new(table)),
+            })),
         }
     }
 

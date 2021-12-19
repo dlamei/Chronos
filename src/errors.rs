@@ -6,11 +6,11 @@ use std::rc::Rc;
 use crate::chronos::Context;
 use crate::chronos::Position;
 
-#[derive(Debug)]
-pub struct ErrDesc {
-    message: String,
-    details: String,
-}
+//#[derive(Debug)]
+//pub struct ErrDesc {
+//    message: String,
+//    details: String,
+//}
 
 #[derive(Debug)]
 pub enum ErrType {
@@ -20,7 +20,14 @@ pub enum ErrType {
     RuntimeError,
 }
 
-pub struct Error(pub ErrType, pub ErrDesc);
+#[derive(Debug)]
+pub struct Error {
+    error_type: ErrType,
+    start_pos: Position,
+    end_pos: Position,
+    details: String,
+    context: Option<Rc<RefCell<Context>>>,
+}
 
 impl Error {
     pub fn new(
@@ -30,42 +37,50 @@ impl Error {
         details: String,
         context: Option<Rc<RefCell<Context>>>,
     ) -> Self {
-        let mut message = get_traceback(context, start_pos);
+        Error { error_type, start_pos: start_pos.clone(), end_pos: end_pos.clone(), details, context }
+    }
+
+    fn generate_message(&self) -> String {
+       let mut message = get_traceback(&self.context, &self.start_pos);
         write!(
             message,
             "{}",
-            get_error_preview(&start_pos.text, start_pos, end_pos)
+            get_error_preview(&self.start_pos.text, &self.start_pos, &self.end_pos)
         )
         .unwrap();
 
         write!(
             message,
             "\nFile: {}, Line: {}",
-            start_pos.file_name, start_pos.line
+            self.start_pos.file_name, self.start_pos.line
         )
         .unwrap();
+        message
+    }
 
-        Error(error_type, ErrDesc { message, details })
+    pub fn set_context(&mut self, context: Rc<RefCell<Context>>) {
+        self.context = Some(context);
     }
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}: {}\n{}", self.0, self.1.details, self.1.message)
+        write!(f, "{:?}: {}\n{}", self.error_type, self.details, self.generate_message())
     }
 }
 
-fn get_traceback(context: Option<Rc<RefCell<Context>>>, pos_start: &Position) -> String {
+fn get_traceback(context: &Option<Rc<RefCell<Context>>>, pos_start: &Position) -> String {
     let mut result = String::from("");
 
     if let Some(context) = context {
-        let mut cntx = context;
+        write!(result, "\nTraceback (most recent call last):\n").unwrap();
+        let mut cntx = context.clone();
         let mut pos = pos_start.clone();
 
         loop {
             write!(
                 result,
-                "\nFile: {}, Line: {}, in: {}",
+                "File: {}, Line: {}, in: {}\n",
                 pos.file_name,
                 pos.line,
                 cntx.borrow().display_name
@@ -84,7 +99,6 @@ fn get_traceback(context: Option<Rc<RefCell<Context>>>, pos_start: &Position) ->
             cntx = parent;
         }
 
-        write!(result, "\nTraceback (most recent call last)\n").unwrap();
     }
 
     write!(result, "{}", "\n").unwrap();
