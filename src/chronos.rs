@@ -1810,7 +1810,7 @@ impl HasPosition for ChNumber {
 }
 
 impl ChNumber {
-    fn from(value: NumberType, context: &mut Rc<RefCell<Context>>) -> Self {
+    fn from(value: NumberType, _context: &mut Rc<RefCell<Context>>) -> Self {
         ChNumber {
             value,
             start_pos: Position::empty(),
@@ -2300,7 +2300,7 @@ fn visit_node(node: &mut Node, context: &mut Rc<RefCell<Context>>) -> Result<ChT
     }
 }
 
-fn visit_numb_node(token: &mut Token, context: &mut Rc<RefCell<Context>>) -> Result<ChType, Error> {
+fn visit_numb_node(token: &mut Token, _context: &mut Rc<RefCell<Context>>) -> Result<ChType, Error> {
     match token.token_type {
         TokenType::INT(value) => Ok(ChType::NUMBER(ChNumber {
             value: value.as_number_type(),
