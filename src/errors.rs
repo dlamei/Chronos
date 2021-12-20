@@ -10,10 +10,10 @@ use crate::chronos::{Context, Position};
 
 #[derive(Debug)]
 pub enum ErrType {
-    IllegalCharError,
-    ExpectedCharError,
-    InvalidSyntaxError,
-    RuntimeError,
+    IllegalChar,
+    ExpectedChar,
+    InvalidSyntax,
+    Runtime,
 }
 
 #[derive(Debug)]
@@ -100,7 +100,7 @@ fn get_traceback(context: &Option<Rc<RefCell<Context>>>, pos_start: &Position) -
             let parent: Rc<RefCell<Context>>;
 
             if let Some(p) = cntx.borrow().parent.clone() {
-                pos = cntx.borrow().position.clone().unwrap_or(Position::empty());
+                pos = cntx.borrow().position.clone().unwrap_or_default();
                 parent = p;
             } else {
                 break;
@@ -114,11 +114,11 @@ fn get_traceback(context: &Option<Rc<RefCell<Context>>>, pos_start: &Position) -
         }
     }
 
-    write!(result, "{}", "\n").unwrap();
+    writeln!(result).unwrap();
     result
 }
 
-fn get_error_preview(text: &String, pos_start: &Position, pos_end: &Position) -> String {
+fn get_error_preview(text: &str, pos_start: &Position, pos_end: &Position) -> String {
     let mut result = String::from("");
 
     let mut start = text[0..pos_start.index].rfind('\n').unwrap_or(0);
@@ -148,5 +148,5 @@ fn get_error_preview(text: &String, pos_start: &Position, pos_end: &Position) ->
         end = text[0..start].find('\n').unwrap_or(text.len());
     }
 
-    return result.replace("\t", "");
+    result.replace("\t", "")
 }

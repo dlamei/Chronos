@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+#![allow(dead_code, clippy::single_match)]
 
 mod chronos;
 mod errors;
