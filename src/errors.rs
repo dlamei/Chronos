@@ -37,14 +37,22 @@ impl Error {
         details: String,
         context: Option<Rc<RefCell<Context>>>,
     ) -> Self {
-        Error { error_type, start_pos: start_pos.clone(), end_pos: end_pos.clone(), details, context }
+        Error {
+            error_type,
+            start_pos: start_pos.clone(),
+            end_pos: end_pos.clone(),
+            details,
+            context,
+        }
     }
 
     fn generate_message(&self) -> String {
-       let mut message = get_traceback(&self.context, &self.start_pos);
+        let mut message = get_traceback(&self.context, &self.start_pos);
+        write!(message, "{:?}: {}", self.error_type, self.details,).unwrap();
+
         write!(
             message,
-            "{}",
+            "\n\n{}",
             get_error_preview(&self.start_pos.text, &self.start_pos, &self.end_pos)
         )
         .unwrap();
@@ -65,7 +73,7 @@ impl Error {
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}: {}\n{}", self.error_type, self.details, self.generate_message())
+        write!(f, "{}", self.generate_message(),)
     }
 }
 
@@ -73,26 +81,30 @@ fn get_traceback(context: &Option<Rc<RefCell<Context>>>, pos_start: &Position) -
     let mut result = String::from("");
 
     if let Some(context) = context {
-        write!(result, "\nTraceback (most recent call last):\n").unwrap();
+        let mut trace: Vec<String> = Vec::new();
+
+        write!(result, "\nTraceback (most recent call last):").unwrap();
         let mut cntx = context.clone();
         let mut pos = pos_start.clone();
 
         loop {
+            let mut s = String::from("");
+
             write!(
-                result,
-                "File: {}, Line: {}, in: {}\n",
+                s,
+                "\n  File: {}, Line: {}, in {}",
                 pos.file_name,
                 pos.line,
                 cntx.borrow().display_name
             )
             .unwrap();
 
+            trace.push(s);
+
             let parent: Rc<RefCell<Context>>;
 
             if let Some(p) = cntx.borrow().parent.clone() {
-                //pos = p.1.clone();
-                //pos = p.
-                pos = p.borrow().position.clone().unwrap_or(Position::empty());
+                pos = cntx.borrow().position.clone().unwrap_or(Position::empty());
                 parent = p;
             } else {
                 break;
@@ -101,6 +113,9 @@ fn get_traceback(context: &Option<Rc<RefCell<Context>>>, pos_start: &Position) -
             cntx = parent;
         }
 
+        for t in trace.iter().rev() {
+            write!(result, "{}", t).unwrap();
+        }
     }
 
     write!(result, "{}", "\n").unwrap();

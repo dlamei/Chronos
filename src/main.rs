@@ -18,7 +18,7 @@ fn main() {
             .read_line(&mut buffer)
             .expect("Error while reading from STDIN");
 
-        match c.interpret(String::from("STDIN"), buffer) {
+        match c.interpret(String::from("<stdin>"), buffer) {
             Ok(result) => println!("{}", result),
             Err(e) => eprintln!("{}", e),
         }
