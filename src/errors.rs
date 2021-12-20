@@ -1,10 +1,6 @@
-use std::cell::RefCell;
-use std::fmt;
-use std::fmt::Write;
-use std::rc::Rc;
+use std::{cell::RefCell, fmt, fmt::Write, rc::Rc};
 
-use crate::chronos::Context;
-use crate::chronos::Position;
+use crate::chronos::{Context, Position};
 
 //#[derive(Debug)]
 //pub struct ErrDesc {

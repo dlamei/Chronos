@@ -1,10 +1,10 @@
 #![allow(dead_code)]
 
-use std::io::{self, Write};
-
 mod chronos;
 mod errors;
+
 use chronos::*;
+use std::io::{self, Write};
 
 fn main() {
     let mut c = Compiler::new();

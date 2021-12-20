@@ -1,10 +1,11 @@
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::fmt;
-use std::fmt::Debug;
-use std::fmt::Display;
-use std::mem;
-use std::rc::Rc;
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    fmt,
+    fmt::{Debug, Display},
+    mem,
+    rc::Rc,
+};
 
 use crate::errors::*;
 
@@ -18,8 +19,8 @@ fn match_enum_type<T>(t1: &T, t2: &T) -> bool {
     mem::discriminant(t1) == mem::discriminant(t2)
 }
 
-#[derive(Debug, Clone)]
 //TODO: remove file_name and text from position!!!
+#[derive(Debug, Clone)]
 pub struct Position {
     pub file_name: Rc<String>,
     pub index: usize,
@@ -1494,9 +1495,7 @@ impl IsFunction for ChronosFunc {
                 }
             };
             value.set_context(self.context.clone());
-            n_context
-                .borrow_mut()
-                .set_mut(&name, value.clone());
+            n_context.borrow_mut().set_mut(&name, value.clone());
         }
 
         visit_node(&mut self.body, &mut n_context)
@@ -2463,10 +2462,7 @@ fn visit_assign_node(
 
     match t.token_type {
         TokenType::ID(var_name) => {
-            if !context
-                .borrow_mut()
-                .set_mut(&var_name, ch_type.clone())
-            {
+            if !context.borrow_mut().set_mut(&var_name, ch_type.clone()) {
                 return Err(Error::new(
                     ErrType::RuntimeError,
                     &ch_type.get_start(),
@@ -2725,9 +2721,7 @@ fn visit_funcdef_node(
     });
 
     if let Some(_) = func_name {
-        context
-            .borrow_mut()
-            .set_mut(&name, func.clone());
+        context.borrow_mut().set_mut(&name, func.clone());
     }
 
     Ok(func)
