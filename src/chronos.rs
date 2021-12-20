@@ -107,6 +107,7 @@ fn get_keyword(s: &String) -> Result<Keyword, ()> {
 pub enum TokenType {
     INT(ChInt),
     FLOAT(ChFloat),
+    STRING(String),
     ADD,
     INCRMNT,
     SUB,
@@ -228,6 +229,10 @@ impl Lexer {
                     self.advance();
                     true
                 }
+                '"' | '\'' => {
+                    tokens.push(self.make_string()?);
+                    true
+                }
                 '^' => {
                     tokens.push(Token::new(TokenType::POW, self.position.clone(), None));
                     self.advance();
@@ -305,6 +310,27 @@ impl Lexer {
 
         tokens.push(Token::new(TokenType::EOF, self.position.clone(), None));
         Ok(tokens)
+    }
+
+    fn make_string(&mut self) -> Result<Token, Error> {
+        let start = self.position.clone();
+        let mut s = String::from("");
+        self.advance();
+
+        let escape_char = "\"\'";
+
+        while self.current_char != None && !escape_char.contains(self.current_char.unwrap()) {
+            s += &self.current_char.unwrap().to_string();
+            self.advance();
+        }
+        self.advance();
+        let end = self.position.clone();
+
+        Ok(Token {
+            token_type: TokenType::STRING(s),
+            start_pos: start,
+            end_pos: end,
+        })
     }
 
     fn make_add(&mut self) -> Result<Token, Error> {
@@ -496,6 +522,7 @@ struct Parser {
 #[derive(Debug, Clone)]
 pub enum Node {
     NUM(Token),
+    STRING(Token),
     BINOP(Box<Node>, Token, Box<Node>),
     UNRYOP(Token, Box<Node>),
     ASSIGN(Token, Box<Node>),
@@ -563,6 +590,10 @@ impl Parser {
             TokenType::INT(_) | TokenType::FLOAT(_) => {
                 self.advance();
                 Ok(Node::NUM(t))
+            }
+            TokenType::STRING(_) => {
+                self.advance();
+                Ok(Node::STRING(t))
             }
             TokenType::ID(_) => {
                 self.advance();
@@ -1174,19 +1205,19 @@ pub trait ChOperators {
         Self: IsChValue + Sized,
     {
         Err(Error::new(
-            ErrType::RuntimeError,
+            ErrType::UndefinedOperator,
             &self.get_start(),
             &self.get_end(),
             format!("operation 'add' not defined for type: {}", self.get_desc()),
             None,
         ))
     }
-    fn increment(self, _other: ChType) -> Result<ChType, Error>
+    fn add_equal(self, _other: ChType) -> Result<ChType, Error>
     where
         Self: IsChValue + Sized,
     {
         Err(Error::new(
-            ErrType::RuntimeError,
+            ErrType::UndefinedOperator,
             &self.get_start(),
             &self.get_end(),
             format!(
@@ -1196,12 +1227,12 @@ pub trait ChOperators {
             None,
         ))
     }
-    fn decrement(self, _other: ChType) -> Result<ChType, Error>
+    fn sub_equal(self, _other: ChType) -> Result<ChType, Error>
     where
         Self: IsChValue + Sized,
     {
         Err(Error::new(
-            ErrType::RuntimeError,
+            ErrType::UndefinedOperator,
             &self.get_start(),
             &self.get_end(),
             format!(
@@ -1216,7 +1247,7 @@ pub trait ChOperators {
         Self: IsChValue + Sized,
     {
         Err(Error::new(
-            ErrType::RuntimeError,
+            ErrType::UndefinedOperator,
             &self.get_start(),
             &self.get_end(),
             format!("operation 'sub' not defined for type: {}", self.get_desc()),
@@ -1228,7 +1259,7 @@ pub trait ChOperators {
         Self: IsChValue + Sized,
     {
         Err(Error::new(
-            ErrType::RuntimeError,
+            ErrType::UndefinedOperator,
             &self.get_start(),
             &self.get_end(),
             format!("operation 'mult' not defined for type: {}", self.get_desc()),
@@ -1240,7 +1271,7 @@ pub trait ChOperators {
         Self: IsChValue + Sized,
     {
         Err(Error::new(
-            ErrType::RuntimeError,
+            ErrType::UndefinedOperator,
             &self.get_start(),
             &self.get_end(),
             format!("operation 'div' not defined for type: {}", self.get_desc()),
@@ -1252,7 +1283,7 @@ pub trait ChOperators {
         Self: IsChValue + Sized,
     {
         Err(Error::new(
-            ErrType::RuntimeError,
+            ErrType::UndefinedOperator,
             &self.get_start(),
             &self.get_end(),
             format!("operation 'pow' not defined for type: {}", self.get_desc()),
@@ -1264,7 +1295,7 @@ pub trait ChOperators {
         Self: IsChValue + Sized,
     {
         Err(Error::new(
-            ErrType::RuntimeError,
+            ErrType::UndefinedOperator,
             &self.get_start(),
             &self.get_end(),
             format!(
@@ -1279,7 +1310,7 @@ pub trait ChOperators {
         Self: IsChValue + Sized,
     {
         Err(Error::new(
-            ErrType::RuntimeError,
+            ErrType::UndefinedOperator,
             &self.get_start(),
             &self.get_end(),
             format!(
@@ -1294,7 +1325,7 @@ pub trait ChOperators {
         Self: IsChValue + Sized,
     {
         Err(Error::new(
-            ErrType::RuntimeError,
+            ErrType::UndefinedOperator,
             &self.get_start(),
             &self.get_end(),
             format!("operation 'less' not defined for type: {}", self.get_desc()),
@@ -1306,7 +1337,7 @@ pub trait ChOperators {
         Self: IsChValue + Sized,
     {
         Err(Error::new(
-            ErrType::RuntimeError,
+            ErrType::UndefinedOperator,
             &self.get_start(),
             &self.get_end(),
             format!(
@@ -1321,7 +1352,7 @@ pub trait ChOperators {
         Self: IsChValue + Sized,
     {
         Err(Error::new(
-            ErrType::RuntimeError,
+            ErrType::UndefinedOperator,
             &self.get_start(),
             &self.get_end(),
             format!(
@@ -1336,7 +1367,7 @@ pub trait ChOperators {
         Self: IsChValue + Sized,
     {
         Err(Error::new(
-            ErrType::RuntimeError,
+            ErrType::UndefinedOperator,
             &self.get_start(),
             &self.get_end(),
             format!(
@@ -1351,7 +1382,7 @@ pub trait ChOperators {
         Self: IsChValue + Sized,
     {
         Err(Error::new(
-            ErrType::RuntimeError,
+            ErrType::UndefinedOperator,
             &self.get_start(),
             &self.get_end(),
             format!("operation 'and' not defined for type: {}", self.get_desc()),
@@ -1363,7 +1394,7 @@ pub trait ChOperators {
         Self: IsChValue + Sized,
     {
         Err(Error::new(
-            ErrType::RuntimeError,
+            ErrType::UndefinedOperator,
             &self.get_start(),
             &self.get_end(),
             format!("operation 'or' not defined for type: {}", self.get_desc()),
@@ -1375,7 +1406,7 @@ pub trait ChOperators {
         Self: IsChValue + Sized,
     {
         Err(Error::new(
-            ErrType::RuntimeError,
+            ErrType::UndefinedOperator,
             &self.get_start(),
             &self.get_end(),
             format!("operation 'not' not defined for type: {}", self.get_desc()),
@@ -1395,7 +1426,7 @@ pub trait ChOperators {
         Self: IsChValue + Sized,
     {
         Err(Error::new(
-            ErrType::RuntimeError,
+            ErrType::UndefinedOperator,
             &self.get_start(),
             &self.get_end(),
             format!(
@@ -1494,9 +1525,7 @@ impl IsFunction for ChronosFunc {
                 }
             };
             value.set_context(self.context.clone());
-            n_context
-                .borrow_mut()
-                .set_mut(&name, value.clone());
+            n_context.borrow_mut().set_mut(&name, value.clone());
         }
 
         visit_node(&mut self.body, &mut n_context)
@@ -1795,6 +1824,7 @@ impl AsNumberType for ChType {
     fn as_number_type(self) -> NumberType {
         match self {
             ChType::NUMBER(n) => n.as_number_type(),
+            ChType::STRING(s) => s.as_number_type(),
             ChType::BOOL(b) => b.as_number_type(),
             ChType::FUNCTION(f) => f.as_number_type(),
             ChType::NONE(_) => 0.as_number_type(),
@@ -1804,6 +1834,7 @@ impl AsNumberType for ChType {
     fn convert(self) -> Result<NumberType, Error> {
         match self {
             ChType::NUMBER(n) => Ok(n.as_number_type()),
+            ChType::STRING(s) => Ok(s.as_number_type()),
             ChType::BOOL(b) => Ok(b.as_number_type()),
             ChType::FUNCTION(f) => Ok(f.as_number_type()),
             ChType::NONE(_) => Err(Error::new(
@@ -1819,6 +1850,7 @@ impl AsNumberType for ChType {
     fn get_value_type(&self) -> NumberType {
         match self {
             ChType::NUMBER(n) => n.get_value_type(),
+            ChType::STRING(s) => s.get_value_type(),
             ChType::BOOL(b) => b.get_value_type(),
             ChType::FUNCTION(_) | ChType::NONE(_) => {
                 panic!("could not get value type of type {}", self)
@@ -1948,7 +1980,7 @@ impl ChOperators for ChNumber {
             .as_type())
     }
 
-    fn increment(self, other: ChType) -> Result<ChType, Error> {
+    fn add_equal(self, other: ChType) -> Result<ChType, Error> {
         Ok(self
             .operate_on(
                 other.convert()?,
@@ -1964,7 +1996,7 @@ impl ChOperators for ChNumber {
             .as_type())
     }
 
-    fn decrement(self, other: ChType) -> Result<ChType, Error> {
+    fn sub_equal(self, other: ChType) -> Result<ChType, Error> {
         Ok(self
             .operate_on(
                 other.convert()?,
@@ -2205,8 +2237,80 @@ impl ChOperators for ChNumber {
 }
 
 #[derive(Debug, Clone)]
+pub struct ChString {
+    string: String,
+    start_pos: Position,
+    end_pos: Position,
+}
+
+impl Display for ChString {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.string)
+    }
+}
+
+impl HasPosition for ChString {
+    fn get_start(&self) -> Position {
+        self.start_pos.clone()
+    }
+
+    fn get_end(&self) -> Position {
+        self.end_pos.clone()
+    }
+
+    fn set_position(&mut self, start_pos: Position, end_pos: Position) {
+        self.start_pos = start_pos;
+        self.end_pos = end_pos;
+    }
+}
+
+impl HasContext for ChString {}
+
+impl ChOperators for ChString {
+    fn is_true(&self) -> bool {
+        self.string.len() != 0
+    }
+
+    fn add(mut self, other: ChType) -> Result<ChType, Error> {
+        let other_string = match other {
+            ChType::NUMBER(n) => format!("{}", n),
+            ChType::STRING(s) => s.to_string(),
+            _ => {
+                return Err(Error::new(
+                    ErrType::RuntimeError,
+                    &self.start_pos,
+                    &self.end_pos,
+                    format!("can't add {:?} to String", other),
+                    None,
+                ))
+            }
+        };
+
+        self.string += &other_string;
+        Ok(ChType::STRING(self))
+    }
+
+    fn add_equal(self, other: ChType) -> Result<ChType, Error> {
+        self.add(other)
+    }
+}
+
+impl AsNumberType for ChString {}
+
+impl IsChValue for ChString {
+    fn as_type(self) -> ChType {
+        ChType::STRING(self)
+    }
+
+    fn get_desc(&self) -> String {
+        String::from("String")
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum ChType {
     NUMBER(ChNumber),
+    STRING(ChString),
     FUNCTION(ChFunction),
     BOOL(ChBool),
     NONE(ChNone),
@@ -2225,6 +2329,7 @@ impl Display for ChType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ChType::NUMBER(n) => write!(f, "{}", n),
+            ChType::STRING(s) => write!(f, "{}", s),
             ChType::NONE(n) => write!(f, "{}", n),
             ChType::BOOL(b) => write!(f, "{}", b),
             ChType::FUNCTION(func) => write!(f, "{}", func),
@@ -2236,6 +2341,7 @@ impl HasPosition for ChType {
     fn get_start(&self) -> Position {
         match self {
             ChType::NUMBER(num) => num.start_pos.clone(),
+            ChType::STRING(s) => s.start_pos.clone(),
             ChType::BOOL(b) => b.start_pos.clone(),
             ChType::NONE(none) => none.start_pos.clone(),
             ChType::FUNCTION(f) => f.get_start().clone(),
@@ -2245,6 +2351,7 @@ impl HasPosition for ChType {
     fn get_end(&self) -> Position {
         match self {
             ChType::NUMBER(num) => num.end_pos.clone(),
+            ChType::STRING(s) => s.end_pos.clone(),
             ChType::BOOL(b) => b.end_pos.clone(),
             ChType::FUNCTION(f) => f.get_end().clone(),
             ChType::NONE(none) => none.end_pos.clone(),
@@ -2254,6 +2361,7 @@ impl HasPosition for ChType {
     fn set_position(&mut self, start_pos: Position, end_pos: Position) {
         match self {
             ChType::NUMBER(num) => num.set_position(start_pos, end_pos),
+            ChType::STRING(s) => s.set_position(start_pos, end_pos),
             ChType::BOOL(b) => b.set_position(start_pos, end_pos),
             ChType::FUNCTION(f) => f.set_position(start_pos, end_pos),
             ChType::NONE(none) => none.set_position(start_pos, end_pos),
@@ -2265,6 +2373,7 @@ impl ChType {
     pub fn is_true(&self) -> bool {
         match self {
             ChType::NUMBER(n) => n.is_true(),
+            ChType::STRING(s) => s.is_true(),
             ChType::NONE(n) => n.is_true(),
             ChType::BOOL(n) => n.is_true(),
             ChType::FUNCTION(f) => f.is_true(),
@@ -2390,6 +2499,7 @@ impl SymbolTable {
 fn visit_node(node: &mut Node, context: &mut Rc<RefCell<Context>>) -> Result<ChType, Error> {
     match node {
         Node::NUM(token) => visit_numb_node(token, context),
+        Node::STRING(s) => visit_string_node(s, context),
         Node::UNRYOP(op, node) => visit_unryop_node(op, node, context),
         Node::BINOP(left, op, right) => visit_binop_node(left, op, right, context),
         Node::ACCESS(id) => visit_access_node(id, context),
@@ -2422,6 +2532,20 @@ fn visit_numb_node(
             end_pos: token.end_pos.clone(),
         })),
         _ => panic!("called visit_numb_node on a number node that has a non number token"),
+    }
+}
+
+fn visit_string_node(
+    token: &mut Token,
+    _context: &mut Rc<RefCell<Context>>,
+) -> Result<ChType, Error> {
+    match &token.token_type {
+        TokenType::STRING(s) => Ok(ChType::STRING(ChString {
+            string: s.to_string(),
+            start_pos: token.start_pos.clone(),
+            end_pos: token.end_pos.clone(),
+        })),
+        _ => panic!("called visit_string_node on a string node that has a non string token"),
     }
 }
 
@@ -2463,10 +2587,7 @@ fn visit_assign_node(
 
     match t.token_type {
         TokenType::ID(var_name) => {
-            if !context
-                .borrow_mut()
-                .set_mut(&var_name, ch_type.clone())
-            {
+            if !context.borrow_mut().set_mut(&var_name, ch_type.clone()) {
                 return Err(Error::new(
                     ErrType::RuntimeError,
                     &ch_type.get_start(),
@@ -2499,6 +2620,7 @@ fn visit_unryop_node(
 
     match ch_type {
         ChType::NUMBER(n) => unryop_chvalue(op, n),
+        ChType::STRING(s) => unryop_chvalue(op, s),
         ChType::BOOL(n) => unryop_chvalue(op, n),
         ChType::FUNCTION(n) => unryop_chvalue(op, n),
         ChType::NONE(n) => unryop_chvalue(op, n),
@@ -2540,6 +2662,7 @@ fn visit_binop_node(
 
     match match left {
         ChType::NUMBER(n) => binop_chvalue(n, op, right),
+        ChType::STRING(s) => binop_chvalue(s, op, right),
         ChType::NONE(n) => binop_chvalue(n, op, right),
         ChType::FUNCTION(n) => binop_chvalue(n, op, right),
         ChType::BOOL(n) => binop_chvalue(n, op, right),
@@ -2567,35 +2690,62 @@ fn in_de_crement(
         Node::ACCESS(var_name) => {
             left.set_position(left.get_start(), right.get_end());
 
-            match (left, right) {
-                (ChType::NUMBER(n1), ChType::NUMBER(n2)) => match op.token_type {
-                    TokenType::INCRMNT => {
-                        let n = n1.increment(ChType::NUMBER(n2))?;
-                        if let ChType::NUMBER(n) = n {
-                            let mut node = Node::NUM(n.as_token());
-                            visit_assign_node(&mut var_name.clone(), &mut node, context)
-                        } else {
-                            panic!("increment didn't return a Number");
+            match op.token_type {
+                TokenType::INCRMNT => {
+                    let res = match left {
+                        ChType::NUMBER(n) => n.add_equal(right),
+                        ChType::STRING(s) => s.add_equal(right),
+                        ChType::NONE(n) => n.add_equal(right),
+                        ChType::FUNCTION(func) => func.add_equal(right),
+                        ChType::BOOL(b) => b.add_equal(right),
+                    }?;
+                    let mut node = match res {
+                        ChType::NUMBER(n) => Node::NUM(n.as_token()),
+                        ChType::STRING(s) => Node::STRING(Token {
+                            token_type: TokenType::STRING(s.string),
+                            start_pos: s.start_pos,
+                            end_pos: s.end_pos,
+                        }),
+                        _ => {
+                            return Err(Error::new(
+                                ErrType::UndefinedOperator,
+                                &res.get_start(),
+                                &res.get_end(),
+                                String::from("operation only defined for String and Number"),
+                                None,
+                            ))
                         }
-                    }
-                    TokenType::DECRMNT => {
-                        let n = n1.decrement(ChType::NUMBER(n2))?;
-                        if let ChType::NUMBER(n) = n {
-                            let mut node = Node::NUM(n.as_token());
-                            visit_assign_node(&mut var_name.clone(), &mut node, context)
-                        } else {
-                            panic!("increment didn't return a Number");
+                    };
+                    visit_assign_node(&mut var_name.clone(), &mut node, context)
+                }
+                TokenType::DECRMNT => {
+                    let res = match left {
+                        ChType::NUMBER(n) => n.sub_equal(right),
+                        ChType::STRING(s) => s.sub_equal(right),
+                        ChType::NONE(n) => n.sub_equal(right),
+                        ChType::FUNCTION(func) => func.sub_equal(right),
+                        ChType::BOOL(b) => b.sub_equal(right),
+                    }?;
+                    let mut node = match res {
+                        ChType::NUMBER(n) => Node::NUM(n.as_token()),
+                        ChType::STRING(s) => Node::STRING(Token {
+                            token_type: TokenType::STRING(s.string),
+                            start_pos: s.start_pos,
+                            end_pos: s.end_pos,
+                        }),
+                        _ => {
+                            return Err(Error::new(
+                                ErrType::UndefinedOperator,
+                                &res.get_start(),
+                                &res.get_end(),
+                                String::from("operation only defined for String and Number"),
+                                None,
+                            ))
                         }
-                    }
-                    _ => panic!("called in/decrement on invalid token, found {:?}", op),
-                },
-                _ => Err(Error::new(
-                    ErrType::RuntimeError,
-                    &start,
-                    &end,
-                    format!("operation not defined"),
-                    Some(context.clone()),
-                )),
+                    };
+                    visit_assign_node(&mut var_name.clone(), &mut node, context)
+                }
+                _ => panic!("called in/decrement on {:?}", op),
             }
         }
         _ => Err(Error::new(
@@ -2725,9 +2875,7 @@ fn visit_funcdef_node(
     });
 
     if let Some(_) = func_name {
-        context
-            .borrow_mut()
-            .set_mut(&name, func.clone());
+        context.borrow_mut().set_mut(&name, func.clone());
     }
 
     Ok(func)

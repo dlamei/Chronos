@@ -18,6 +18,7 @@ pub enum ErrType {
     ExpectedCharError,
     InvalidSyntaxError,
     RuntimeError,
+    UndefinedOperator,
 }
 
 #[derive(Debug)]
