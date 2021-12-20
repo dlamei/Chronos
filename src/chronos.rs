@@ -103,21 +103,6 @@ fn get_keyword(s: &String) -> Result<Keyword, ()> {
     }
 }
 
-fn returns_bool(tok: &TokenType) -> bool {
-    match tok {
-        TokenType::EQUAL
-        | TokenType::NEQUAL
-        | TokenType::LESS
-        | TokenType::LESSEQ
-        | TokenType::GREATER
-        | TokenType::GREATEREQ
-        | TokenType::KEYWRD(Keyword::AND)
-        | TokenType::KEYWRD(Keyword::OR)
-        | TokenType::KEYWRD(Keyword::NOT) => true,
-        _ => false,
-    }
-}
-
 #[derive(Debug, Clone)]
 pub enum TokenType {
     INT(ChInt),
@@ -226,9 +211,7 @@ impl Lexer {
                 self.advance();
             } else if match c {
                 '+' => {
-                    //tokens.push(Token::new(TokenType::ADD, &self.position, None));
                     tokens.push(self.make_add()?);
-                    //self.advance();
                     true
                 }
                 '-' => {
@@ -383,7 +366,6 @@ impl Lexer {
                     keyword
                 ),
                 None,
-                //ChType::BOOL(b) => write!(f, "{}", if b.value { "true" } else { "false" }),
             )),
         }
     }
@@ -405,13 +387,6 @@ impl Lexer {
                 start,
                 Some(self.position.clone()),
             ))
-            //return Err(Error::ne.clone()w(
-            //    ErrType::Expecte.clone()dCharError,
-            //    &start,
-            //    &self.position,
-            //    "Lexer: Expected '=' after '!'".into(),
-            //    None,
-            //));
         }
     }
 
@@ -469,11 +444,6 @@ impl Lexer {
             Ok(k) => TokenType::KEYWRD(k),
             Err(()) => TokenType::ID(id),
         };
-        //let token_type = if is_keyword(&id) {
-        //    TokenType::KEYWRD(get_keyword(&id))
-        //} else {
-        //    TokenType::ID(id)
-        //};
         Token::new(token_type, pos_start, Some(self.position.clone()))
     }
 
@@ -829,7 +799,6 @@ impl Parser {
             self.current_token.token_type,
             TokenType::KEYWRD(Keyword::ELSE)
         ) {
-            //if let TokenType::KEYWRD(Keyword::ELSE) = self.current_token.token_type {
             self.advance();
             if !matches!(self.current_token.token_type, TokenType::LCURLY) {
                 return Err(Error::new(
@@ -1509,7 +1478,6 @@ impl IsFunction for ChronosFunc {
             ));
         }
 
-        //for (i, value) in args.iter().enumerate() {
         for i in 0..args.len() {
             let value = args.get_mut(i).unwrap();
             let n = &self.args_name[i];
@@ -1527,8 +1495,6 @@ impl IsFunction for ChronosFunc {
             };
             value.set_context(self.context.clone());
             n_context
-                .borrow_mut()
-                .symbol_table
                 .borrow_mut()
                 .set_mut(&name, value.clone());
         }
@@ -1759,7 +1725,6 @@ pub struct ChNumber {
     value: NumberType,
     start_pos: Position,
     end_pos: Position,
-    //context: Rc<RefCell<Context>>,
 }
 
 impl HasContext for ChNumber {}
@@ -2046,7 +2011,6 @@ impl ChOperators for ChNumber {
                 &self.end_pos,
                 String::from("Division by 0"),
                 None,
-                //Some(self.context),
             ));
         } else {
             Ok(self
@@ -2322,7 +2286,6 @@ impl Context {
             display_name,
             parent: None,
             position: None,
-            //symbol_table: Rc::new(RefCell::new(SymbolTable::empty())),
             symbol_table: SymbolTable::empty(),
         }
     }
@@ -2336,7 +2299,6 @@ impl Context {
             display_name,
             parent: Some(parent.clone()),
             position: Some(position),
-            //symbol_table: SymbolTable::from_parent(parent.borrow().symbol_table.clone()),
             symbol_table: SymbolTable::empty(),
         }))
     }
@@ -2358,22 +2320,13 @@ impl Context {
         }
     }
 
-    /*
-        match self.table.get(key) {
-            Some(v) => Some(v.clone()),
-            None => match &self.parent {
-                Some(p) => p.borrow().get(key),
-                None => None,
-            },
-        }*/
-
     fn get(&self, key: &String) -> Option<ChType> {
         match self.symbol_table.get(key) {
             Some(v) => Some(v.clone()),
             None => match &self.parent {
                 Some(p) => p.borrow().get(key),
                 None => None,
-            }
+            },
         }
     }
 
@@ -2388,7 +2341,6 @@ impl Context {
 
 #[derive(Debug, Clone)]
 pub struct SymbolTable {
-    //parent: Option<Rc<RefCell<SymbolTable>>>,
     table: HashMap<String, ChType>,
     immutable: Vec<String>,
 }
@@ -2396,18 +2348,9 @@ pub struct SymbolTable {
 impl SymbolTable {
     pub fn empty() -> Self {
         SymbolTable {
-            //parent: None,
             table: HashMap::new(),
             immutable: Vec::new(),
         }
-    }
-
-    pub fn from_parent(parent: Rc<RefCell<SymbolTable>>) -> Rc<RefCell<Self>> {
-        Rc::new(RefCell::new(SymbolTable {
-            //parent: Some(parent),
-            table: HashMap::new(),
-            immutable: Vec::new(),
-        }))
     }
 
     fn get(&self, key: &String) -> Option<ChType> {
@@ -2415,13 +2358,6 @@ impl SymbolTable {
             Some(v) => Some(v.clone()),
             None => None,
         }
-        //match self.table.get(key) {
-        //    Some(v) => Some(v.clone()),
-        //    None => match &self.parent {
-        //        Some(p) => p.borrow().get(key),
-        //        None => None,
-        //    },
-        //}
     }
 
     fn set_mut(&mut self, key: &String, value: ChType) -> bool {
@@ -2479,13 +2415,11 @@ fn visit_numb_node(
             value: value.as_number_type(),
             start_pos: token.start_pos.clone(),
             end_pos: token.end_pos.clone(),
-            //context: context.clone(),
         })),
         TokenType::FLOAT(value) => Ok(ChType::NUMBER(ChNumber {
             value: value.as_number_type(),
             start_pos: token.start_pos.clone(),
             end_pos: token.end_pos.clone(),
-            //context: context.clone(),
         })),
         _ => panic!("called visit_numb_node on a number node that has a non number token"),
     }
@@ -2530,8 +2464,6 @@ fn visit_assign_node(
     match t.token_type {
         TokenType::ID(var_name) => {
             if !context
-                .borrow_mut()
-                .symbol_table
                 .borrow_mut()
                 .set_mut(&var_name, ch_type.clone())
             {
@@ -2795,21 +2727,10 @@ fn visit_funcdef_node(
     if let Some(_) = func_name {
         context
             .borrow_mut()
-            .symbol_table
-            .borrow_mut()
             .set_mut(&name, func.clone());
     }
 
     Ok(func)
-
-    //Ok(ChType::FUNCTION(ChFunction {
-    //    name,
-    //    args_name: args.clone(),
-    //    body: body.clone(),
-    //    start_pos: start.clone(),
-    //    end_pos: end.clone(),
-    //    context: context.clone(),
-    //}))
 }
 
 fn visit_call_node(
@@ -2907,7 +2828,7 @@ impl Compiler {
                 display_name: "<module>".to_string(),
                 parent: None,
                 position: None,
-                symbol_table: Rc::new(RefCell::new(table)),
+                symbol_table: table,
             })),
         }
     }
