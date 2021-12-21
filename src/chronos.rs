@@ -1212,35 +1212,37 @@ pub trait ChOperators {
             None,
         ))
     }
-    fn add_equal(self, _other: ChType) -> Result<ChType, Error>
+    fn add_equal(self, other: ChType) -> Result<ChType, Error>
     where
         Self: IsChValue + Sized,
     {
-        Err(Error::new(
-            ErrType::UndefinedOperator,
-            &self.get_start(),
-            &self.get_end(),
-            format!(
-                "operation 'increment' not defined for type: {}",
-                self.get_desc()
-            ),
-            None,
-        ))
+        self.add(other)
+        //Err(Error::new(
+        //    ErrType::UndefinedOperator,
+        //    &self.get_start(),
+        //    &self.get_end(),
+        //    format!(
+        //        "operation 'increment' not defined for type: {}",
+        //        self.get_desc()
+        //    ),
+        //    None,
+        //))
     }
-    fn sub_equal(self, _other: ChType) -> Result<ChType, Error>
+    fn sub_equal(self, other: ChType) -> Result<ChType, Error>
     where
         Self: IsChValue + Sized,
     {
-        Err(Error::new(
-            ErrType::UndefinedOperator,
-            &self.get_start(),
-            &self.get_end(),
-            format!(
-                "operation 'decrement' not defined for type: {}",
-                self.get_desc()
-            ),
-            None,
-        ))
+        self.sub(other)
+        //Err(Error::new(
+        //    ErrType::UndefinedOperator,
+        //    &self.get_start(),
+        //    &self.get_end(),
+        //    format!(
+        //        "operation 'decrement' not defined for type: {}",
+        //        self.get_desc()
+        //    ),
+        //    None,
+        //))
     }
     fn sub(self, _other: ChType) -> Result<ChType, Error>
     where
@@ -1980,38 +1982,6 @@ impl ChOperators for ChNumber {
             .as_type())
     }
 
-    fn add_equal(self, other: ChType) -> Result<ChType, Error> {
-        Ok(self
-            .operate_on(
-                other.convert()?,
-                |mut v1: ChInt, v2: ChInt| {
-                    v1 += v2;
-                    v1
-                },
-                |mut v1: ChFloat, v2: ChFloat| {
-                    v1 += v2;
-                    v1
-                },
-            )
-            .as_type())
-    }
-
-    fn sub_equal(self, other: ChType) -> Result<ChType, Error> {
-        Ok(self
-            .operate_on(
-                other.convert()?,
-                |mut v1: ChInt, v2: ChInt| {
-                    v1 -= v2;
-                    v1
-                },
-                |mut v1: ChFloat, v2: ChFloat| {
-                    v1 -= v2;
-                    v1
-                },
-            )
-            .as_type())
-    }
-
     fn sub(self, other: ChType) -> Result<ChType, Error> {
         Ok(self
             .operate_on(
@@ -2699,24 +2669,14 @@ fn in_de_crement(
                         ChType::FUNCTION(func) => func.add_equal(right),
                         ChType::BOOL(b) => b.add_equal(right),
                     }?;
-                    let mut node = match res {
-                        ChType::NUMBER(n) => Node::NUM(n.as_token()),
-                        ChType::STRING(s) => Node::STRING(Token {
-                            token_type: TokenType::STRING(s.string),
-                            start_pos: s.start_pos,
-                            end_pos: s.end_pos,
-                        }),
-                        _ => {
-                            return Err(Error::new(
-                                ErrType::UndefinedOperator,
-                                &res.get_start(),
-                                &res.get_end(),
-                                String::from("operation only defined for String and Number"),
-                                None,
-                            ))
-                        }
+
+                    let name = match &var_name.token_type {
+                        TokenType::ID(n) => n,
+                        _ => panic!("could not resolve name"),
                     };
-                    visit_assign_node(&mut var_name.clone(), &mut node, context)
+
+                    context.borrow_mut().set_mut(name, res.clone());
+                    Ok(res)
                 }
                 TokenType::DECRMNT => {
                     let res = match left {
@@ -2726,24 +2686,14 @@ fn in_de_crement(
                         ChType::FUNCTION(func) => func.sub_equal(right),
                         ChType::BOOL(b) => b.sub_equal(right),
                     }?;
-                    let mut node = match res {
-                        ChType::NUMBER(n) => Node::NUM(n.as_token()),
-                        ChType::STRING(s) => Node::STRING(Token {
-                            token_type: TokenType::STRING(s.string),
-                            start_pos: s.start_pos,
-                            end_pos: s.end_pos,
-                        }),
-                        _ => {
-                            return Err(Error::new(
-                                ErrType::UndefinedOperator,
-                                &res.get_start(),
-                                &res.get_end(),
-                                String::from("operation only defined for String and Number"),
-                                None,
-                            ))
-                        }
+
+                    let name = match &var_name.token_type {
+                        TokenType::ID(n) => n,
+                        _ => panic!("could not resolve name"),
                     };
-                    visit_assign_node(&mut var_name.clone(), &mut node, context)
+
+                    context.borrow_mut().set_mut(name, res.clone());
+                    Ok(res)
                 }
                 _ => panic!("called in/decrement on {:?}", op),
             }
@@ -2944,6 +2894,40 @@ fn ch_print(args: Vec<ChType>, _name: Option<String>) -> Result<ChType, Error> {
     Ok(ret)
 }
 
+fn ch_len(args: Vec<ChType>, _name: Option<String>) -> Result<ChType, Error> {
+    let mut start = Position::empty();
+    let mut end = Position::empty();
+
+    if args.len() != 1 {
+        return Err(Error::new(
+            ErrType::RuntimeError,
+            &start,
+            &end,
+            format!("Expected 1 argument found: {}", args.len()),
+            None,
+        ));
+    }
+
+    let arg = args.first().unwrap();
+    start = arg.get_start();
+    end = arg.get_end();
+
+    match arg {
+        ChType::STRING(s) => Ok(ChType::NUMBER(ChNumber {
+            value: (s.string.len() as i32).as_number_type(),
+            start_pos: start,
+            end_pos: end,
+        })),
+        _ => Err(Error::new(
+            ErrType::RuntimeError,
+            &start,
+            &end,
+            format!("{} has no len", arg),
+            None,
+        )),
+    }
+}
+
 pub struct Compiler {
     pub global_context: Rc<RefCell<Context>>,
 }
@@ -2967,6 +2951,16 @@ impl Compiler {
                 func_type: FuncType::RUSTFUNC(RustFunc {
                     name: "print".to_string(),
                     function: ch_print,
+                }),
+            }),
+        );
+
+        table.set(
+            &String::from("len"),
+            ChType::FUNCTION(ChFunction {
+                func_type: FuncType::RUSTFUNC(RustFunc {
+                    name: "len".to_string(),
+                    function: ch_len,
                 }),
             }),
         );
