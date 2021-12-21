@@ -15,6 +15,7 @@ const LETTERS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 type ChInt = i32;
 type ChFloat = f32;
 
+#[allow(clippy::mem_discriminant_non_enum)]
 fn match_enum_type<T>(t1: &T, t2: &T) -> bool {
     mem::discriminant(t1) == mem::discriminant(t2)
 }
@@ -640,9 +641,7 @@ impl Parser {
             self.advance();
             let mut arg_nodes: Vec<Node> = Vec::new();
 
-            if matches!(self.current_token.token_type, TokenType::RRound) {
-                self.advance();
-            } else {
+            if !matches!(self.current_token.token_type, TokenType::RRound) {
                 arg_nodes.push(self.expression()?);
 
                 while matches!(self.current_token.token_type, TokenType::Comma) {
@@ -659,9 +658,9 @@ impl Parser {
                         None,
                     ));
                 }
-
-                self.advance();
             }
+
+            self.advance();
             Ok(Node::Call(res.into(), arg_nodes))
         } else {
             Ok(res)
@@ -895,11 +894,8 @@ impl Parser {
                 arg_tokens.push(self.current_token.clone());
                 self.advance();
             }
-
-            self.expect_token(TokenType::RRound)?;
-        } else {
-            self.expect_token(TokenType::RRound)?;
         }
+        self.expect_token(TokenType::RRound)?;
 
         self.advance();
 
@@ -1490,7 +1486,7 @@ impl IsFunction for ChronosFunc {
                 }
             };
             value.set_context(self.context.clone());
-            n_context.borrow_mut().set_mut(&name, value.clone());
+            n_context.borrow_mut().set_mut(name, value.clone());
         }
 
         visit_node(&mut self.body, &mut n_context)
@@ -1578,7 +1574,7 @@ impl IsChValue for ChFunction {
     }
 
     fn into_type(self) -> ChType {
-        ChType::Function(self)
+        ChType::Function(self.into())
     }
 }
 
@@ -2203,7 +2199,7 @@ impl HasContext for ChString {}
 
 impl ChOperators for ChString {
     fn is_true(&self) -> bool {
-        self.string.len() != 0
+        !self.string.is_empty()
     }
 
     fn add(mut self, other: ChType) -> Result<ChType, Error> {
@@ -2246,7 +2242,7 @@ impl IsChValue for ChString {
 pub enum ChType {
     Number(ChNumber),
     String(ChString),
-    Function(ChFunction),
+    Function(Box<ChFunction>),
     Bool(ChBool),
     None(ChNone),
 }
@@ -2547,7 +2543,7 @@ fn visit_unryop_node(
         ChType::Number(n) => unryop_chvalue(op, n),
         ChType::String(s) => unryop_chvalue(op, s),
         ChType::Bool(n) => unryop_chvalue(op, n),
-        ChType::Function(n) => unryop_chvalue(op, n),
+        ChType::Function(n) => unryop_chvalue(op, *n),
         ChType::None(n) => unryop_chvalue(op, n),
     }
 }
@@ -2589,7 +2585,7 @@ fn visit_binop_node(
         ChType::Number(n) => binop_chvalue(n, op, right),
         ChType::String(s) => binop_chvalue(s, op, right),
         ChType::None(n) => binop_chvalue(n, op, right),
-        ChType::Function(n) => binop_chvalue(n, op, right),
+        ChType::Function(n) => binop_chvalue(*n, op, right),
         ChType::Bool(n) => binop_chvalue(n, op, right),
     } {
         Ok(res) => Ok(res),
@@ -2768,7 +2764,7 @@ fn visit_funcdef_node(
     }
     .to_string();
 
-    let func = ChType::Function(ChFunction {
+    let func = ChType::Function(Box::new(ChFunction {
         func_type: FuncType::ChronFunc(ChronosFunc {
             name: name.clone(),
             args_name: args.clone(),
@@ -2777,7 +2773,7 @@ fn visit_funcdef_node(
             end_pos: end.clone(),
             context: context.clone(),
         }),
-    });
+    }));
 
     if func_name.is_some() {
         context.borrow_mut().set_mut(&name, func.clone());
@@ -2901,22 +2897,22 @@ impl Compiler {
 
         table.set(
             &String::from("print"),
-            ChType::Function(ChFunction {
+            ChType::Function(Box::new(ChFunction {
                 func_type: FuncType::RustFunc(RustFunc {
                     name: "print".to_string(),
                     function: ch_print,
                 }),
-            }),
+            })),
         );
 
         table.set(
             &String::from("len"),
-            ChType::Function(ChFunction {
+            ChType::Function(Box::new(ChFunction {
                 func_type: FuncType::RustFunc(RustFunc {
                     name: "len".to_string(),
                     function: ch_len,
                 }),
-            }),
+            })),
         );
 
         Compiler {
