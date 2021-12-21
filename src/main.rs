@@ -1,10 +1,10 @@
-#![allow(dead_code)]
-
-use std::io::{self, Write};
+#![allow(dead_code, clippy::single_match)]
 
 mod chronos;
 mod errors;
+
 use chronos::*;
+use std::io::{self, Write};
 
 fn main() {
     let mut c = Compiler::new();
