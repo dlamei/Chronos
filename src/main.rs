@@ -1,7 +1,10 @@
 #![allow(dead_code, clippy::single_match)]
 
 mod chronos;
+mod datatypes;
 mod errors;
+mod lexer;
+mod parser;
 
 use chronos::*;
 use std::io::{self, Write};

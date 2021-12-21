@@ -1,6 +1,6 @@
 use std::{cell::RefCell, fmt, fmt::Write, rc::Rc};
 
-use crate::chronos::{Context, Position};
+use crate::chronos::{Position, Scope};
 
 //#[derive(Debug)]
 //pub struct ErrDesc {
@@ -23,7 +23,7 @@ pub struct Error {
     start_pos: Position,
     end_pos: Position,
     details: String,
-    context: Option<Rc<RefCell<Context>>>,
+    scope: Option<Rc<RefCell<Scope>>>,
 }
 
 impl Error {
@@ -32,19 +32,19 @@ impl Error {
         start_pos: &Position,
         end_pos: &Position,
         details: String,
-        context: Option<Rc<RefCell<Context>>>,
+        scope: Option<Rc<RefCell<Scope>>>,
     ) -> Self {
         Error {
             error_type,
             start_pos: start_pos.clone(),
             end_pos: end_pos.clone(),
             details,
-            context,
+            scope,
         }
     }
 
     fn generate_message(&self) -> String {
-        let mut message = get_traceback(&self.context, &self.start_pos);
+        let mut message = get_traceback(&self.scope, &self.start_pos);
         write!(message, "{:?}: {}", self.error_type, self.details,).unwrap();
 
         write!(
@@ -63,8 +63,8 @@ impl Error {
         message
     }
 
-    pub fn set_context(&mut self, context: Rc<RefCell<Context>>) {
-        self.context = Some(context);
+    pub fn set_scope(&mut self, scope: Rc<RefCell<Scope>>) {
+        self.scope = Some(scope);
     }
 }
 
@@ -74,14 +74,14 @@ impl fmt::Display for Error {
     }
 }
 
-fn get_traceback(context: &Option<Rc<RefCell<Context>>>, pos_start: &Position) -> String {
+fn get_traceback(scope: &Option<Rc<RefCell<Scope>>>, pos_start: &Position) -> String {
     let mut result = String::from("");
 
-    if let Some(context) = context {
+    if let Some(scope) = scope {
         let mut trace: Vec<String> = Vec::new();
 
         write!(result, "\nTraceback (most recent call last):").unwrap();
-        let mut cntx = context.clone();
+        let mut cntx = scope.clone();
         let mut pos = pos_start.clone();
 
         loop {
@@ -98,7 +98,7 @@ fn get_traceback(context: &Option<Rc<RefCell<Context>>>, pos_start: &Position) -
 
             trace.push(s);
 
-            let parent: Rc<RefCell<Context>>;
+            let parent: Rc<RefCell<Scope>>;
 
             if let Some(p) = cntx.borrow().parent.clone() {
                 pos = cntx.borrow().position.clone().unwrap_or_default();
