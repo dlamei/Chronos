@@ -98,9 +98,9 @@ pub enum TokenType {
     String(String),
     Float(ChFloat),
     Add,
-    Incrmnt,
+    AddEq,
     Sub,
-    Decrmnt,
+    SubEq,
     Mul,
     Div,
     Pow,
@@ -330,7 +330,7 @@ impl Lexer {
             '=' => {
                 self.advance();
                 Ok(Token::new(
-                    TokenType::Incrmnt,
+                    TokenType::AddEq,
                     start,
                     Some(self.position.clone()),
                 ))
@@ -347,7 +347,7 @@ impl Lexer {
             '=' => {
                 self.advance();
                 Ok(Token::new(
-                    TokenType::Decrmnt,
+                    TokenType::SubEq,
                     start,
                     Some(self.position.clone()),
                 ))
@@ -689,7 +689,7 @@ impl Parser {
     ) -> Result<Node, Error> {
         let mut left_node = func_a(self)?;
 
-        while {
+        let res = {
             let mut found = false;
             for t in &ops {
                 if match_enum_type(t, &self.current_token.token_type) {
@@ -708,7 +708,7 @@ impl Parser {
                 }
             }
             found
-        } {
+        }; if res {
             let op_token = self.current_token.clone();
             self.advance();
             let right_node = func_b(self)?;
@@ -1030,8 +1030,8 @@ impl Parser {
                 Parser::arith_expression,
                 vec![
                     TokenType::Equal,
-                    TokenType::Incrmnt,
-                    TokenType::Decrmnt,
+                    TokenType::AddEq,
+                    TokenType::SubEq,
                     TokenType::NEqual,
                     TokenType::Less,
                     TokenType::LessEq,
@@ -1159,8 +1159,8 @@ impl IsChValue for ChNone {
     }
 }
 
-impl AsNumberType for ChNone {
-    fn convert(self) -> Result<NumberType, Error> {
+impl ConvertType for ChNone {
+    fn convert_to_number(self) -> Result<NumberType, Error> {
         Err(Error::new(
             ErrType::Runtime,
             &self.get_start(),
@@ -1543,7 +1543,7 @@ impl HasContext for ChFunction {
     }
 }
 
-impl AsNumberType for ChFunction {}
+impl ConvertType for ChFunction {}
 
 impl HasPosition for ChFunction {
     fn get_start(&self) -> Position {
@@ -1686,16 +1686,16 @@ impl ChOperators for ChBool {
     }
 }
 
-impl AsNumberType for ChBool {
+impl ConvertType for ChBool {
     fn into_number_type(self) -> NumberType {
         NumberType::Int(self.value as i32)
     }
 
-    fn convert(self) -> Result<NumberType, Error> {
+    fn convert_to_number(self) -> Result<NumberType, Error> {
         Ok(NumberType::Int(self.value as i32))
     }
 
-    fn get_value_type(&self) -> NumberType {
+    fn get_number_type(&self) -> NumberType {
         NumberType::Int(self.value as i32)
     }
 }
@@ -1719,7 +1719,7 @@ pub struct ChNumber {
 
 impl HasContext for ChNumber {}
 
-pub trait IsChValue: Display + HasPosition + HasContext + ChOperators + AsNumberType {
+pub trait IsChValue: Display + HasPosition + HasContext + ChOperators + ConvertType {
     fn get_desc(&self) -> String;
     fn into_type(self) -> ChType;
 }
@@ -1743,7 +1743,7 @@ impl Display for ChNumber {
     }
 }
 
-pub trait AsNumberType {
+pub trait ConvertType {
     fn into_number_type(self) -> NumberType
     where
         Self: Sized,
@@ -1751,7 +1751,7 @@ pub trait AsNumberType {
         panic!("value can't be converted");
     }
 
-    fn convert(self) -> Result<NumberType, Error>
+    fn convert_to_number(self) -> Result<NumberType, Error>
     where
         Self: Sized + HasPosition,
     {
@@ -1764,7 +1764,7 @@ pub trait AsNumberType {
         ))
     }
 
-    fn get_value_type(&self) -> NumberType
+    fn get_number_type(&self) -> NumberType
     where
         Self: Sized,
     {
@@ -1782,7 +1782,7 @@ pub trait HasContext {
     fn set_context(&mut self, _context: Rc<RefCell<Context>>) {}
 }
 
-impl AsNumberType for ChType {
+impl ConvertType for ChType {
     fn into_number_type(self) -> NumberType {
         match self {
             ChType::Number(n) => n.into_number_type(),
@@ -1793,12 +1793,12 @@ impl AsNumberType for ChType {
         }
     }
 
-    fn convert(self) -> Result<NumberType, Error> {
+    fn convert_to_number(self) -> Result<NumberType, Error> {
         match self {
-            ChType::Number(n) => n.convert(),
-            ChType::String(s) => s.convert(),
-            ChType::Bool(b) => b.convert(),
-            ChType::Function(f) => f.convert(),
+            ChType::Number(n) => n.convert_to_number(),
+            ChType::String(s) => s.convert_to_number(),
+            ChType::Bool(b) => b.convert_to_number(),
+            ChType::Function(f) => f.convert_to_number(),
             ChType::None(_) => Err(Error::new(
                 ErrType::Runtime,
                 &self.get_start(),
@@ -1809,11 +1809,11 @@ impl AsNumberType for ChType {
         }
     }
 
-    fn get_value_type(&self) -> NumberType {
+    fn get_number_type(&self) -> NumberType {
         match self {
-            ChType::Number(n) => n.get_value_type(),
-            ChType::Bool(b) => b.get_value_type(),
-            ChType::String(b) => b.get_value_type(),
+            ChType::Number(n) => n.get_number_type(),
+            ChType::Bool(b) => b.get_number_type(),
+            ChType::String(b) => b.get_number_type(),
             ChType::Function(_) | ChType::None(_) => {
                 panic!("could not get value type of type {}", self)
             }
@@ -1821,58 +1821,58 @@ impl AsNumberType for ChType {
     }
 }
 
-impl AsNumberType for bool {
+impl ConvertType for bool {
     fn into_number_type(self) -> NumberType {
         NumberType::Int(if self { 1 } else { 0 })
     }
 
-    fn get_value_type(&self) -> NumberType {
+    fn get_number_type(&self) -> NumberType {
         NumberType::Int(if *self { 1 } else { 0 })
     }
 
-    fn convert(self) -> Result<NumberType, Error> {
+    fn convert_to_number(self) -> Result<NumberType, Error> {
         Ok(NumberType::Int(if self { 1 } else { 0 }))
     }
 }
 
-impl AsNumberType for ChInt {
+impl ConvertType for ChInt {
     fn into_number_type(self) -> NumberType {
         NumberType::Int(self)
     }
 
-    fn get_value_type(&self) -> NumberType {
+    fn get_number_type(&self) -> NumberType {
         NumberType::Int(*self)
     }
 
-    fn convert(self) -> Result<NumberType, Error> {
+    fn convert_to_number(self) -> Result<NumberType, Error> {
         Ok(NumberType::Int(self))
     }
 }
 
-impl AsNumberType for ChFloat {
+impl ConvertType for ChFloat {
     fn into_number_type(self) -> NumberType {
         NumberType::Float(self)
     }
 
-    fn get_value_type(&self) -> NumberType {
+    fn get_number_type(&self) -> NumberType {
         NumberType::Float(*self)
     }
 
-    fn convert(self) -> Result<NumberType, Error> {
+    fn convert_to_number(self) -> Result<NumberType, Error> {
         Ok(NumberType::Float(self))
     }
 }
 
-impl AsNumberType for ChNumber {
+impl ConvertType for ChNumber {
     fn into_number_type(self) -> NumberType {
         self.value
     }
 
-    fn get_value_type(&self) -> NumberType {
+    fn get_number_type(&self) -> NumberType {
         self.value.clone()
     }
 
-    fn convert(self) -> Result<NumberType, Error> {
+    fn convert_to_number(self) -> Result<NumberType, Error> {
         Ok(self.value)
     }
 }
@@ -1935,7 +1935,7 @@ impl ChOperators for ChNumber {
     fn add(self, other: ChType) -> Result<ChType, Error> {
         Ok(self
             .operate_on(
-                other.convert()?,
+                other.convert_to_number()?,
                 |v1: ChInt, v2: ChInt| v1 + v2,
                 |v1: ChFloat, v2: ChFloat| v1 + v2,
             )
@@ -1945,7 +1945,7 @@ impl ChOperators for ChNumber {
     fn sub(self, other: ChType) -> Result<ChType, Error> {
         Ok(self
             .operate_on(
-                other.convert()?,
+                other.convert_to_number()?,
                 |v1: ChInt, v2: ChInt| v1 - v2,
                 |v1: ChFloat, v2: ChFloat| v1 - v2,
             )
@@ -1955,7 +1955,7 @@ impl ChOperators for ChNumber {
     fn mult(self, other: ChType) -> Result<ChType, Error> {
         Ok(self
             .operate_on(
-                other.convert()?,
+                other.convert_to_number()?,
                 |v1: ChInt, v2: ChInt| v1 * v2,
                 |v1: ChFloat, v2: ChFloat| v1 * v2,
             )
@@ -1963,7 +1963,7 @@ impl ChOperators for ChNumber {
     }
 
     fn div(self, other: ChType) -> Result<ChType, Error> {
-        if match other.get_value_type() {
+        if match other.clone().convert_to_number()? {
             NumberType::Int(v) => v == 0,
             NumberType::Float(v) => v == 0.0,
         } {
@@ -1977,7 +1977,7 @@ impl ChOperators for ChNumber {
         } else {
             Ok(self
                 .operate_on(
-                    other.convert()?,
+                    other.convert_to_number()?,
                     |v1: ChInt, v2: ChInt| v1 / v2,
                     |v1: ChFloat, v2: ChFloat| v1 / v2,
                 )
@@ -1986,7 +1986,7 @@ impl ChOperators for ChNumber {
     }
 
     fn pow(mut self, other: ChType) -> Result<ChType, Error> {
-        if match other.get_value_type() {
+        if match other.clone().convert_to_number()? {
             NumberType::Int(v) => v == 0,
             _ => false,
         } {
@@ -1995,7 +1995,7 @@ impl ChOperators for ChNumber {
         } else {
             Ok(self
                 .operate_on(
-                    other.convert()?,
+                    other.convert_to_number()?,
                     |v1: ChInt, v2: ChInt| v1.pow(v2.try_into().unwrap_or(0)),
                     |v1: ChFloat, v2: ChFloat| v1.powf(v2),
                 )
@@ -2004,7 +2004,7 @@ impl ChOperators for ChNumber {
     }
 
     fn equal(self, other: ChType) -> Result<ChType, Error> {
-        let value = other.convert();
+        let value = other.convert_to_number();
 
         Ok(ChBool {
             value: match value {
@@ -2023,7 +2023,7 @@ impl ChOperators for ChNumber {
     }
 
     fn not_equal(self, other: ChType) -> Result<ChType, Error> {
-        let value = other.convert();
+        let value = other.convert_to_number();
 
         Ok(ChBool {
             value: match value {
@@ -2042,7 +2042,7 @@ impl ChOperators for ChNumber {
     }
 
     fn less(self, other: ChType) -> Result<ChType, Error> {
-        let value = other.convert()?;
+        let value = other.convert_to_number()?;
 
         Ok(ChBool {
             value: match (self.value, value) {
@@ -2058,7 +2058,7 @@ impl ChOperators for ChNumber {
     }
 
     fn less_equal(self, other: ChType) -> Result<ChType, Error> {
-        let value = other.convert()?;
+        let value = other.convert_to_number()?;
 
         Ok(ChBool {
             value: match (self.value, value) {
@@ -2074,7 +2074,7 @@ impl ChOperators for ChNumber {
     }
 
     fn greater(self, other: ChType) -> Result<ChType, Error> {
-        let value = other.convert()?;
+        let value = other.convert_to_number()?;
 
         Ok(ChBool {
             value: match (self.value, value) {
@@ -2090,7 +2090,7 @@ impl ChOperators for ChNumber {
     }
 
     fn greater_equal(self, other: ChType) -> Result<ChType, Error> {
-        let value = other.convert()?;
+        let value = other.convert_to_number()?;
 
         Ok(ChBool {
             value: match (self.value, value) {
@@ -2106,7 +2106,7 @@ impl ChOperators for ChNumber {
     }
 
     fn and(self, other: ChType) -> Result<ChType, Error> {
-        let value = other.convert()?;
+        let value = other.convert_to_number()?;
 
         Ok(ChBool {
             value: match (self.value, value) {
@@ -2122,7 +2122,7 @@ impl ChOperators for ChNumber {
     }
 
     fn or(self, other: ChType) -> Result<ChType, Error> {
-        let value = other.convert()?;
+        let value = other.convert_to_number()?;
 
         Ok(ChBool {
             value: match (self.value, value) {
@@ -2166,7 +2166,7 @@ impl ChOperators for ChNumber {
     }
 }
 
-#[allow(clippy::large_enum_variant)]
+//#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 pub struct ChString {
     string: String,
@@ -2221,12 +2221,26 @@ impl ChOperators for ChString {
         Ok(ChType::String(self))
     }
 
-    fn add_equal(self, other: ChType) -> Result<ChType, Error> {
-        self.add(other)
+    fn mult(mut self, other: ChType) -> Result<ChType, Error>
+    {
+        let n = other.into_number_type();
+        
+        match n {
+            NumberType::Int(v) => {
+                self.string = self.string.repeat(v.try_into().unwrap());
+                Ok(self.into_type())
+            },
+            _ => Err(Error::new(
+                    ErrType::UndefinedOperator,
+                    &self.start_pos,
+                    &self.end_pos,
+                    String::from("multiply is only defined for type Int"),
+                    None)),
+        }
     }
 }
 
-impl AsNumberType for ChString {}
+impl ConvertType for ChString {}
 
 impl IsChValue for ChString {
     fn into_type(self) -> ChType {
@@ -2573,7 +2587,7 @@ fn visit_binop_node(
     right: &mut Node,
     context: &mut Rc<RefCell<Context>>,
 ) -> Result<ChType, Error> {
-    if matches!(op.token_type, TokenType::Incrmnt) || matches!(op.token_type, TokenType::Decrmnt) {
+    if matches!(op.token_type, TokenType::AddEq) || matches!(op.token_type, TokenType::SubEq) {
         return in_de_crement(left, op, right, context);
     }
     let mut left = visit_node(left, context)?;
@@ -2612,7 +2626,7 @@ fn in_de_crement(
             left.set_position(left.get_start(), right.get_end());
 
             match op.token_type {
-                TokenType::Incrmnt => {
+                TokenType::AddEq => {
                     let res = match left {
                         ChType::Number(n) => n.add_equal(right),
                         ChType::String(s) => s.add_equal(right),
@@ -2629,7 +2643,7 @@ fn in_de_crement(
                     context.borrow_mut().set_mut(name, res.clone());
                     Ok(res)
                 }
-                TokenType::Decrmnt => {
+                TokenType::SubEq => {
                     let res = match left {
                         ChType::Number(n) => n.sub_equal(right),
                         ChType::String(s) => s.sub_equal(right),
@@ -2864,7 +2878,7 @@ fn ch_len(args: Vec<ChType>, _name: Option<String>) -> Result<ChType, Error> {
 
     match arg {
         ChType::String(s) => Ok(ChType::Number(ChNumber {
-            value: (s.string.len() as i32).get_value_type(),
+            value: (s.string.len() as i32).get_number_type(),
             start_pos: start,
             end_pos: end,
         })),
