@@ -1,7 +1,8 @@
-use crate::chronos::ChType;
 use crate::chronos::*;
 use crate::errors::*;
+use crate::interpreter::visit_node;
 use std::{cell::RefCell, fmt, fmt::Debug, fmt::Display, rc::Rc};
+
 
 pub trait HasPosition {
     fn get_start(&self) -> Position;
@@ -166,6 +167,126 @@ pub trait ChOperators {
         Self: IsChValue + Sized,
     {
         generate_undefined_op(&self, "negate")
+    }
+}
+
+pub trait IsChValue: Display + HasPosition + HasScope + ChOperators + ConvertType {
+    fn get_desc(&self) -> String;
+    fn into_type(self) -> ChType;
+}
+
+//------------- Chronos Types ------------------------//
+
+#[derive(Debug, Clone)]
+pub enum ChType {
+    Number(ChNumber),
+    String(ChString),
+    Function(Box<ChFunction>),
+    Bool(ChBool),
+    None(ChNone),
+}
+
+impl HasScope for ChType {
+    fn set_scope(&mut self, scope: Rc<RefCell<Scope>>) {
+        match self {
+            ChType::Function(func) => func.set_scope(scope),
+            _ => {}
+        }
+    }
+}
+
+impl Display for ChType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ChType::Number(n) => write!(f, "{}", n),
+            ChType::String(n) => write!(f, "{}", n),
+            ChType::None(n) => write!(f, "{}", n),
+            ChType::Bool(b) => write!(f, "{}", b),
+            ChType::Function(func) => write!(f, "{}", func),
+        }
+    }
+}
+
+impl HasPosition for ChType {
+    fn get_start(&self) -> Position {
+        match self {
+            ChType::Number(num) => num.start_pos.clone(),
+            ChType::String(t) => t.start_pos.clone(),
+            ChType::Bool(b) => b.start_pos.clone(),
+            ChType::None(none) => none.start_pos.clone(),
+            ChType::Function(f) => f.get_start(),
+        }
+    }
+
+    fn get_end(&self) -> Position {
+        match self {
+            ChType::Number(num) => num.end_pos.clone(),
+            ChType::String(t) => t.end_pos.clone(),
+            ChType::Bool(b) => b.end_pos.clone(),
+            ChType::Function(f) => f.get_end(),
+            ChType::None(none) => none.end_pos.clone(),
+        }
+    }
+
+    fn set_position(&mut self, start_pos: Position, end_pos: Position) {
+        match self {
+            ChType::Number(num) => num.set_position(start_pos, end_pos),
+            ChType::Bool(b) => b.set_position(start_pos, end_pos),
+            ChType::Function(f) => f.set_position(start_pos, end_pos),
+            ChType::None(none) => none.set_position(start_pos, end_pos),
+            ChType::String(t) => t.set_position(start_pos, end_pos),
+        }
+    }
+}
+
+impl ChType {
+    pub fn is_true(&self) -> bool {
+        match self {
+            ChType::Number(n) => n.is_true(),
+            ChType::None(n) => n.is_true(),
+            ChType::Bool(n) => n.is_true(),
+            ChType::Function(f) => f.is_true(),
+            ChType::String(f) => f.is_true(),
+        }
+    }
+}
+
+impl ConvertType for ChType {
+    fn into_number_type(self) -> NumberType {
+        match self {
+            ChType::Number(n) => n.into_number_type(),
+            ChType::String(s) => s.into_number_type(),
+            ChType::Bool(b) => b.into_number_type(),
+            ChType::Function(f) => f.into_number_type(),
+            ChType::None(_) => 0.into_number_type(),
+        }
+    }
+
+    fn convert_to_number(self) -> Result<NumberType, Error> {
+        match self {
+            ChType::Number(n) => n.convert_to_number(),
+            ChType::String(s) => s.convert_to_number(),
+            ChType::Bool(b) => b.convert_to_number(),
+            ChType::Function(f) => f.convert_to_number(),
+            ChType::None(_) => Err(Error::new(
+                ErrType::Runtime,
+                &self.get_start(),
+                &self.get_end(),
+                format!("Could not convert '{}' to Number", self),
+                None,
+            )),
+        }
+    }
+
+    fn get_number_type(&self) -> NumberType {
+        match self {
+            ChType::Number(n) => n.get_number_type(),
+            ChType::Bool(b) => b.get_number_type(),
+            ChType::String(b) => b.get_number_type(),
+            ChType::Function(_) | ChType::None(_) => {
+                panic!("could not get value type of type {}", self)
+            }
+        }
     }
 }
 
@@ -368,6 +489,12 @@ impl ChOperators for ChBool {
 
 
 //--------------------------Number------------------------------//
+
+#[derive(Clone, Debug)]
+pub enum NumberType {
+    Int(ChInt),
+    Float(ChFloat),
+}
 
 #[derive(Debug, Clone)]
 pub struct ChNumber {

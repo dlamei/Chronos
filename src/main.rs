@@ -5,6 +5,7 @@ mod datatypes;
 mod errors;
 mod lexer;
 mod parser;
+mod interpreter;
 
 use chronos::*;
 use std::io::{self, Write};
