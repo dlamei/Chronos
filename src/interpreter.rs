@@ -5,7 +5,6 @@ use crate::chronos::*;
 use crate::datatypes::*;
 use crate::errors::*;
 
-
 pub fn visit_node(node: &mut Node, scope: &mut Rc<RefCell<Scope>>) -> Result<ChType, Error> {
     match node {
         Node::Num(token) => visit_numb_node(token, scope),
@@ -407,12 +406,21 @@ fn visit_call_node(
     call.execute(arg_values, name)
 }
 
-fn visit_array_node(vec: &mut Vec<Node>, start: &mut Position, end: &mut Position, scope: &mut Rc<RefCell<Scope>>) -> Result<ChType, Error> {
-    let mut array : Vec<ChType> = Vec::new();
+fn visit_array_node(
+    vec: &mut Vec<Node>,
+    start: &mut Position,
+    end: &mut Position,
+    scope: &mut Rc<RefCell<Scope>>,
+) -> Result<ChType, Error> {
+    let mut array: Vec<ChType> = Vec::new();
 
     for v in vec {
         array.push(visit_node(v, scope)?);
     }
 
-    Ok(ChType::Array( ChArray { data: array, start_pos: start.clone(), end_pos: end.clone() }))
+    Ok(ChType::Array(ChArray {
+        data: array,
+        start_pos: start.clone(),
+        end_pos: end.clone(),
+    }))
 }

@@ -3,6 +3,18 @@ use crate::errors::*;
 use crate::interpreter::visit_node;
 use std::{cell::RefCell, fmt, fmt::Debug, fmt::Display, rc::Rc};
 
+macro_rules! chtype_macro {
+    ($chtype:ident, $inner:ident, $ex:expr) => {
+        match $chtype {
+            ChType::Number($inner) => $ex,
+            ChType::String($inner) => $ex,
+            ChType::Bool($inner) => $ex,
+            ChType::Array($inner) => $ex,
+            ChType::Function($inner) => $ex,
+            ChType::None($inner) => $ex,
+        }
+    };
+}
 
 pub trait HasPosition {
     fn get_start(&self) -> Position;
@@ -48,13 +60,17 @@ pub trait ConvertType {
 }
 
 fn generate_undefined_op(caller: &dyn IsChValue, op_name: &str) -> Result<ChType, Error> {
-        Err(Error::new(
-            ErrType::UndefinedOperator,
-            &caller.get_start(),
-            &caller.get_end(),
-            format!("operation '{}' not defined for type: {}", op_name, caller.get_desc()),
-            None,
-        ))
+    Err(Error::new(
+        ErrType::UndefinedOperator,
+        &caller.get_start(),
+        &caller.get_end(),
+        format!(
+            "operation '{}' not defined for type: {}",
+            op_name,
+            caller.get_desc()
+        ),
+        None,
+    ))
 }
 
 pub trait ChOperators {
@@ -155,8 +171,7 @@ pub trait ChOperators {
         generate_undefined_op(&self, "not")
     }
 
-    fn is_true(&self) -> bool
-    {
+    fn is_true(&self) -> bool {
         false
     }
 
@@ -196,38 +211,36 @@ impl HasScope for ChType {
 
 pub fn unwrap_ref_chtype<'a>(value: &'a ChType) -> &'a dyn IsChValue {
     match value {
-            ChType::Number(n) => n,
-            ChType::String(n) => n,
-            ChType::Array(n) => n,
-            ChType::Function(n) => &**n,
-            ChType::Bool(n) => n,
-            ChType::None(n) => n,
+        ChType::Number(n) => n,
+        ChType::String(n) => n,
+        ChType::Array(n) => n,
+        ChType::Function(n) => &**n,
+        ChType::Bool(n) => n,
+        ChType::None(n) => n,
     }
 }
 
 pub fn unwrap_chtype(value: ChType) -> Box<dyn IsChValue> {
     match value {
-            ChType::Number(n) => Box::new(n),
-            ChType::String(n) => Box::new(n),
-            ChType::Array(n) => Box::new(n),
-            ChType::Function(n) => n,
-            ChType::Bool(n) => Box::new(n),
-            ChType::None(n) => Box::new(n),
+        ChType::Number(n) => Box::new(n),
+        ChType::String(n) => Box::new(n),
+        ChType::Array(n) => Box::new(n),
+        ChType::Function(n) => n,
+        ChType::Bool(n) => Box::new(n),
+        ChType::None(n) => Box::new(n),
     }
 }
 
-pub fn unwrap_mut_ref_chtype<'a>(value: &'a mut ChType) -> 
-&'a mut dyn IsChValue {
+pub fn unwrap_mut_ref_chtype<'a>(value: &'a mut ChType) -> &'a mut dyn IsChValue {
     match value {
         ChType::Number(n) => n,
-            ChType::String(n) => n,
-            ChType::Array(n) => n,
-            ChType::Function(n) => &mut **n,
-            ChType::Bool(n) => n,
-            ChType::None(n) => n,
+        ChType::String(n) => n,
+        ChType::Array(n) => n,
+        ChType::Function(n) => &mut **n,
+        ChType::Bool(n) => n,
+        ChType::None(n) => n,
     }
 }
-
 
 impl Display for ChType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -257,14 +270,7 @@ impl ChType {
 
 impl ConvertType for ChType {
     fn into_number_type(self) -> NumberType {
-        match self {
-            ChType::Number(n) => n.into_number_type(),
-            ChType::String(s) => s.into_number_type(),
-            ChType::Bool(b) => b.into_number_type(),
-            ChType::Function(f) => f.into_number_type(),
-            ChType::Array(a) => a.into_number_type(),
-            ChType::None(_) => 0.into_number_type(),
-        }
+        chtype_macro!(self, e, e.into_number_type())
     }
 
     fn convert_to_number(self) -> Result<NumberType, Error> {
@@ -492,8 +498,6 @@ impl ChOperators for ChBool {
         .into_type())
     }
 }
-
-
 
 //--------------------------Number------------------------------//
 
@@ -996,7 +1000,6 @@ impl IsFunction for ChFunction {
     }
 }
 
-
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug)]
 pub enum FuncType {
@@ -1126,7 +1129,9 @@ pub struct ChArray {
 
 impl Display for ChArray {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.data.len() == 0 { return write!(f, ""); }
+        if self.data.len() == 0 {
+            return write!(f, "");
+        }
 
         write!(f, "[{}", self.data.get(0).unwrap())?;
         for i in 1..self.data.len() {

@@ -1,17 +1,10 @@
-use std::{
-    cell::RefCell,
-    collections::HashMap,
-    fmt,
-    fmt::Debug,
-    mem,
-    rc::Rc,
-};
+use std::{cell::RefCell, collections::HashMap, fmt, fmt::Debug, mem, rc::Rc};
 
 use crate::datatypes::*;
 use crate::errors::*;
+use crate::interpreter::*;
 use crate::lexer::Lexer;
 use crate::parser::Parser;
-use crate::interpreter::*;
 
 pub const DIGITS: &str = "0123456789";
 pub const LETTERS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -187,7 +180,6 @@ pub enum Node {
     Call(Box<Node>, Vec<Node>),
 }
 
-
 impl ConvertType for bool {
     fn into_number_type(self) -> NumberType {
         NumberType::Int(if self { 1 } else { 0 })
@@ -229,7 +221,6 @@ impl ConvertType for ChFloat {
         Ok(NumberType::Float(self))
     }
 }
-
 
 #[derive(Debug, Clone)]
 pub struct Scope {
@@ -335,7 +326,6 @@ impl SymbolTable {
         self.table.remove(key);
     }
 }
-
 
 fn ch_print(args: Vec<ChType>, _name: Option<String>) -> Result<ChType, Error> {
     let ret = ChType::None(ChNone {
