@@ -156,8 +156,6 @@ pub trait ChOperators {
     }
 
     fn is_true(&self) -> bool
-    where
-        Self: IsChValue + Sized,
     {
         false
     }
@@ -181,6 +179,7 @@ pub trait IsChValue: Display + HasPosition + HasScope + ChOperators + ConvertTyp
 pub enum ChType {
     Number(ChNumber),
     String(ChString),
+    Array(ChArray),
     Function(Box<ChFunction>),
     Bool(ChBool),
     None(ChNone),
@@ -195,59 +194,64 @@ impl HasScope for ChType {
     }
 }
 
+pub fn unwrap_ref_chtype<'a>(value: &'a ChType) -> &'a dyn IsChValue {
+    match value {
+            ChType::Number(n) => n,
+            ChType::String(n) => n,
+            ChType::Array(n) => n,
+            ChType::Function(n) => &**n,
+            ChType::Bool(n) => n,
+            ChType::None(n) => n,
+    }
+}
+
+pub fn unwrap_chtype(value: ChType) -> Box<dyn IsChValue> {
+    match value {
+            ChType::Number(n) => Box::new(n),
+            ChType::String(n) => Box::new(n),
+            ChType::Array(n) => Box::new(n),
+            ChType::Function(n) => n,
+            ChType::Bool(n) => Box::new(n),
+            ChType::None(n) => Box::new(n),
+    }
+}
+
+pub fn unwrap_mut_ref_chtype<'a>(value: &'a mut ChType) -> 
+&'a mut dyn IsChValue {
+    match value {
+        ChType::Number(n) => n,
+            ChType::String(n) => n,
+            ChType::Array(n) => n,
+            ChType::Function(n) => &mut **n,
+            ChType::Bool(n) => n,
+            ChType::None(n) => n,
+    }
+}
+
+
 impl Display for ChType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ChType::Number(n) => write!(f, "{}", n),
-            ChType::String(n) => write!(f, "{}", n),
-            ChType::None(n) => write!(f, "{}", n),
-            ChType::Bool(b) => write!(f, "{}", b),
-            ChType::Function(func) => write!(f, "{}", func),
-        }
+        write!(f, "{}", unwrap_ref_chtype(self))
     }
 }
 
 impl HasPosition for ChType {
     fn get_start(&self) -> Position {
-        match self {
-            ChType::Number(num) => num.start_pos.clone(),
-            ChType::String(t) => t.start_pos.clone(),
-            ChType::Bool(b) => b.start_pos.clone(),
-            ChType::None(none) => none.start_pos.clone(),
-            ChType::Function(f) => f.get_start(),
-        }
+        unwrap_ref_chtype(self).get_start()
     }
 
     fn get_end(&self) -> Position {
-        match self {
-            ChType::Number(num) => num.end_pos.clone(),
-            ChType::String(t) => t.end_pos.clone(),
-            ChType::Bool(b) => b.end_pos.clone(),
-            ChType::Function(f) => f.get_end(),
-            ChType::None(none) => none.end_pos.clone(),
-        }
+        unwrap_ref_chtype(self).get_end()
     }
 
     fn set_position(&mut self, start_pos: Position, end_pos: Position) {
-        match self {
-            ChType::Number(num) => num.set_position(start_pos, end_pos),
-            ChType::Bool(b) => b.set_position(start_pos, end_pos),
-            ChType::Function(f) => f.set_position(start_pos, end_pos),
-            ChType::None(none) => none.set_position(start_pos, end_pos),
-            ChType::String(t) => t.set_position(start_pos, end_pos),
-        }
+        unwrap_mut_ref_chtype(self).set_position(start_pos, end_pos);
     }
 }
 
 impl ChType {
     pub fn is_true(&self) -> bool {
-        match self {
-            ChType::Number(n) => n.is_true(),
-            ChType::None(n) => n.is_true(),
-            ChType::Bool(n) => n.is_true(),
-            ChType::Function(f) => f.is_true(),
-            ChType::String(f) => f.is_true(),
-        }
+        unwrap_ref_chtype(self).is_true()
     }
 }
 
@@ -258,6 +262,7 @@ impl ConvertType for ChType {
             ChType::String(s) => s.into_number_type(),
             ChType::Bool(b) => b.into_number_type(),
             ChType::Function(f) => f.into_number_type(),
+            ChType::Array(a) => a.into_number_type(),
             ChType::None(_) => 0.into_number_type(),
         }
     }
@@ -267,6 +272,7 @@ impl ConvertType for ChType {
             ChType::Number(n) => n.convert_to_number(),
             ChType::String(s) => s.convert_to_number(),
             ChType::Bool(b) => b.convert_to_number(),
+            ChType::Array(a) => a.convert_to_number(),
             ChType::Function(f) => f.convert_to_number(),
             ChType::None(_) => Err(Error::new(
                 ErrType::Runtime,
@@ -281,6 +287,7 @@ impl ConvertType for ChType {
     fn get_number_type(&self) -> NumberType {
         match self {
             ChType::Number(n) => n.get_number_type(),
+            ChType::Array(n) => n.get_number_type(),
             ChType::Bool(b) => b.get_number_type(),
             ChType::String(b) => b.get_number_type(),
             ChType::Function(_) | ChType::None(_) => {
@@ -1108,3 +1115,54 @@ impl HasPosition for ChronosFunc {
     }
 }
 
+//--------------------------Array------------------------------//
+
+#[derive(Clone, Debug)]
+pub struct ChArray {
+    pub data: Vec<ChType>,
+    pub start_pos: Position,
+    pub end_pos: Position,
+}
+
+impl Display for ChArray {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.data.len() == 0 { return write!(f, ""); }
+
+        write!(f, "[{}", self.data.get(0).unwrap())?;
+        for i in 1..self.data.len() {
+            write!(f, ", {}", self.data.get(i).unwrap())?;
+        }
+        write!(f, "]")
+    }
+}
+
+impl HasPosition for ChArray {
+    fn get_start(&self) -> Position {
+        self.start_pos.clone()
+    }
+
+    fn get_end(&self) -> Position {
+        self.end_pos.clone()
+    }
+
+    fn set_position(&mut self, start_pos: Position, end_pos: Position) {
+        self.start_pos = start_pos;
+        self.end_pos = end_pos;
+    }
+}
+
+impl HasScope for ChArray {}
+
+impl ChOperators for ChArray {}
+
+impl ConvertType for ChArray {}
+
+impl IsChValue for ChArray {
+    fn get_desc(&self) -> String {
+        String::from("Array")
+    }
+
+    fn into_type(self) -> ChType {
+        ChType::Array(self)
+    }
+}

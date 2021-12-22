@@ -168,6 +168,7 @@ impl Token {
 pub enum Node {
     Num(Token),
     String(Token),
+    Array(Vec<Node>, Position, Position),
     BinOp(Box<Node>, Token, Box<Node>),
     UnryOp(Token, Box<Node>),
     Assign(Token, Box<Node>),

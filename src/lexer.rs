@@ -93,12 +93,12 @@ impl Lexer {
                     true
                 }
                 '[' => {
-                    tokens.push(Token::new(TokenType::RCurly, self.position.clone(), None));
+                    tokens.push(Token::new(TokenType::LBrace, self.position.clone(), None));
                     self.advance();
                     true
                 }
                 ']' => {
-                    tokens.push(Token::new(TokenType::RCurly, self.position.clone(), None));
+                    tokens.push(Token::new(TokenType::RBrace, self.position.clone(), None));
                     self.advance();
                     true
                 }

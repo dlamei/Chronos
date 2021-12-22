@@ -10,6 +10,7 @@ pub fn visit_node(node: &mut Node, scope: &mut Rc<RefCell<Scope>>) -> Result<ChT
     match node {
         Node::Num(token) => visit_numb_node(token, scope),
         Node::String(token) => visit_string_node(token, scope),
+        Node::Array(array, start, end) => visit_array_node(array, start, end, scope),
         Node::UnryOp(op, node) => visit_unryop_node(op, node, scope),
         Node::BinOp(left, op, right) => visit_binop_node(left, op, right, scope),
         Node::Access(id) => visit_access_node(id, scope),
@@ -124,6 +125,7 @@ fn visit_unryop_node(
         ChType::String(s) => unryop_chvalue(op, s),
         ChType::Bool(n) => unryop_chvalue(op, n),
         ChType::Function(n) => unryop_chvalue(op, *n),
+        ChType::Array(a) => unryop_chvalue(op, a),
         ChType::None(n) => unryop_chvalue(op, n),
     }
 }
@@ -167,6 +169,7 @@ fn visit_binop_node(
         ChType::None(n) => binop_chvalue(n, op, right),
         ChType::Function(n) => binop_chvalue(*n, op, right),
         ChType::Bool(n) => binop_chvalue(n, op, right),
+        ChType::Array(n) => binop_chvalue(n, op, right),
     } {
         Ok(res) => Ok(res),
         Err(mut e) => {
@@ -196,6 +199,7 @@ fn in_de_crement(
                     let res = match left {
                         ChType::Number(n) => n.add_equal(right),
                         ChType::String(s) => s.add_equal(right),
+                        ChType::Array(s) => s.add_equal(right),
                         ChType::None(n) => n.add_equal(right),
                         ChType::Function(func) => func.add_equal(right),
                         ChType::Bool(b) => b.add_equal(right),
@@ -213,6 +217,7 @@ fn in_de_crement(
                     let res = match left {
                         ChType::Number(n) => n.sub_equal(right),
                         ChType::String(s) => s.sub_equal(right),
+                        ChType::Array(s) => s.sub_equal(right),
                         ChType::None(n) => n.sub_equal(right),
                         ChType::Function(func) => func.sub_equal(right),
                         ChType::Bool(b) => b.sub_equal(right),
@@ -400,4 +405,14 @@ fn visit_call_node(
 
     call.set_scope(scope.clone());
     call.execute(arg_values, name)
+}
+
+fn visit_array_node(vec: &mut Vec<Node>, start: &mut Position, end: &mut Position, scope: &mut Rc<RefCell<Scope>>) -> Result<ChType, Error> {
+    let mut array : Vec<ChType> = Vec::new();
+
+    for v in vec {
+        array.push(visit_node(v, scope)?);
+    }
+
+    Ok(ChType::Array( ChArray { data: array, start_pos: start.clone(), end_pos: end.clone() }))
 }
