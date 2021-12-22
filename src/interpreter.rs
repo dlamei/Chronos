@@ -5,7 +5,7 @@ use crate::chronos::*;
 use crate::datatypes::*;
 use crate::errors::*;
 
-pub fn visit_node(node: &mut Node, scope: &mut Rc<RefCell<Scope>>) -> Result<ChType, Error> {
+pub fn visit_node(node: &mut Node, scope: &mut Rc<RefCell<Scope>>) -> Result<ChValue, Error> {
     match node {
         Node::Num(token) => visit_numb_node(token, scope),
         Node::String(token) => visit_string_node(token, scope),
@@ -26,14 +26,14 @@ pub fn visit_node(node: &mut Node, scope: &mut Rc<RefCell<Scope>>) -> Result<ChT
     }
 }
 
-fn visit_numb_node(token: &mut Token, _scope: &mut Rc<RefCell<Scope>>) -> Result<ChType, Error> {
+fn visit_numb_node(token: &mut Token, _scope: &mut Rc<RefCell<Scope>>) -> Result<ChValue, Error> {
     match token.token_type {
-        TokenType::Int(value) => Ok(ChType::Number(ChNumber {
+        TokenType::Int(value) => Ok(ChValue::Number(ChNumber {
             value: value.into_number_type(),
             start_pos: token.start_pos.clone(),
             end_pos: token.end_pos.clone(),
         })),
-        TokenType::Float(value) => Ok(ChType::Number(ChNumber {
+        TokenType::Float(value) => Ok(ChValue::Number(ChNumber {
             value: value.into_number_type(),
             start_pos: token.start_pos.clone(),
             end_pos: token.end_pos.clone(),
@@ -42,9 +42,9 @@ fn visit_numb_node(token: &mut Token, _scope: &mut Rc<RefCell<Scope>>) -> Result
     }
 }
 
-fn visit_string_node(token: &mut Token, _scope: &mut Rc<RefCell<Scope>>) -> Result<ChType, Error> {
+fn visit_string_node(token: &mut Token, _scope: &mut Rc<RefCell<Scope>>) -> Result<ChValue, Error> {
     match &token.token_type {
-        TokenType::String(s) => Ok(ChType::String(ChString {
+        TokenType::String(s) => Ok(ChValue::String(ChString {
             string: s.to_string(),
             start_pos: token.start_pos.clone(),
             end_pos: token.end_pos.clone(),
@@ -53,7 +53,7 @@ fn visit_string_node(token: &mut Token, _scope: &mut Rc<RefCell<Scope>>) -> Resu
     }
 }
 
-fn visit_access_node(token: &mut Token, scope: &mut Rc<RefCell<Scope>>) -> Result<ChType, Error> {
+fn visit_access_node(token: &mut Token, scope: &mut Rc<RefCell<Scope>>) -> Result<ChValue, Error> {
     let var = &token.token_type;
     match var {
         TokenType::Id(var_name) => {
@@ -82,7 +82,7 @@ fn visit_assign_node(
     id: &mut Token,
     value: &mut Node,
     scope: &mut Rc<RefCell<Scope>>,
-) -> Result<ChType, Error> {
+) -> Result<ChValue, Error> {
     let t = id.clone();
     let ch_type = visit_node(value, scope)?;
 
@@ -103,7 +103,7 @@ fn visit_assign_node(
     }
 }
 
-fn unryop_chvalue<T: IsChValue>(op_token: &Token, value: T) -> Result<ChType, Error> {
+fn unryop_chvalue<T: IsChValue>(op_token: &Token, value: T) -> Result<ChValue, Error> {
     match op_token.token_type {
         TokenType::Sub => value.negate(),
         TokenType::Keywrd(Keyword::Not) => value.not(),
@@ -115,14 +115,18 @@ fn visit_unryop_node(
     op: &mut Token,
     node: &mut Node,
     scope: &mut Rc<RefCell<Scope>>,
-) -> Result<ChType, Error> {
-    let mut ch_type = visit_node(node, scope)?;
-    ch_type.set_position(op.start_pos.clone(), ch_type.get_end());
+) -> Result<ChValue, Error> {
+    let mut ch_value = visit_node(node, scope)?;
+    ch_value.set_position(op.start_pos.clone(), ch_value.get_end());
 
-    unwrap_chtype!(ch_type, e, unryop_chvalue(op, e))
+    unryop_chvalue(op, ch_value)
 }
 
-fn binop_chvalue<T: IsChValue>(left: T, op_token: &Token, right: ChType) -> Result<ChType, Error> {
+fn binop_chvalue<T: IsChValue>(
+    left: T,
+    op_token: &Token,
+    right: ChValue,
+) -> Result<ChValue, Error> {
     use TokenType::*;
     match op_token.token_type {
         Add => left.add(right),
@@ -147,16 +151,16 @@ fn visit_binop_node(
     op: &mut Token,
     right: &mut Node,
     scope: &mut Rc<RefCell<Scope>>,
-) -> Result<ChType, Error> {
+) -> Result<ChValue, Error> {
     if matches!(op.token_type, TokenType::AddEq) || matches!(op.token_type, TokenType::SubEq) {
-        return in_de_crement(left, op, right, scope);
+        return add_sub_equal(left, op, right, scope);
     }
     let mut left = visit_node(left, scope)?;
     let right = visit_node(right, scope)?;
 
     left.set_position(left.get_start(), right.get_end());
 
-    let ret = unwrap_chtype!(left, e, binop_chvalue(e, op, right));
+    let ret = binop_chvalue(left, op, right);
     if let Err(mut e) = ret {
         e.set_scope(scope.clone());
         Err(e)
@@ -165,12 +169,12 @@ fn visit_binop_node(
     }
 }
 
-fn in_de_crement(
+fn add_sub_equal(
     left_node: &mut Node,
     op: &mut Token,
     right_node: &mut Node,
     scope: &mut Rc<RefCell<Scope>>,
-) -> Result<ChType, Error> {
+) -> Result<ChValue, Error> {
     let mut left = visit_node(left_node, scope)?;
     let right = visit_node(right_node, scope)?;
     let start = left.get_start();
@@ -180,29 +184,19 @@ fn in_de_crement(
         Node::Access(var_name) => {
             left.set_position(left.get_start(), right.get_end());
 
-            match op.token_type {
-                TokenType::AddEq => {
-                    let res = unwrap_chtype!(left, e, e.add_equal(right))?;
-                    let name = match &var_name.token_type {
-                        TokenType::Id(n) => n,
-                        _ => panic!("could not resolve name"),
-                    };
+            let res = match op.token_type {
+                TokenType::AddEq => left.add_equal(right)?,
+                TokenType::SubEq => left.sub_equal(right)?,
+                _ => panic!("called add/sub_equal on {:?}", op),
+            };
 
-                    scope.borrow_mut().set_mut(name, res.clone());
-                    Ok(res)
-                }
-                TokenType::SubEq => {
-                    let res = unwrap_chtype!(left, e, e.sub_equal(right))?;
-                    let name = match &var_name.token_type {
-                        TokenType::Id(n) => n,
-                        _ => panic!("could not resolve name"),
-                    };
+            let name = match &var_name.token_type {
+                TokenType::Id(n) => n,
+                _ => panic!("could not resolve name"),
+            };
 
-                    scope.borrow_mut().set_mut(name, res.clone());
-                    Ok(res)
-                }
-                _ => panic!("called in/decrement on {:?}", op),
-            }
+            scope.borrow_mut().set_mut(name, res.clone());
+            Ok(res)
         }
         _ => Err(Error::new(
             ErrType::Runtime,
@@ -218,7 +212,7 @@ fn visit_if_node(
     cases: &mut Vec<(Node, Node)>,
     else_case: &mut Option<Box<Node>>,
     scope: &mut Rc<RefCell<Scope>>,
-) -> Result<ChType, Error> {
+) -> Result<ChValue, Error> {
     let mut start = Position::default();
     let mut end = Position::default();
     let mut first_cond = true;
@@ -239,7 +233,7 @@ fn visit_if_node(
 
     match else_case {
         Some(node) => visit_node(node, scope),
-        _ => Ok(ChType::None(ChNone {
+        _ => Ok(ChValue::None(ChNone {
             start_pos: start,
             end_pos: end,
         })),
@@ -254,7 +248,7 @@ fn visit_for_node(
     scope: &mut Rc<RefCell<Scope>>,
     start: &mut Position,
     end: &mut Position,
-) -> Result<ChType, Error> {
+) -> Result<ChValue, Error> {
     let mut n_scope = Scope::from_parent(String::from("<for>"), scope.clone(), start.clone());
 
     if let Some(c) = c1 {
@@ -268,7 +262,7 @@ fn visit_for_node(
         }
     }
 
-    Ok(ChType::None(ChNone {
+    Ok(ChValue::None(ChNone {
         start_pos: start.clone(),
         end_pos: end.clone(),
     }))
@@ -280,14 +274,14 @@ fn visit_while_node(
     scope: &mut Rc<RefCell<Scope>>,
     start: &mut Position,
     end: &mut Position,
-) -> Result<ChType, Error> {
+) -> Result<ChValue, Error> {
     let mut n_scope = Scope::from_parent(String::from("<while>"), scope.clone(), start.clone());
 
     while visit_node(condition, scope)?.is_true() {
         visit_node(body, &mut n_scope)?;
     }
 
-    Ok(ChType::None(ChNone {
+    Ok(ChValue::None(ChNone {
         start_pos: start.clone(),
         end_pos: end.clone(),
     }))
@@ -300,7 +294,7 @@ fn visit_funcdef_node(
     start: &mut Position,
     end: &mut Position,
     scope: &mut Rc<RefCell<Scope>>,
-) -> Result<ChType, Error> {
+) -> Result<ChValue, Error> {
     let name = match func_name {
         Some(tok) => match &tok.token_type {
             TokenType::Id(s) => s,
@@ -318,15 +312,15 @@ fn visit_funcdef_node(
     }
     .to_string();
 
-    let func = ChType::Function(ChFunction {
-        func_type: FuncType::ChronFunc(ChronosFunc {
+    let func = ChValue::Function(ChFunction {
+        func_type: FuncType::ChronFunc(Box::new(ChronosFunc {
             name: name.clone(),
             args_name: args.clone(),
             body: body.clone(),
             start_pos: start.clone(),
             end_pos: end.clone(),
             scope: scope.clone(),
-        }),
+        })),
     });
 
     if func_name.is_some() {
@@ -340,7 +334,7 @@ fn visit_call_node(
     func_name: &mut Node,
     args: &mut Vec<Node>,
     scope: &mut Rc<RefCell<Scope>>,
-) -> Result<ChType, Error> {
+) -> Result<ChValue, Error> {
     let name = match func_name {
         Node::Access(tok) => {
             if let TokenType::Id(s) = &tok.token_type {
@@ -355,7 +349,7 @@ fn visit_call_node(
     let c = visit_node(func_name, scope)?;
 
     let mut call = match c {
-        ChType::Function(func) => func,
+        ChValue::Function(func) => func,
         _ => {
             return Err(Error::new(
                 ErrType::Runtime,
@@ -367,7 +361,7 @@ fn visit_call_node(
         }
     };
 
-    let mut arg_values: Vec<ChType> = Vec::new();
+    let mut arg_values: Vec<ChValue> = Vec::new();
 
     for arg in args {
         arg_values.push(visit_node(arg, scope)?);
@@ -382,14 +376,14 @@ fn visit_array_node(
     start: &mut Position,
     end: &mut Position,
     scope: &mut Rc<RefCell<Scope>>,
-) -> Result<ChType, Error> {
-    let mut array: Vec<ChType> = Vec::new();
+) -> Result<ChValue, Error> {
+    let mut array: Vec<ChValue> = Vec::new();
 
     for v in vec {
         array.push(visit_node(v, scope)?);
     }
 
-    Ok(ChType::Array(ChArray {
+    Ok(ChValue::Array(ChArray {
         data: array,
         start_pos: start.clone(),
         end_pos: end.clone(),

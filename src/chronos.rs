@@ -180,7 +180,7 @@ pub enum Node {
     Call(Box<Node>, Vec<Node>),
 }
 
-impl ConvertType for bool {
+impl ConvertValue for bool {
     fn into_number_type(self) -> NumberType {
         NumberType::Int(if self { 1 } else { 0 })
     }
@@ -194,7 +194,7 @@ impl ConvertType for bool {
     }
 }
 
-impl ConvertType for ChInt {
+impl ConvertValue for ChInt {
     fn into_number_type(self) -> NumberType {
         NumberType::Int(self)
     }
@@ -208,7 +208,7 @@ impl ConvertType for ChInt {
     }
 }
 
-impl ConvertType for ChFloat {
+impl ConvertValue for ChFloat {
     fn into_number_type(self) -> NumberType {
         NumberType::Float(self)
     }
@@ -270,7 +270,7 @@ impl Scope {
         }
     }
 
-    pub fn get(&self, key: &str) -> Option<ChType> {
+    pub fn get(&self, key: &str) -> Option<ChValue> {
         match self.symbol_table.get(key) {
             Some(v) => Some(v),
             None => match &self.parent {
@@ -280,27 +280,27 @@ impl Scope {
         }
     }
 
-    pub fn set_mut(&mut self, key: &str, value: ChType) -> bool {
+    pub fn set_mut(&mut self, key: &str, value: ChValue) -> bool {
         self.symbol_table.set_mut(key, value)
     }
 
-    pub fn set(&mut self, key: &str, value: ChType) -> bool {
+    pub fn set(&mut self, key: &str, value: ChValue) -> bool {
         self.symbol_table.set(key, value)
     }
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct SymbolTable {
-    table: HashMap<String, ChType>,
+    table: HashMap<String, ChValue>,
     immutable: Vec<String>,
 }
 
 impl SymbolTable {
-    fn get(&self, key: &str) -> Option<ChType> {
+    fn get(&self, key: &str) -> Option<ChValue> {
         self.table.get(key).cloned()
     }
 
-    fn set_mut(&mut self, key: &str, value: ChType) -> bool {
+    fn set_mut(&mut self, key: &str, value: ChValue) -> bool {
         if self.table.contains_key(key) {
             if self.immutable.iter().any(|s| s == key) {
                 false
@@ -314,7 +314,7 @@ impl SymbolTable {
         }
     }
 
-    fn set(&mut self, key: &str, value: ChType) -> bool {
+    fn set(&mut self, key: &str, value: ChValue) -> bool {
         let b = self.set_mut(key, value);
         if b {
             self.immutable.push(key.to_string())
@@ -327,8 +327,8 @@ impl SymbolTable {
     }
 }
 
-fn ch_print(args: Vec<ChType>, _name: Option<String>) -> Result<ChType, Error> {
-    let ret = ChType::None(ChNone {
+fn ch_print(args: Vec<ChValue>, _name: Option<String>) -> Result<ChValue, Error> {
+    let ret = ChValue::None(ChNone {
         start_pos: Position::default(),
         end_pos: Position::default(),
     });
@@ -348,7 +348,7 @@ fn ch_print(args: Vec<ChType>, _name: Option<String>) -> Result<ChType, Error> {
     Ok(ret)
 }
 
-fn ch_len(args: Vec<ChType>, _name: Option<String>) -> Result<ChType, Error> {
+fn ch_len(args: Vec<ChValue>, _name: Option<String>) -> Result<ChValue, Error> {
     let mut start = Position::default();
     let mut end = Position::default();
 
@@ -367,7 +367,7 @@ fn ch_len(args: Vec<ChType>, _name: Option<String>) -> Result<ChType, Error> {
     end = arg.get_end();
 
     match arg {
-        ChType::String(s) => Ok(ChType::Number(ChNumber {
+        ChValue::String(s) => Ok(ChValue::Number(ChNumber {
             value: (s.string.len() as i32).get_number_type(),
             start_pos: start,
             end_pos: end,
@@ -389,11 +389,11 @@ pub struct Compiler {
 impl Compiler {
     pub fn new() -> Self {
         let mut table = SymbolTable::default();
-        table.set(&String::from("false"), ChType::Bool(ChBool::from(false)));
-        table.set(&String::from("true"), ChType::Bool(ChBool::from(true)));
+        table.set(&String::from("false"), ChValue::Bool(ChBool::from(false)));
+        table.set(&String::from("true"), ChValue::Bool(ChBool::from(true)));
         table.set(
             &String::from("none"),
-            ChType::None(ChNone {
+            ChValue::None(ChNone {
                 start_pos: Position::default(),
                 end_pos: Position::default(),
             }),
@@ -401,9 +401,9 @@ impl Compiler {
 
         table.set(
             &String::from("print"),
-            ChType::Function(ChFunction {
+            ChValue::Function(ChFunction {
                 func_type: FuncType::RustFunc(RustFunc {
-                    name: "print".to_string(),
+                    name: "print[args...]".to_string(),
                     function: ch_print,
                 }),
             }),
@@ -411,9 +411,9 @@ impl Compiler {
 
         table.set(
             &String::from("len"),
-            ChType::Function(ChFunction {
+            ChValue::Function(ChFunction {
                 func_type: FuncType::RustFunc(RustFunc {
-                    name: "len".to_string(),
+                    name: "len[arg]".to_string(),
                     function: ch_len,
                 }),
             }),
@@ -429,7 +429,7 @@ impl Compiler {
         }
     }
 
-    pub fn interpret(&mut self, file_name: String, text: String) -> Result<ChType, Error> {
+    pub fn interpret(&mut self, file_name: String, text: String) -> Result<ChValue, Error> {
         let mut lexer = Lexer::new(file_name, text);
         let tokens = lexer.parse_tokens()?;
         let mut parser = Parser::new(tokens);

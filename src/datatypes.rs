@@ -14,10 +14,10 @@ pub trait HasScope {
 }
 
 pub trait IsFunction {
-    fn execute(&mut self, args: Vec<ChType>, name: Option<String>) -> Result<ChType, Error>;
+    fn execute(&mut self, args: Vec<ChValue>, name: Option<String>) -> Result<ChValue, Error>;
 }
 
-pub trait ConvertType {
+pub trait ConvertValue {
     fn into_number_type(self) -> NumberType
     where
         Self: Sized,
@@ -27,13 +27,13 @@ pub trait ConvertType {
 
     fn convert_to_number(self) -> Result<NumberType, Error>
     where
-        Self: Sized + HasPosition,
+        Self: Sized + HasPosition + Display,
     {
         Err(Error::new(
             ErrType::Runtime,
             &self.get_start(),
             &self.get_end(),
-            String::from("could not convert to Number"),
+            format!("could not convert {} to Number", self),
             None,
         ))
     }
@@ -46,7 +46,7 @@ pub trait ConvertType {
     }
 }
 
-fn generate_undefined_op(caller: &dyn IsChValue, op_name: &str) -> Result<ChType, Error> {
+fn generate_undefined_op(caller: &dyn IsChValue, op_name: &str) -> Result<ChValue, Error> {
     Err(Error::new(
         ErrType::UndefinedOperator,
         &caller.get_start(),
@@ -61,97 +61,97 @@ fn generate_undefined_op(caller: &dyn IsChValue, op_name: &str) -> Result<ChType
 }
 
 pub trait ChOperators {
-    fn add(self, _other: ChType) -> Result<ChType, Error>
+    fn add(self, _other: ChValue) -> Result<ChValue, Error>
     where
         Self: IsChValue + Sized,
     {
         generate_undefined_op(&self, "add")
     }
-    fn add_equal(self, other: ChType) -> Result<ChType, Error>
+    fn add_equal(self, other: ChValue) -> Result<ChValue, Error>
     where
         Self: IsChValue + Sized,
     {
         self.add(other)
     }
-    fn sub_equal(self, other: ChType) -> Result<ChType, Error>
+    fn sub_equal(self, other: ChValue) -> Result<ChValue, Error>
     where
         Self: IsChValue + Sized,
     {
         self.sub(other)
     }
-    fn sub(self, _other: ChType) -> Result<ChType, Error>
+    fn sub(self, _other: ChValue) -> Result<ChValue, Error>
     where
         Self: IsChValue + Sized,
     {
         generate_undefined_op(&self, "sub")
     }
-    fn mult(self, _other: ChType) -> Result<ChType, Error>
+    fn mult(self, _other: ChValue) -> Result<ChValue, Error>
     where
         Self: IsChValue + Sized,
     {
         generate_undefined_op(&self, "mult")
     }
-    fn div(self, _other: ChType) -> Result<ChType, Error>
+    fn div(self, _other: ChValue) -> Result<ChValue, Error>
     where
         Self: IsChValue + Sized,
     {
         generate_undefined_op(&self, "div")
     }
-    fn pow(self, _other: ChType) -> Result<ChType, Error>
+    fn pow(self, _other: ChValue) -> Result<ChValue, Error>
     where
         Self: IsChValue + Sized,
     {
         generate_undefined_op(&self, "pow")
     }
-    fn equal(self, _other: ChType) -> Result<ChType, Error>
+    fn equal(self, _other: ChValue) -> Result<ChValue, Error>
     where
         Self: IsChValue + Sized,
     {
         generate_undefined_op(&self, "equal")
     }
-    fn not_equal(self, _other: ChType) -> Result<ChType, Error>
+    fn not_equal(self, _other: ChValue) -> Result<ChValue, Error>
     where
         Self: IsChValue + Sized,
     {
         generate_undefined_op(&self, "not equal")
     }
-    fn less(self, _other: ChType) -> Result<ChType, Error>
+    fn less(self, _other: ChValue) -> Result<ChValue, Error>
     where
         Self: IsChValue + Sized,
     {
         generate_undefined_op(&self, "less")
     }
-    fn less_equal(self, _other: ChType) -> Result<ChType, Error>
+    fn less_equal(self, _other: ChValue) -> Result<ChValue, Error>
     where
         Self: IsChValue + Sized,
     {
         generate_undefined_op(&self, "less equal")
     }
-    fn greater(self, _other: ChType) -> Result<ChType, Error>
+    fn greater(self, _other: ChValue) -> Result<ChValue, Error>
     where
         Self: IsChValue + Sized,
     {
         generate_undefined_op(&self, "greater")
     }
-    fn greater_equal(self, _other: ChType) -> Result<ChType, Error>
+    fn greater_equal(self, _other: ChValue) -> Result<ChValue, Error>
     where
         Self: IsChValue + Sized,
     {
         generate_undefined_op(&self, "greater equal")
     }
-    fn and(self, _other: ChType) -> Result<ChType, Error>
+    fn and(self, _other: ChValue) -> Result<ChValue, Error>
     where
         Self: IsChValue + Sized,
     {
         generate_undefined_op(&self, "and")
     }
-    fn or(self, _other: ChType) -> Result<ChType, Error>
+    fn or(self, _other: ChValue) -> Result<ChValue, Error>
     where
         Self: IsChValue + Sized,
     {
         generate_undefined_op(&self, "or")
     }
-    fn not(self) -> Result<ChType, Error>
+    fn not(self) -> Result<ChValue, Error>
     where
         Self: IsChValue + Sized,
     {
@@ -162,7 +162,7 @@ pub trait ChOperators {
         false
     }
 
-    fn negate(self) -> Result<ChType, Error>
+    fn negate(self) -> Result<ChValue, Error>
     where
         Self: IsChValue + Sized,
     {
@@ -170,15 +170,15 @@ pub trait ChOperators {
     }
 }
 
-pub trait IsChValue: Display + HasPosition + HasScope + ChOperators + ConvertType {
+pub trait IsChValue: Display + HasPosition + HasScope + ChOperators + ConvertValue {
     fn get_desc(&self) -> String;
-    fn into_type(self) -> ChType;
+    fn into_type(self) -> ChValue;
 }
 
 //------------- Chronos Types ------------------------//
 
 #[derive(Debug, Clone)]
-pub enum ChType {
+pub enum ChValue {
     Number(ChNumber),
     String(ChString),
     Array(ChArray),
@@ -187,68 +187,153 @@ pub enum ChType {
     None(ChNone),
 }
 
-impl HasScope for ChType {
+impl HasScope for ChValue {
     fn set_scope(&mut self, scope: Rc<RefCell<Scope>>) {
         match self {
-            ChType::Function(func) => func.set_scope(scope),
+            ChValue::Function(func) => func.set_scope(scope),
             _ => {}
         }
     }
 }
 
 #[macro_export]
-macro_rules! unwrap_chtype {
-    ($chtype:ident, $inner:ident, $ex:expr) => {
+macro_rules! unwrap_chvalue {
+    ($chtype:ident, $inner:ident, $e:expr) => {
         match $chtype {
-            ChType::Number($inner) => $ex,
-            ChType::String($inner) => $ex,
-            ChType::Bool($inner) => $ex,
-            ChType::Array($inner) => $ex,
-            ChType::Function($inner) => $ex,
-            ChType::None($inner) => $ex,
+            ChValue::Number($inner) => $e,
+            ChValue::String($inner) => $e,
+            ChValue::Bool($inner) => $e,
+            ChValue::Array($inner) => $e,
+            ChValue::Function($inner) => $e,
+            ChValue::None($inner) => $e,
         }
     };
 }
 
-pub(crate) use unwrap_chtype;
+//pub(crate) use unwrap_chvalue;
 
-impl Display for ChType {
+impl Display for ChValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        unwrap_chtype!(self, e, write!(f, "{}", e))
+        unwrap_chvalue!(self, e, write!(f, "{}", e))
     }
 }
 
-impl HasPosition for ChType {
+impl HasPosition for ChValue {
     fn get_start(&self) -> Position {
-        unwrap_chtype!(self, e, e.get_start())
+        unwrap_chvalue!(self, e, e.get_start())
     }
 
     fn get_end(&self) -> Position {
-        unwrap_chtype!(self, e, e.get_end())
+        unwrap_chvalue!(self, e, e.get_end())
     }
 
     fn set_position(&mut self, start_pos: Position, end_pos: Position) {
-        unwrap_chtype!(self, e, e.set_position(start_pos, end_pos))
+        unwrap_chvalue!(self, e, e.set_position(start_pos, end_pos))
     }
 }
 
-impl ChType {
+impl ChValue {
     pub fn is_true(&self) -> bool {
-        unwrap_chtype!(self, e, e.is_true())
+        unwrap_chvalue!(self, e, e.is_true())
     }
 }
 
-impl ConvertType for ChType {
+impl ConvertValue for ChValue {
     fn into_number_type(self) -> NumberType {
-        unwrap_chtype!(self, e, e.into_number_type())
+        unwrap_chvalue!(self, e, e.into_number_type())
     }
 
     fn convert_to_number(self) -> Result<NumberType, Error> {
-        unwrap_chtype!(self, e, e.convert_to_number())
+        unwrap_chvalue!(self, e, e.convert_to_number())
     }
 
     fn get_number_type(&self) -> NumberType {
-        unwrap_chtype!(self, e, e.get_number_type())
+        unwrap_chvalue!(self, e, e.get_number_type())
+    }
+}
+
+impl ChOperators for ChValue {
+    fn add(self, other: ChValue) -> Result<ChValue, Error> {
+        unwrap_chvalue!(self, e, e.add(other))
+    }
+
+    fn sub(self, other: ChValue) -> Result<ChValue, Error> {
+        unwrap_chvalue!(self, e, e.sub(other))
+    }
+
+    fn mult(self, other: ChValue) -> Result<ChValue, Error> {
+        unwrap_chvalue!(self, e, e.mult(other))
+    }
+
+    fn div(self, other: ChValue) -> Result<ChValue, Error> {
+        unwrap_chvalue!(self, e, e.div(other))
+    }
+
+    fn pow(self, other: ChValue) -> Result<ChValue, Error> {
+        unwrap_chvalue!(self, e, e.pow(other))
+    }
+
+    fn greater(self, other: ChValue) -> Result<ChValue, Error> {
+        unwrap_chvalue!(self, e, e.greater(other))
+    }
+
+    fn greater_equal(self, other: ChValue) -> Result<ChValue, Error> {
+        unwrap_chvalue!(self, e, e.greater_equal(other))
+    }
+
+    fn less(self, other: ChValue) -> Result<ChValue, Error> {
+        unwrap_chvalue!(self, e, e.less(other))
+    }
+
+    fn less_equal(self, other: ChValue) -> Result<ChValue, Error> {
+        unwrap_chvalue!(self, e, e.less_equal(other))
+    }
+
+    fn add_equal(self, other: ChValue) -> Result<ChValue, Error> {
+        unwrap_chvalue!(self, e, e.add_equal(other))
+    }
+
+    fn sub_equal(self, other: ChValue) -> Result<ChValue, Error> {
+        unwrap_chvalue!(self, e, e.sub_equal(other))
+    }
+
+    fn equal(self, other: ChValue) -> Result<ChValue, Error> {
+        unwrap_chvalue!(self, e, e.equal(other))
+    }
+    
+    fn not_equal(self, other: ChValue) -> Result<ChValue, Error> {
+        unwrap_chvalue!(self, e, e.not_equal(other))
+    }
+
+    fn and(self, other: ChValue) -> Result<ChValue, Error> {
+        unwrap_chvalue!(self, e, e.and(other))
+    }
+
+    fn or(self, other: ChValue) -> Result<ChValue, Error> {
+        unwrap_chvalue!(self, e, e.or(other))
+    }
+
+    fn not(self) -> Result<ChValue, Error>
+    {
+        unwrap_chvalue!(self, e, e.not())
+    }
+
+    fn is_true(&self) -> bool {
+        unwrap_chvalue!(self, e, e.is_true())
+    }
+
+    fn negate(self) -> Result<ChValue, Error> {
+        unwrap_chvalue!(self, e, e.negate())
+    }
+}
+
+impl IsChValue for ChValue {
+    fn get_desc(&self) -> String {
+        unwrap_chvalue!(self, e, e.get_desc())
+    }
+
+    fn into_type(self) -> ChValue {
+        self
     }
 }
 
@@ -278,18 +363,18 @@ impl HasPosition for ChNone {
 }
 
 impl ChOperators for ChNone {
-    fn equal(self, other: ChType) -> Result<ChType, Error> {
+    fn equal(self, other: ChValue) -> Result<ChValue, Error> {
         Ok(ChBool {
-            value: matches!(other, ChType::None(_)),
+            value: matches!(other, ChValue::None(_)),
             start_pos: self.start_pos,
             end_pos: self.end_pos,
         }
         .into_type())
     }
 
-    fn not_equal(self, other: ChType) -> Result<ChType, Error> {
+    fn not_equal(self, other: ChValue) -> Result<ChValue, Error> {
         Ok(ChBool {
-            value: !matches!(other, ChType::None(_)),
+            value: !matches!(other, ChValue::None(_)),
             start_pos: self.start_pos,
             end_pos: self.end_pos,
         }
@@ -306,12 +391,12 @@ impl IsChValue for ChNone {
         String::from("None")
     }
 
-    fn into_type(self) -> ChType {
-        ChType::None(self)
+    fn into_type(self) -> ChValue {
+        ChValue::None(self)
     }
 }
 
-impl ConvertType for ChNone {
+impl ConvertValue for ChNone {
     fn convert_to_number(self) -> Result<NumberType, Error> {
         Err(Error::new(
             ErrType::Runtime,
@@ -348,7 +433,7 @@ impl ChBool {
     }
 }
 
-impl ConvertType for ChBool {
+impl ConvertValue for ChBool {
     fn into_number_type(self) -> NumberType {
         NumberType::Int(self.value as i32)
     }
@@ -367,8 +452,8 @@ impl IsChValue for ChBool {
         String::from("Bool")
     }
 
-    fn into_type(self) -> ChType {
-        ChType::Bool(self)
+    fn into_type(self) -> ChValue {
+        ChValue::Bool(self)
     }
 }
 
@@ -396,10 +481,10 @@ impl HasPosition for ChBool {
 }
 
 impl ChOperators for ChBool {
-    fn equal(self, other: ChType) -> Result<ChType, Error> {
+    fn equal(self, other: ChValue) -> Result<ChValue, Error> {
         Ok(ChBool {
             value: match other {
-                ChType::Bool(b) => self.value == b.value,
+                ChValue::Bool(b) => self.value == b.value,
                 _ => false,
             },
             start_pos: self.start_pos,
@@ -408,10 +493,10 @@ impl ChOperators for ChBool {
         .into_type())
     }
 
-    fn not_equal(self, other: ChType) -> Result<ChType, Error> {
+    fn not_equal(self, other: ChValue) -> Result<ChValue, Error> {
         Ok(ChBool {
             value: match other {
-                ChType::Bool(b) => self.value != b.value,
+                ChValue::Bool(b) => self.value != b.value,
                 _ => true,
             },
             start_pos: self.start_pos,
@@ -420,7 +505,7 @@ impl ChOperators for ChBool {
         .into_type())
     }
 
-    fn not(mut self) -> Result<ChType, Error> {
+    fn not(mut self) -> Result<ChValue, Error> {
         self.value = !self.value;
         Ok(self.into_type())
     }
@@ -429,7 +514,7 @@ impl ChOperators for ChBool {
         self.value
     }
 
-    fn and(self, other: ChType) -> Result<ChType, Error> {
+    fn and(self, other: ChValue) -> Result<ChValue, Error> {
         Ok(ChBool {
             value: self.value && other.is_true(),
             start_pos: self.start_pos,
@@ -438,7 +523,7 @@ impl ChOperators for ChBool {
         .into_type())
     }
 
-    fn or(self, other: ChType) -> Result<ChType, Error> {
+    fn or(self, other: ChValue) -> Result<ChValue, Error> {
         Ok(ChBool {
             value: self.value || other.is_true(),
             start_pos: self.start_pos,
@@ -470,8 +555,8 @@ impl IsChValue for ChNumber {
         String::from("Number")
     }
 
-    fn into_type(self) -> ChType {
-        ChType::Number(self)
+    fn into_type(self) -> ChValue {
+        ChValue::Number(self)
     }
 }
 
@@ -484,7 +569,7 @@ impl Display for ChNumber {
     }
 }
 
-impl ConvertType for ChNumber {
+impl ConvertValue for ChNumber {
     fn into_number_type(self) -> NumberType {
         self.value
     }
@@ -550,7 +635,7 @@ impl ChNumber {
 }
 
 impl ChOperators for ChNumber {
-    fn add(self, other: ChType) -> Result<ChType, Error> {
+    fn add(self, other: ChValue) -> Result<ChValue, Error> {
         Ok(self
             .operate_on(
                 other.convert_to_number()?,
@@ -560,7 +645,7 @@ impl ChOperators for ChNumber {
             .into_type())
     }
 
-    fn sub(self, other: ChType) -> Result<ChType, Error> {
+    fn sub(self, other: ChValue) -> Result<ChValue, Error> {
         Ok(self
             .operate_on(
                 other.convert_to_number()?,
@@ -570,7 +655,7 @@ impl ChOperators for ChNumber {
             .into_type())
     }
 
-    fn mult(self, other: ChType) -> Result<ChType, Error> {
+    fn mult(self, other: ChValue) -> Result<ChValue, Error> {
         Ok(self
             .operate_on(
                 other.convert_to_number()?,
@@ -580,7 +665,7 @@ impl ChOperators for ChNumber {
             .into_type())
     }
 
-    fn div(self, other: ChType) -> Result<ChType, Error> {
+    fn div(self, other: ChValue) -> Result<ChValue, Error> {
         if match other.clone().convert_to_number()? {
             NumberType::Int(v) => v == 0,
             NumberType::Float(v) => v == 0.0,
@@ -603,7 +688,7 @@ impl ChOperators for ChNumber {
         }
     }
 
-    fn pow(mut self, other: ChType) -> Result<ChType, Error> {
+    fn pow(mut self, other: ChValue) -> Result<ChValue, Error> {
         if match other.clone().convert_to_number()? {
             NumberType::Int(v) => v == 0,
             _ => false,
@@ -621,7 +706,8 @@ impl ChOperators for ChNumber {
         }
     }
 
-    fn equal(self, other: ChType) -> Result<ChType, Error> {
+    #[allow(clippy::float_cmp)]
+    fn equal(self, other: ChValue) -> Result<ChValue, Error> {
         let value = other.convert_to_number();
 
         Ok(ChBool {
@@ -640,7 +726,8 @@ impl ChOperators for ChNumber {
         .into_type())
     }
 
-    fn not_equal(self, other: ChType) -> Result<ChType, Error> {
+    #[allow(clippy::float_cmp)]
+    fn not_equal(self, other: ChValue) -> Result<ChValue, Error> {
         let value = other.convert_to_number();
 
         Ok(ChBool {
@@ -659,7 +746,7 @@ impl ChOperators for ChNumber {
         .into_type())
     }
 
-    fn less(self, other: ChType) -> Result<ChType, Error> {
+    fn less(self, other: ChValue) -> Result<ChValue, Error> {
         let value = other.convert_to_number()?;
 
         Ok(ChBool {
@@ -675,7 +762,7 @@ impl ChOperators for ChNumber {
         .into_type())
     }
 
-    fn less_equal(self, other: ChType) -> Result<ChType, Error> {
+    fn less_equal(self, other: ChValue) -> Result<ChValue, Error> {
         let value = other.convert_to_number()?;
 
         Ok(ChBool {
@@ -691,7 +778,7 @@ impl ChOperators for ChNumber {
         .into_type())
     }
 
-    fn greater(self, other: ChType) -> Result<ChType, Error> {
+    fn greater(self, other: ChValue) -> Result<ChValue, Error> {
         let value = other.convert_to_number()?;
 
         Ok(ChBool {
@@ -707,7 +794,7 @@ impl ChOperators for ChNumber {
         .into_type())
     }
 
-    fn greater_equal(self, other: ChType) -> Result<ChType, Error> {
+    fn greater_equal(self, other: ChValue) -> Result<ChValue, Error> {
         let value = other.convert_to_number()?;
 
         Ok(ChBool {
@@ -723,7 +810,7 @@ impl ChOperators for ChNumber {
         .into_type())
     }
 
-    fn and(self, other: ChType) -> Result<ChType, Error> {
+    fn and(self, other: ChValue) -> Result<ChValue, Error> {
         let value = other.convert_to_number()?;
 
         Ok(ChBool {
@@ -739,7 +826,7 @@ impl ChOperators for ChNumber {
         .into_type())
     }
 
-    fn or(self, other: ChType) -> Result<ChType, Error> {
+    fn or(self, other: ChValue) -> Result<ChValue, Error> {
         let value = other.convert_to_number()?;
 
         Ok(ChBool {
@@ -755,7 +842,7 @@ impl ChOperators for ChNumber {
         .into_type())
     }
 
-    fn not(mut self) -> Result<ChType, Error> {
+    fn not(mut self) -> Result<ChValue, Error> {
         self.value = match self.value {
             NumberType::Int(value) => if value != 0 { 0 } else { 1 }.into_number_type(),
             NumberType::Float(value) => if value != 0.0 { 0.0 } else { 1.0 }.into_number_type(),
@@ -775,7 +862,7 @@ impl ChOperators for ChNumber {
         }
     }
 
-    fn negate(mut self) -> Result<ChType, Error> {
+    fn negate(mut self) -> Result<ChValue, Error> {
         match self.value {
             NumberType::Int(v) => self.value = NumberType::Int(-v),
             NumberType::Float(v) => self.value = NumberType::Float(-v),
@@ -801,11 +888,11 @@ impl Display for ChString {
 
 impl HasScope for ChString {}
 
-impl ConvertType for ChString {}
+impl ConvertValue for ChString {}
 
 impl IsChValue for ChString {
-    fn into_type(self) -> ChType {
-        ChType::String(self)
+    fn into_type(self) -> ChValue {
+        ChValue::String(self)
     }
 
     fn get_desc(&self) -> String {
@@ -833,10 +920,10 @@ impl ChOperators for ChString {
         !self.string.is_empty()
     }
 
-    fn add(mut self, other: ChType) -> Result<ChType, Error> {
+    fn add(mut self, other: ChValue) -> Result<ChValue, Error> {
         let other_string = match other {
-            ChType::Number(n) => format!("{}", n),
-            ChType::String(s) => s.to_string(),
+            ChValue::Number(n) => format!("{}", n),
+            ChValue::String(s) => s.to_string(),
             _ => {
                 return Err(Error::new(
                     ErrType::Runtime,
@@ -849,10 +936,10 @@ impl ChOperators for ChString {
         };
 
         self.string += &other_string;
-        Ok(ChType::String(self))
+        Ok(ChValue::String(self))
     }
 
-    fn mult(mut self, other: ChType) -> Result<ChType, Error> {
+    fn mult(mut self, other: ChValue) -> Result<ChValue, Error> {
         let n = other.into_number_type();
 
         match n {
@@ -896,7 +983,7 @@ impl HasScope for ChFunction {
     }
 }
 
-impl ConvertType for ChFunction {}
+impl ConvertValue for ChFunction {}
 
 impl HasPosition for ChFunction {
     fn get_start(&self) -> Position {
@@ -926,8 +1013,8 @@ impl IsChValue for ChFunction {
         String::from("function")
     }
 
-    fn into_type(self) -> ChType {
-        ChType::Function(self.into())
+    fn into_type(self) -> ChValue {
+        ChValue::Function(self)
     }
 }
 
@@ -938,7 +1025,7 @@ impl ChOperators for ChFunction {
 }
 
 impl IsFunction for ChFunction {
-    fn execute(&mut self, args: Vec<ChType>, name: Option<String>) -> Result<ChType, Error> {
+    fn execute(&mut self, args: Vec<ChValue>, name: Option<String>) -> Result<ChValue, Error> {
         match &mut self.func_type {
             FuncType::ChronFunc(func) => func.execute(args, name),
             FuncType::RustFunc(func) => func.execute(args, name),
@@ -950,13 +1037,13 @@ impl IsFunction for ChFunction {
 #[derive(Clone, Debug)]
 pub enum FuncType {
     RustFunc(RustFunc),
-    ChronFunc(ChronosFunc),
+    ChronFunc(Box<ChronosFunc>),
 }
 
 #[derive(Clone)]
 pub struct RustFunc {
     pub name: String,
-    pub function: fn(args: Vec<ChType>, name: Option<String>) -> Result<ChType, Error>,
+    pub function: fn(args: Vec<ChValue>, name: Option<String>) -> Result<ChValue, Error>,
 }
 
 impl HasScope for RustFunc {
@@ -964,7 +1051,7 @@ impl HasScope for RustFunc {
 }
 
 impl IsFunction for RustFunc {
-    fn execute(&mut self, args: Vec<ChType>, name: Option<String>) -> Result<ChType, Error> {
+    fn execute(&mut self, args: Vec<ChValue>, name: Option<String>) -> Result<ChValue, Error> {
         (self.function)(args, name)
     }
 }
@@ -992,7 +1079,7 @@ pub struct ChronosFunc {
 }
 
 impl IsFunction for ChronosFunc {
-    fn execute(&mut self, mut args: Vec<ChType>, name: Option<String>) -> Result<ChType, Error> {
+    fn execute(&mut self, mut args: Vec<ChValue>, name: Option<String>) -> Result<ChValue, Error> {
         let mut n_scope = Scope::from_parent(
             format!("<function: {}>", name.unwrap_or_else(|| self.name.clone())),
             self.scope.clone(),
@@ -1068,14 +1155,14 @@ impl HasPosition for ChronosFunc {
 
 #[derive(Clone, Debug)]
 pub struct ChArray {
-    pub data: Vec<ChType>,
+    pub data: Vec<ChValue>,
     pub start_pos: Position,
     pub end_pos: Position,
 }
 
 impl Display for ChArray {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.data.len() == 0 {
+        if self.data.is_empty() {
             return write!(f, "");
         }
 
@@ -1106,14 +1193,14 @@ impl HasScope for ChArray {}
 
 impl ChOperators for ChArray {}
 
-impl ConvertType for ChArray {}
+impl ConvertValue for ChArray {}
 
 impl IsChValue for ChArray {
     fn get_desc(&self) -> String {
         String::from("Array")
     }
 
-    fn into_type(self) -> ChType {
-        ChType::Array(self)
+    fn into_type(self) -> ChValue {
+        ChValue::Array(self)
     }
 }
