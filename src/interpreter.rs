@@ -5,7 +5,6 @@ use crate::chronos::*;
 use crate::datatypes::*;
 use crate::errors::*;
 
-
 pub fn visit_node(node: &mut Node, scope: &mut Rc<RefCell<Scope>>) -> Result<ChType, Error> {
     match node {
         Node::Num(token) => visit_numb_node(token, scope),
@@ -120,31 +119,25 @@ fn visit_unryop_node(
     let mut ch_type = visit_node(node, scope)?;
     ch_type.set_position(op.start_pos.clone(), ch_type.get_end());
 
-    match ch_type {
-        ChType::Number(n) => unryop_chvalue(op, n),
-        ChType::String(s) => unryop_chvalue(op, s),
-        ChType::Bool(n) => unryop_chvalue(op, n),
-        ChType::Function(n) => unryop_chvalue(op, *n),
-        ChType::Array(a) => unryop_chvalue(op, a),
-        ChType::None(n) => unryop_chvalue(op, n),
-    }
+    unwrap_chtype!(ch_type, e, unryop_chvalue(op, e))
 }
 
 fn binop_chvalue<T: IsChValue>(left: T, op_token: &Token, right: ChType) -> Result<ChType, Error> {
+    use TokenType::*;
     match op_token.token_type {
-        TokenType::Add => left.add(right),
-        TokenType::Sub => left.sub(right),
-        TokenType::Mul => left.mult(right),
-        TokenType::Div => left.div(right),
-        TokenType::Pow => left.pow(right),
-        TokenType::Less => left.less(right),
-        TokenType::Equal => left.equal(right),
-        TokenType::NEqual => left.not_equal(right),
-        TokenType::LessEq => left.less_equal(right),
-        TokenType::Greater => left.greater(right),
-        TokenType::GreaterEq => left.greater_equal(right),
-        TokenType::Keywrd(Keyword::And) => left.and(right),
-        TokenType::Keywrd(Keyword::Or) => left.or(right),
+        Add => left.add(right),
+        Sub => left.sub(right),
+        Mul => left.mult(right),
+        Div => left.div(right),
+        Pow => left.pow(right),
+        Less => left.less(right),
+        Equal => left.equal(right),
+        NEqual => left.not_equal(right),
+        LessEq => left.less_equal(right),
+        Greater => left.greater(right),
+        GreaterEq => left.greater_equal(right),
+        Keywrd(Keyword::And) => left.and(right),
+        Keywrd(Keyword::Or) => left.or(right),
         _ => panic!("called binop_bool on {:?}", op_token.token_type),
     }
 }
@@ -163,19 +156,12 @@ fn visit_binop_node(
 
     left.set_position(left.get_start(), right.get_end());
 
-    match match left {
-        ChType::Number(n) => binop_chvalue(n, op, right),
-        ChType::String(s) => binop_chvalue(s, op, right),
-        ChType::None(n) => binop_chvalue(n, op, right),
-        ChType::Function(n) => binop_chvalue(*n, op, right),
-        ChType::Bool(n) => binop_chvalue(n, op, right),
-        ChType::Array(n) => binop_chvalue(n, op, right),
-    } {
-        Ok(res) => Ok(res),
-        Err(mut e) => {
-            e.set_scope(scope.clone());
-            Err(e)
-        }
+    let ret = unwrap_chtype!(left, e, binop_chvalue(e, op, right));
+    if let Err(mut e) = ret {
+        e.set_scope(scope.clone());
+        Err(e)
+    } else {
+        ret
     }
 }
 
@@ -196,15 +182,7 @@ fn in_de_crement(
 
             match op.token_type {
                 TokenType::AddEq => {
-                    let res = match left {
-                        ChType::Number(n) => n.add_equal(right),
-                        ChType::String(s) => s.add_equal(right),
-                        ChType::Array(s) => s.add_equal(right),
-                        ChType::None(n) => n.add_equal(right),
-                        ChType::Function(func) => func.add_equal(right),
-                        ChType::Bool(b) => b.add_equal(right),
-                    }?;
-
+                    let res = unwrap_chtype!(left, e, e.add_equal(right))?;
                     let name = match &var_name.token_type {
                         TokenType::Id(n) => n,
                         _ => panic!("could not resolve name"),
@@ -214,15 +192,7 @@ fn in_de_crement(
                     Ok(res)
                 }
                 TokenType::SubEq => {
-                    let res = match left {
-                        ChType::Number(n) => n.sub_equal(right),
-                        ChType::String(s) => s.sub_equal(right),
-                        ChType::Array(s) => s.sub_equal(right),
-                        ChType::None(n) => n.sub_equal(right),
-                        ChType::Function(func) => func.sub_equal(right),
-                        ChType::Bool(b) => b.sub_equal(right),
-                    }?;
-
+                    let res = unwrap_chtype!(left, e, e.sub_equal(right))?;
                     let name = match &var_name.token_type {
                         TokenType::Id(n) => n,
                         _ => panic!("could not resolve name"),
@@ -348,7 +318,7 @@ fn visit_funcdef_node(
     }
     .to_string();
 
-    let func = ChType::Function(Box::new(ChFunction {
+    let func = ChType::Function(ChFunction {
         func_type: FuncType::ChronFunc(ChronosFunc {
             name: name.clone(),
             args_name: args.clone(),
@@ -357,7 +327,7 @@ fn visit_funcdef_node(
             end_pos: end.clone(),
             scope: scope.clone(),
         }),
-    }));
+    });
 
     if func_name.is_some() {
         scope.borrow_mut().set_mut(&name, func.clone());
@@ -407,12 +377,21 @@ fn visit_call_node(
     call.execute(arg_values, name)
 }
 
-fn visit_array_node(vec: &mut Vec<Node>, start: &mut Position, end: &mut Position, scope: &mut Rc<RefCell<Scope>>) -> Result<ChType, Error> {
-    let mut array : Vec<ChType> = Vec::new();
+fn visit_array_node(
+    vec: &mut Vec<Node>,
+    start: &mut Position,
+    end: &mut Position,
+    scope: &mut Rc<RefCell<Scope>>,
+) -> Result<ChType, Error> {
+    let mut array: Vec<ChType> = Vec::new();
 
     for v in vec {
         array.push(visit_node(v, scope)?);
     }
 
-    Ok(ChType::Array( ChArray { data: array, start_pos: start.clone(), end_pos: end.clone() }))
+    Ok(ChType::Array(ChArray {
+        data: array,
+        start_pos: start.clone(),
+        end_pos: end.clone(),
+    }))
 }

@@ -327,16 +327,14 @@ impl Parser {
     }
 
     fn array_expression(&mut self) -> Result<Node, Error> {
-
         self.expect_token(TokenType::LBrace)?;
         let start = self.current_token.start_pos.clone();
         self.advance();
 
-
         let mut array: Vec<Node> = Vec::new();
 
         if !matches!(self.current_token.token_type, TokenType::RBrace) {
-           array.push(self.expression()?); 
+            array.push(self.expression()?);
         }
 
         while matches!(self.current_token.token_type, TokenType::Comma) {
