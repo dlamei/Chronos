@@ -178,6 +178,7 @@ pub enum Node {
     ),
     FuncDef(Option<Token>, Vec<Token>, Box<Node>, Position, Position),
     Call(Box<Node>, Vec<Node>),
+    ArrAccess(Box<Node>, Box<Node>),
 }
 
 impl ConvertValue for bool {

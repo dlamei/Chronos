@@ -105,14 +105,14 @@ impl Parser {
 
     fn power(&mut self) -> Result<Node, Error> {
         self.binary_operation(
-            Parser::call,
+            Parser::callable,
             vec![TokenType::Pow],
             Vec::new(),
             Parser::factor,
         )
     }
 
-    fn call(&mut self) -> Result<Node, Error> {
+    fn callable(&mut self) -> Result<Node, Error> {
         let res = self.atom()?;
 
         if matches!(self.current_token.token_type, TokenType::LRound) {
@@ -137,9 +137,14 @@ impl Parser {
                     ));
                 }
             }
-
             self.advance();
             Ok(Node::Call(res.into(), arg_nodes))
+        } else if matches!(self.current_token.token_type, TokenType::LBrace) {
+            self.advance();
+            let indx = self.expression()?;
+            self.expect_token(TokenType::RBrace)?;
+            self.advance();
+            Ok(Node::ArrAccess(res.into(), indx.into()))
         } else {
             Ok(res)
         }
@@ -149,7 +154,7 @@ impl Parser {
         let t = self.current_token.clone();
 
         match t.token_type {
-            TokenType::Sub | TokenType::Add => {
+            TokenType::Keywrd(Keyword::Not) | TokenType::Sub => {
                 self.advance();
                 let factor = self.factor()?;
                 Ok(Node::UnryOp(t, factor.into()))
@@ -521,14 +526,14 @@ impl Parser {
 
     fn comp_expression(&mut self) -> Result<Node, Error> {
         match self.current_token.token_type {
-            TokenType::Keywrd(Keyword::Not) => {
-                let op = self.current_token.clone();
-                self.advance();
-                let node = self.comp_expression()?;
-                Ok(Node::UnryOp(op, Box::new(node)))
-            }
+            //TokenType::Keywrd(Keyword::Not) => {
+            //    let op = self.current_token.clone();
+            //    self.advance();
+            //    let node = self.comp_expression()?;
+            //    Ok(Node::UnryOp(op, Box::new(node)))
+            //}
 
-            _ => match self.binary_operation(
+            _ => self.binary_operation(
                 Parser::arith_expression,
                 vec![
                     TokenType::Equal,
@@ -541,19 +546,12 @@ impl Parser {
                     TokenType::GreaterEq,
                 ],
                 Vec::new(),
-                Parser::arith_expression,
-            ) {
-                Ok(node) => Ok(node),
-                Err(e) => Err(e),
-                //TODO: look at error handling again
-                //Err(_) => Err(Error::new(
-                //    ErrType::InvalidSyntaxError,
-                //    &self.current_token.start_pos,
-                //    &self.current_token.end_pos,
-                //    format!("Parser: expected INT, FLOAT, IDENTIFIER, '+', '-', '(' or '!'"),
-                //    None,
-                //)),
-            },
+                Parser::arith_expression)
+            //{
+            //    Ok(node) => Ok(node),
+            //    Err(e) => Err(e),
+            //    //TODO: look at error handling again
+            //},
         }
     }
 

@@ -6,23 +6,23 @@ use crate::datatypes::*;
 use crate::errors::*;
 
 pub fn visit_node(node: &mut Node, scope: &mut Rc<RefCell<Scope>>) -> Result<ChValue, Error> {
+    use Node::*;
     match node {
-        Node::Num(token) => visit_numb_node(token, scope),
-        Node::String(token) => visit_string_node(token, scope),
-        Node::Array(array, start, end) => visit_array_node(array, start, end, scope),
-        Node::UnryOp(op, node) => visit_unryop_node(op, node, scope),
-        Node::BinOp(left, op, right) => visit_binop_node(left, op, right, scope),
-        Node::Access(id) => visit_access_node(id, scope),
-        Node::Assign(id, value) => visit_assign_node(id, value, scope),
-        Node::If(cases, else_case) => visit_if_node(cases, else_case, scope),
-        Node::While(cond, body, start, end) => visit_while_node(cond, body, scope, start, end),
-        Node::For(c1, c2, c3, body, start, end) => {
-            visit_for_node(c1, c2, c3, body, scope, start, end)
-        }
-        Node::FuncDef(name, args, body, start, end) => {
+        Num(token) => visit_numb_node(token, scope),
+        String(token) => visit_string_node(token, scope),
+        Array(array, start, end) => visit_array_node(array, start, end, scope),
+        UnryOp(op, node) => visit_unryop_node(op, node, scope),
+        BinOp(left, op, right) => visit_binop_node(left, op, right, scope),
+        Access(id) => visit_access_node(id, scope),
+        Assign(id, value) => visit_assign_node(id, value, scope),
+        If(cases, else_case) => visit_if_node(cases, else_case, scope),
+        While(cond, body, start, end) => visit_while_node(cond, body, scope, start, end),
+        For(c1, c2, c3, body, start, end) => visit_for_node(c1, c2, c3, body, scope, start, end),
+        FuncDef(name, args, body, start, end) => {
             visit_funcdef_node(name, args, body, start, end, scope)
         }
-        Node::Call(name, args) => visit_call_node(name, args, scope),
+        Call(name, args) => visit_call_node(name, args, scope),
+        ArrAccess(name, indx) => visit_arraccess_node(name, indx, scope),
     }
 }
 
@@ -388,4 +388,15 @@ fn visit_array_node(
         start_pos: start.clone(),
         end_pos: end.clone(),
     }))
+}
+
+fn visit_arraccess_node(
+    arr_name: &mut Node,
+    indx: &mut Node,
+    scope: &mut Rc<RefCell<Scope>>,
+) -> Result<ChValue, Error> {
+    let name = visit_node(arr_name, scope)?;
+    let index = visit_node(indx, scope)?;
+
+    name.acces(index)
 }

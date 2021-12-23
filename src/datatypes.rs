@@ -52,7 +52,7 @@ fn generate_undefined_op(caller: &dyn IsChValue, op_name: &str) -> Result<ChValu
         &caller.get_start(),
         &caller.get_end(),
         format!(
-            "operation '{}' not defined for type: {}",
+            "operator '{}' not defined for type: {}",
             op_name,
             caller.get_desc()
         ),
@@ -167,6 +167,13 @@ pub trait ChOperators {
         Self: IsChValue + Sized,
     {
         generate_undefined_op(&self, "negate")
+    }
+
+    fn acces(&self, _other: ChValue) -> Result<ChValue, Error>
+    where
+        Self: IsChValue + Sized,
+    {
+        generate_undefined_op(self, "[]")
     }
 }
 
@@ -300,7 +307,7 @@ impl ChOperators for ChValue {
     fn equal(self, other: ChValue) -> Result<ChValue, Error> {
         unwrap_chvalue!(self, e, e.equal(other))
     }
-    
+
     fn not_equal(self, other: ChValue) -> Result<ChValue, Error> {
         unwrap_chvalue!(self, e, e.not_equal(other))
     }
@@ -313,8 +320,7 @@ impl ChOperators for ChValue {
         unwrap_chvalue!(self, e, e.or(other))
     }
 
-    fn not(self) -> Result<ChValue, Error>
-    {
+    fn not(self) -> Result<ChValue, Error> {
         unwrap_chvalue!(self, e, e.not())
     }
 
@@ -324,6 +330,10 @@ impl ChOperators for ChValue {
 
     fn negate(self) -> Result<ChValue, Error> {
         unwrap_chvalue!(self, e, e.negate())
+    }
+
+    fn acces(&self, other: ChValue) -> Result<ChValue, Error> {
+        unwrap_chvalue!(self, e, e.acces(other))
     }
 }
 
@@ -956,6 +966,44 @@ impl ChOperators for ChString {
             )),
         }
     }
+
+    fn acces(&self, other: ChValue) -> Result<ChValue, Error> {
+        let num = other.convert_to_number()?;
+
+        let num = match num {
+            NumberType::Int(v) => v,
+            _ => {
+                return Err(Error::new(
+                    ErrType::Runtime,
+                    &self.start_pos,
+                    &self.end_pos,
+                    format!("expected Int found: {:?}", num),
+                    None,
+                ))
+            }
+        };
+
+        if num >= self.string.len().try_into().unwrap() {
+            return Err(Error::new(
+                ErrType::Runtime,
+                &self.start_pos,
+                &self.end_pos,
+                format!(
+                    "Array index out of bounds => len: {}, index: {}",
+                    self.string.len(),
+                    num
+                ),
+                None,
+            ));
+        }
+
+        let b: u8 = self.string.as_bytes()[num as usize];
+        Ok(ChValue::String(ChString {
+            string: (b as char).to_string(),
+            start_pos: self.start_pos.clone(),
+            end_pos: self.end_pos.clone(),
+        }))
+    }
 }
 
 //--------------------------Function------------------------------//
@@ -1191,7 +1239,40 @@ impl HasPosition for ChArray {
 
 impl HasScope for ChArray {}
 
-impl ChOperators for ChArray {}
+impl ChOperators for ChArray {
+    fn acces(&self, other: ChValue) -> Result<ChValue, Error> {
+        let num = other.convert_to_number()?;
+
+        let num = match num {
+            NumberType::Int(v) => v,
+            _ => {
+                return Err(Error::new(
+                    ErrType::Runtime,
+                    &self.start_pos,
+                    &self.end_pos,
+                    format!("expected Int found: {:?}", num),
+                    None,
+                ))
+            }
+        };
+
+        if num >= self.data.len().try_into().unwrap() {
+            return Err(Error::new(
+                ErrType::Runtime,
+                &self.start_pos,
+                &self.end_pos,
+                format!(
+                    "Array index out of bounds => len: {}, index: {}",
+                    self.data.len(),
+                    num
+                ),
+                None,
+            ));
+        }
+
+        Ok(self.data[num as usize].clone())
+    }
+}
 
 impl ConvertValue for ChArray {}
 
