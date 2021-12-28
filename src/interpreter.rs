@@ -355,7 +355,7 @@ fn visit_call_node(
                 ErrType::Runtime,
                 &c.get_start(),
                 &c.get_end(),
-                format!("expected FUNCTION found {}", c),
+                format!("expected Function found {}", c.get_desc()),
                 Some(scope.clone()),
             ))
         }
@@ -398,5 +398,5 @@ fn visit_arraccess_node(
     let name = visit_node(arr_name, scope)?;
     let index = visit_node(indx, scope)?;
 
-    name.acces(index)
+    name.access(index)
 }

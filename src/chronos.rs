@@ -1,4 +1,6 @@
-use std::{cell::RefCell, collections::HashMap, fmt, fmt::Debug, mem, rc::Rc};
+use std::{
+    cell::RefCell, collections::HashMap, collections::HashSet, fmt, fmt::Debug, mem, rc::Rc,
+};
 
 use crate::datatypes::*;
 use crate::errors::*;
@@ -293,7 +295,7 @@ impl Scope {
 #[derive(Debug, Clone, Default)]
 pub struct SymbolTable {
     table: HashMap<String, ChValue>,
-    immutable: Vec<String>,
+    immutable: HashSet<String>,
 }
 
 impl SymbolTable {
@@ -303,7 +305,7 @@ impl SymbolTable {
 
     fn set_mut(&mut self, key: &str, value: ChValue) -> bool {
         if self.table.contains_key(key) {
-            if self.immutable.iter().any(|s| s == key) {
+            if self.immutable.contains(key) {
                 false
             } else {
                 *self.table.get_mut(key).unwrap() = value;
@@ -318,7 +320,7 @@ impl SymbolTable {
     fn set(&mut self, key: &str, value: ChValue) -> bool {
         let b = self.set_mut(key, value);
         if b {
-            self.immutable.push(key.to_string())
+            self.immutable.insert(key.to_string());
         };
         b
     }
@@ -385,6 +387,7 @@ fn ch_len(args: Vec<ChValue>, _name: Option<String>) -> Result<ChValue, Error> {
 
 pub struct Compiler {
     pub global_scope: Rc<RefCell<Scope>>,
+    pub text: String,
 }
 
 impl Compiler {
@@ -427,6 +430,7 @@ impl Compiler {
                 position: None,
                 symbol_table: table,
             })),
+            text: "".to_string(),
         }
     }
 

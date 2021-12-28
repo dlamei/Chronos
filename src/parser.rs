@@ -112,9 +112,7 @@ impl Parser {
         )
     }
 
-    fn callable(&mut self) -> Result<Node, Error> {
-        let res = self.atom()?;
-
+    fn wrap_callable(&mut self, node: Node) -> Result<Node, Error> {
         if matches!(self.current_token.token_type, TokenType::LRound) {
             self.advance();
             let mut arg_nodes: Vec<Node> = Vec::new();
@@ -138,16 +136,54 @@ impl Parser {
                 }
             }
             self.advance();
-            Ok(Node::Call(res.into(), arg_nodes))
+            Ok(self.wrap_callable(Node::Call(node.into(), arg_nodes))?)
         } else if matches!(self.current_token.token_type, TokenType::LBrace) {
             self.advance();
             let indx = self.expression()?;
             self.expect_token(TokenType::RBrace)?;
             self.advance();
-            Ok(Node::ArrAccess(res.into(), indx.into()))
+            Ok(self.wrap_callable(Node::ArrAccess(node.into(), indx.into()))?)
         } else {
-            Ok(res)
+            Ok(node)
         }
+    }
+
+    fn callable(&mut self) -> Result<Node, Error> {
+        let res = self.atom()?;
+        self.wrap_callable(res)
+        //if matches!(self.current_token.token_type, TokenType::LRound) {
+        //    self.advance();
+        //    let mut arg_nodes: Vec<Node> = Vec::new();
+
+        //    if !matches!(self.current_token.token_type, TokenType::RRound) {
+        //        arg_nodes.push(self.expression()?);
+
+        //        while matches!(self.current_token.token_type, TokenType::Comma) {
+        //            self.advance();
+        //            arg_nodes.push(self.expression()?);
+        //        }
+
+        //        if !matches!(self.current_token.token_type, TokenType::RRound,) {
+        //            return Err(Error::new(
+        //                ErrType::InvalidSyntax,
+        //                &self.current_token.start_pos,
+        //                &self.current_token.end_pos,
+        //                format!("Parser: expected RROUND found '{:?}'", self.current_token),
+        //                None,
+        //            ));
+        //        }
+        //    }
+        //    self.advance();
+        //    Ok(Node::Call(res.into(), arg_nodes))
+        //} else if matches!(self.current_token.token_type, TokenType::LBrace) {
+        //    self.advance();
+        //    let indx = self.expression()?;
+        //    self.expect_token(TokenType::RBrace)?;
+        //    self.advance();
+        //    Ok(Node::ArrAccess(res.into(), indx.into()))
+        //} else {
+        //    Ok(res)
+        //}
     }
 
     fn factor(&mut self) -> Result<Node, Error> {

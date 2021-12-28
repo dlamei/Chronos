@@ -1,6 +1,7 @@
 #![allow(dead_code, clippy::single_match)]
 
 mod chronos;
+mod compiler;
 mod datatypes;
 mod errors;
 mod interpreter;

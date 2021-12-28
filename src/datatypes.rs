@@ -169,7 +169,7 @@ pub trait ChOperators {
         generate_undefined_op(&self, "negate")
     }
 
-    fn acces(&self, _other: ChValue) -> Result<ChValue, Error>
+    fn access(&self, _other: ChValue) -> Result<ChValue, Error>
     where
         Self: IsChValue + Sized,
     {
@@ -332,8 +332,8 @@ impl ChOperators for ChValue {
         unwrap_chvalue!(self, e, e.negate())
     }
 
-    fn acces(&self, other: ChValue) -> Result<ChValue, Error> {
-        unwrap_chvalue!(self, e, e.acces(other))
+    fn access(&self, other: ChValue) -> Result<ChValue, Error> {
+        unwrap_chvalue!(self, e, e.access(other))
     }
 }
 
@@ -967,7 +967,7 @@ impl ChOperators for ChString {
         }
     }
 
-    fn acces(&self, other: ChValue) -> Result<ChValue, Error> {
+    fn access(&self, other: ChValue) -> Result<ChValue, Error> {
         let num = other.convert_to_number()?;
 
         let num = match num {
@@ -1240,7 +1240,7 @@ impl HasPosition for ChArray {
 impl HasScope for ChArray {}
 
 impl ChOperators for ChArray {
-    fn acces(&self, other: ChValue) -> Result<ChValue, Error> {
+    fn access(&self, other: ChValue) -> Result<ChValue, Error> {
         let num = other.convert_to_number()?;
 
         let num = match num {
