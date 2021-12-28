@@ -1,6 +1,6 @@
-use std::{cell::RefCell, fmt, fmt::Write, rc::Rc};
+use std::{cell::RefCell, fmt::Write, rc::Rc};
 
-use crate::chronos::{Position, Scope};
+use crate::chronos::{Position, Scope, File};
 
 //#[derive(Debug)]
 //pub struct ErrDesc {
@@ -17,13 +17,13 @@ pub enum ErrType {
     UndefinedOperator,
 }
 
-#[derive(Debug)]
 pub struct Error {
     error_type: ErrType,
     start_pos: Position,
     end_pos: Position,
     details: String,
     scope: Option<Rc<RefCell<Scope>>>,
+    files: Option<Vec<File>>,
 }
 
 impl Error {
@@ -40,24 +40,39 @@ impl Error {
             end_pos: end_pos.clone(),
             details,
             scope,
+            files: None,
         }
     }
 
-    fn generate_message(&self) -> String {
-        let mut message = get_traceback(&self.scope, &self.start_pos);
+    pub fn print(&self) {
+        if let Some(files) = &self.files {
+            println!("{}", self.generate_message(files));
+        } else {
+            println!("{:?}: {}", self.error_type, self.details);
+        }
+    }
+
+    pub fn set_files(&mut self, files: Vec<File>) {
+        self.files = Some(files);
+    }
+    
+    fn generate_message(&self, files: &Vec<File>) -> String {
+        let mut message = get_traceback(&self.scope, &self.start_pos, files);
+        let file_name = &files.get(self.start_pos.file_nr).unwrap().name;
+
         write!(message, "{:?}: {}", self.error_type, self.details,).unwrap();
 
         write!(
             message,
             "\n\n{}",
-            get_error_preview(&self.start_pos.text, &self.start_pos, &self.end_pos)
+            get_error_preview(self.start_pos.file_nr, files, &self.start_pos, &self.end_pos)
         )
         .unwrap();
 
         write!(
             message,
             "\nFile: {}, Line: {}",
-            self.start_pos.file_name, self.start_pos.line
+            file_name, self.start_pos.line
         )
         .unwrap();
         message
@@ -68,13 +83,13 @@ impl Error {
     }
 }
 
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.generate_message(),)
-    }
-}
+//impl fmt::Display for Error {
+//    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//        write!(f, "{}", self.generate_message(),)
+//    }
+//}
 
-fn get_traceback(scope: &Option<Rc<RefCell<Scope>>>, pos_start: &Position) -> String {
+fn get_traceback(scope: &Option<Rc<RefCell<Scope>>>, pos_start: &Position, files: &Vec<File>) -> String {
     let mut result = String::from("");
 
     if let Some(scope) = scope {
@@ -90,7 +105,8 @@ fn get_traceback(scope: &Option<Rc<RefCell<Scope>>>, pos_start: &Position) -> St
             write!(
                 s,
                 "\n  File: {}, Line: {}, in {}",
-                pos.file_name,
+                //pos.file_name,
+                files.get(pos.file_nr).unwrap().name, 
                 pos.line,
                 cntx.borrow().display_name
             )
@@ -119,11 +135,13 @@ fn get_traceback(scope: &Option<Rc<RefCell<Scope>>>, pos_start: &Position) -> St
     result
 }
 
-fn get_error_preview(text: &str, pos_start: &Position, pos_end: &Position) -> String {
+fn get_error_preview(file_nr: usize, files: &Vec<File>, pos_start: &Position, pos_end: &Position) -> String {
     let mut result = String::from("");
+    let file = files.get(file_nr).unwrap();
+    let text = &file.text;
 
-    let mut start = text[0..pos_start.index].rfind('\n').unwrap_or(0);
-    let mut end = text[0..start + 1].find('\n').unwrap_or(text.len());
+    let mut start = text[0..pos_start.offset + pos_start.index].rfind('\n').unwrap_or(0);
+    let mut end = text[start + 1..].find('\n').unwrap_or(text.len() - start + 1) + start + 1;
 
     let count = pos_end.line - pos_start.line + 1;
 

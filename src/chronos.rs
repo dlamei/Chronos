@@ -22,27 +22,30 @@ pub fn match_enum_type<T>(t1: &T, t2: &T) -> bool {
 //TODO: remove file_name and text from position!!!
 #[derive(Debug, Clone, Default)]
 pub struct Position {
-    pub file_name: Rc<String>,
+    //pub file_name: Rc<String>,
+    pub file_nr: usize,
     pub index: usize,
+    pub offset: usize,
     pub line: usize,
     pub column: usize,
-    pub text: Rc<String>,
+    //pub text: Rc<String>,
 }
 
 impl Position {
-    fn new(file_name: String, index: usize, line: usize, column: usize, text: String) -> Self {
+    fn new(file_nr: usize, index: usize, offset: usize, line: usize, column: usize) -> Self {
         Position {
-            file_name: Rc::new(file_name),
+            file_nr,
             index,
+            offset,
             line,
             column,
-            text: Rc::new(text),
+            //text: Rc::new(text),
         }
     }
 
-    pub fn from_name(file_name: String) -> Self {
+    pub fn from_file(file_nr: usize) -> Self {
         Position {
-            file_name: Rc::new(file_name),
+            file_nr,
             ..Default::default()
         }
     }
@@ -385,14 +388,58 @@ fn ch_len(args: Vec<ChValue>, _name: Option<String>) -> Result<ChValue, Error> {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct File {
+    pub name: String,
+    pub text: String,
+}
+
+pub struct FileManager {
+    pub files: Vec<File>,
+    currnet_file: String,
+    current_line: usize,
+    current_index: usize,
+}
+
+impl FileManager {
+    pub fn new() -> Self {
+        FileManager { currnet_file: String::from(""), files: Vec::new(), current_line: 0, current_index: 0 }
+    }
+
+    pub fn add_file(&mut self, name: String, text: String) {
+        self.currnet_file = name.clone();
+
+        let file = File { name, text };
+        self.files.push(file);
+        self.current_line = 0;
+        self.current_index = 0;
+    }
+
+    pub fn add_line(&mut self, line: String, file_name: String) {
+        if self.files.is_empty() || self.currnet_file != file_name {
+            self.add_file(file_name, line);
+        } else {
+            let last = self.files.last_mut().unwrap();
+            self.current_index = last.text.len();
+            last.text += &line;
+            self.current_line += 1;
+        }
+    }
+}
+
 pub struct Compiler {
     pub global_scope: Rc<RefCell<Scope>>,
-    pub text: String,
+    pub file_manager: FileManager,
+    //pub files: Vec<(String, String, usize)>,
+    //pub current_file: String,
 }
 
 impl Compiler {
     pub fn new() -> Self {
         let mut table = SymbolTable::default();
+        let mut fm = FileManager::new();
+        fm.add_file(String::from("<rust>"), String::from(""));
+
         table.set(&String::from("false"), ChValue::Bool(ChBool::from(false)));
         table.set(&String::from("true"), ChValue::Bool(ChBool::from(true)));
         table.set(
@@ -430,12 +477,18 @@ impl Compiler {
                 position: None,
                 symbol_table: table,
             })),
-            text: "".to_string(),
+            file_manager: fm,
         }
     }
 
-    pub fn interpret(&mut self, file_name: String, text: String) -> Result<ChValue, Error> {
-        let mut lexer = Lexer::new(file_name, text);
+    pub fn interpret(&mut self, file_name: String, line: String) -> Result<ChValue, Error> {
+        self.file_manager.add_line(line.clone(), file_name);
+
+        let index_nr = self.file_manager.current_index;
+        let file_nr = self.file_manager.files.len() - 1;
+        let line_nr = self.file_manager.current_line;
+
+        let mut lexer = Lexer::new(file_nr, line_nr, index_nr, line);
         let tokens = lexer.parse_tokens()?;
         let mut parser = Parser::new(tokens);
         let mut ast = parser.parse()?;

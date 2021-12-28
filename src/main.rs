@@ -25,7 +25,10 @@ fn main() {
 
         match c.interpret(String::from("<stdin>"), buffer) {
             Ok(result) => println!("{}", result),
-            Err(e) => eprintln!("{}", e),
+            Err(mut e) => {
+                e.set_files(c.file_manager.files.clone());
+                e.print();
+            }
         }
     }
 }

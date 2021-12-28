@@ -1,8 +1,6 @@
 use crate::chronos::*;
 use crate::errors::*;
 
-use std::rc::Rc;
-
 pub struct Lexer {
     text: Box<[u8]>,
     position: Position,
@@ -10,15 +8,17 @@ pub struct Lexer {
 }
 
 impl Lexer {
-    pub fn new(file_name: String, text: String) -> Self {
+    pub fn new(file_nr: usize, line: usize, offset: usize, text: String) -> Self {
         let mut l = Lexer {
             text: (text.as_bytes().into()),
             position: Position {
-                file_name: Rc::new(file_name),
+                //file_name: Rc::new(file_name),
+                file_nr,
                 index: 0,
-                line: 0,
+                offset,
+                line,
                 column: 0,
-                text: Rc::new(text),
+                //text: Rc::new(text),
             },
             current_char: None,
         };

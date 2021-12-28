@@ -1037,14 +1037,14 @@ impl HasPosition for ChFunction {
     fn get_start(&self) -> Position {
         match &self.func_type {
             FuncType::ChronFunc(func) => func.get_start(),
-            FuncType::RustFunc(func) => Position::from_name(func.name.clone()),
+            FuncType::RustFunc(_) => Position::from_file(0),
         }
     }
 
     fn get_end(&self) -> Position {
         match &self.func_type {
             FuncType::ChronFunc(func) => func.get_end(),
-            FuncType::RustFunc(func) => Position::from_name(func.name.clone()),
+            FuncType::RustFunc(_) => Position::from_file(0),
         }
     }
 
