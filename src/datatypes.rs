@@ -359,11 +359,11 @@ impl HasScope for ChNone {}
 
 impl HasPosition for ChNone {
     fn get_start(&self) -> Option<Position> {
-        self.start_pos.clone()
+        self.start_pos
     }
 
     fn get_end(&self) -> Option<Position> {
-        self.end_pos.clone()
+        self.end_pos
     }
 
     fn set_position(&mut self, start_pos: Option<Position>, end_pos: Option<Position>) {
@@ -477,11 +477,11 @@ impl Display for ChBool {
 
 impl HasPosition for ChBool {
     fn get_start(&self) -> Option<Position> {
-        self.start_pos.clone()
+        self.start_pos
     }
 
     fn get_end(&self) -> Option<Position> {
-        self.end_pos.clone()
+        self.end_pos
     }
 
     fn set_position(&mut self, start_pos: Option<Position>, end_pos: Option<Position>) {
@@ -595,11 +595,11 @@ impl ConvertValue for ChNumber {
 
 impl HasPosition for ChNumber {
     fn get_start(&self) -> Option<Position> {
-        self.start_pos.clone()
+        self.start_pos
     }
 
     fn get_end(&self) -> Option<Position> {
-        self.end_pos.clone()
+        self.end_pos
     }
 
     fn set_position(&mut self, start_pos: Option<Position>, end_pos: Option<Position>) {
@@ -903,11 +903,11 @@ impl IsChValue for ChString {
 
 impl HasPosition for ChString {
     fn get_start(&self) -> Option<Position> {
-        self.start_pos.clone()
+        self.start_pos
     }
 
     fn get_end(&self) -> Option<Position> {
-        self.end_pos.clone()
+        self.end_pos
     }
 
     fn set_position(&mut self, start_pos: Option<Position>, end_pos: Option<Position>) {
@@ -991,8 +991,8 @@ impl ChOperators for ChString {
         let b: u8 = self.string.as_bytes()[num as usize];
         Ok(ChValue::String(ChString {
             string: (b as char).to_string(),
-            start_pos: self.start_pos.clone(),
-            end_pos: self.end_pos.clone(),
+            start_pos: self.start_pos,
+            end_pos: self.end_pos,
         }))
     }
 }

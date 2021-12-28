@@ -56,7 +56,7 @@ impl Error {
         self.files = Some(files);
     }
     
-    fn generate_message(&self, files: &Vec<File>) -> String {
+    fn generate_message(&self, files: &[File]) -> String {
         let mut message = get_traceback(&self.scope, &self.start_pos.unwrap(), files);
         let file_name = &files.get(self.start_pos.unwrap().file_nr).unwrap().name;
 
@@ -89,7 +89,7 @@ impl Error {
 //    }
 //}
 
-fn get_traceback(scope: &Option<Rc<RefCell<Scope>>>, pos_start: &Position, files: &Vec<File>) -> String {
+fn get_traceback(scope: &Option<Rc<RefCell<Scope>>>, pos_start: &Position, files: &[File]) -> String {
     let mut result = String::from("");
 
     if let Some(scope) = scope {
@@ -97,7 +97,7 @@ fn get_traceback(scope: &Option<Rc<RefCell<Scope>>>, pos_start: &Position, files
 
         write!(result, "\nTraceback (most recent call last):").unwrap();
         let mut cntx = scope.clone();
-        let mut pos = pos_start.clone();
+        let mut pos = *pos_start;
 
         loop {
             let mut s = String::from("");
@@ -117,7 +117,7 @@ fn get_traceback(scope: &Option<Rc<RefCell<Scope>>>, pos_start: &Position, files
             let parent: Rc<RefCell<Scope>>;
 
             if let Some(p) = cntx.borrow().parent.clone() {
-                pos = cntx.borrow().position.clone().unwrap_or_default();
+                pos = cntx.borrow().position.unwrap_or_default();
                 parent = p;
             } else {
                 break;
@@ -135,7 +135,7 @@ fn get_traceback(scope: &Option<Rc<RefCell<Scope>>>, pos_start: &Position, files
     result
 }
 
-fn get_error_preview(file_nr: usize, files: &Vec<File>, pos_start: &Position, pos_end: &Position) -> String {
+fn get_error_preview(file_nr: usize, files: &[File], pos_start: &Position, pos_end: &Position) -> String {
     let mut result = String::from("");
     let file = files.get(file_nr).unwrap();
     let text = &file.text;
@@ -164,7 +164,7 @@ fn get_error_preview(file_nr: usize, files: &Vec<File>, pos_start: &Position, po
         .unwrap();
 
         start = end;
-        end = text[0..start].find('\n').unwrap_or(text.len());
+        end = text[0..start].find('\n').unwrap_or_else(|| text.len());
     }
 
     result.replace("\t", "")

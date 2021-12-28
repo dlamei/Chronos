@@ -54,12 +54,12 @@ impl Lexer {
                     true
                 }
                 '/' => {
-                    tokens.push(Token::new(TokenType::Div, self.position.clone(), None));
+                    tokens.push(Token::new(TokenType::Div, self.position, None));
                     self.advance();
                     true
                 }
                 '*' => {
-                    tokens.push(Token::new(TokenType::Mul, self.position.clone(), None));
+                    tokens.push(Token::new(TokenType::Mul, self.position, None));
                     self.advance();
                     true
                 }
@@ -68,47 +68,47 @@ impl Lexer {
                     true
                 }
                 '^' => {
-                    tokens.push(Token::new(TokenType::Pow, self.position.clone(), None));
+                    tokens.push(Token::new(TokenType::Pow, self.position, None));
                     self.advance();
                     true
                 }
                 '(' => {
-                    tokens.push(Token::new(TokenType::LRound, self.position.clone(), None));
+                    tokens.push(Token::new(TokenType::LRound, self.position, None));
                     self.advance();
                     true
                 }
                 ')' => {
-                    tokens.push(Token::new(TokenType::RRound, self.position.clone(), None));
+                    tokens.push(Token::new(TokenType::RRound, self.position, None));
                     self.advance();
                     true
                 }
                 '{' => {
-                    tokens.push(Token::new(TokenType::LCurly, self.position.clone(), None));
+                    tokens.push(Token::new(TokenType::LCurly, self.position, None));
                     self.advance();
                     true
                 }
                 '}' => {
-                    tokens.push(Token::new(TokenType::RCurly, self.position.clone(), None));
+                    tokens.push(Token::new(TokenType::RCurly, self.position, None));
                     self.advance();
                     true
                 }
                 '[' => {
-                    tokens.push(Token::new(TokenType::LBrace, self.position.clone(), None));
+                    tokens.push(Token::new(TokenType::LBrace, self.position, None));
                     self.advance();
                     true
                 }
                 ']' => {
-                    tokens.push(Token::new(TokenType::RBrace, self.position.clone(), None));
+                    tokens.push(Token::new(TokenType::RBrace, self.position, None));
                     self.advance();
                     true
                 }
                 ',' => {
-                    tokens.push(Token::new(TokenType::Comma, self.position.clone(), None));
+                    tokens.push(Token::new(TokenType::Comma, self.position, None));
                     self.advance();
                     true
                 }
                 ';' => {
-                    tokens.push(Token::new(TokenType::Semicln, self.position.clone(), None));
+                    tokens.push(Token::new(TokenType::Semicln, self.position, None));
                     self.advance();
                     true
                 }
@@ -140,7 +140,7 @@ impl Lexer {
             } else if DIGITS.contains(c) {
                 tokens.push(self.make_number());
             } else {
-                let start_pos = self.position.clone();
+                let start_pos = self.position;
                 self.advance();
                 return Err(Error::new(
                     ErrType::IllegalChar,
@@ -152,12 +152,12 @@ impl Lexer {
             }
         }
 
-        tokens.push(Token::new(TokenType::Eof, self.position.clone(), None));
+        tokens.push(Token::new(TokenType::Eof, self.position, None));
         Ok(tokens)
     }
 
     fn make_string(&mut self) -> Result<Token, Error> {
-        let start = self.position.clone();
+        let start = self.position;
         let mut s = String::from("");
         self.advance();
 
@@ -168,7 +168,7 @@ impl Lexer {
             self.advance();
         }
         self.advance();
-        let end = self.position.clone();
+        let end = self.position;
 
         Ok(Token {
             token_type: TokenType::String(s),
@@ -178,7 +178,7 @@ impl Lexer {
     }
 
     fn make_add(&mut self) -> Result<Token, Error> {
-        let start = self.position.clone();
+        let start = self.position;
         self.advance();
 
         match self.current_char.unwrap() {
@@ -187,7 +187,7 @@ impl Lexer {
                 Ok(Token::new(
                     TokenType::AddEq,
                     start,
-                    Some(self.position.clone()),
+                    Some(self.position),
                 ))
             }
             _ => Ok(Token::new(TokenType::Add, start, None)),
@@ -195,7 +195,7 @@ impl Lexer {
     }
 
     fn make_sub(&mut self) -> Result<Token, Error> {
-        let start = self.position.clone();
+        let start = self.position;
         self.advance();
 
         match self.current_char.unwrap() {
@@ -204,7 +204,7 @@ impl Lexer {
                 Ok(Token::new(
                     TokenType::SubEq,
                     start,
-                    Some(self.position.clone()),
+                    Some(self.position),
                 ))
             }
             _ => Ok(Token::new(TokenType::Sub, start, None)),
@@ -213,7 +213,7 @@ impl Lexer {
 
     fn make_keyword(&mut self) -> Result<Token, Error> {
         let mut keyword = self.current_char.unwrap().to_string();
-        let start = self.position.clone();
+        let start = self.position;
 
         self.advance();
         if self.current_char != None {
@@ -225,7 +225,7 @@ impl Lexer {
             Ok(k) => Ok(Token::new(
                 TokenType::Keywrd(k),
                 start,
-                Some(self.position.clone()),
+                Some(self.position),
             )),
             Err(_) => Err(Error::new(
                 ErrType::IllegalChar,
@@ -241,7 +241,7 @@ impl Lexer {
     }
 
     fn make_not(&mut self) -> Result<Token, Error> {
-        let start = self.position.clone();
+        let start = self.position;
         self.advance();
 
         if self.current_char != None && self.current_char.unwrap() == '=' {
@@ -249,19 +249,19 @@ impl Lexer {
             Ok(Token::new(
                 TokenType::NEqual,
                 start,
-                Some(self.position.clone()),
+                Some(self.position),
             ))
         } else {
             Ok(Token::new(
                 TokenType::Keywrd(Keyword::Not),
                 start,
-                Some(self.position.clone()),
+                Some(self.position),
             ))
         }
     }
 
     fn make_equal(&mut self) -> Token {
-        let start = self.position.clone();
+        let start = self.position;
         let mut token_type = TokenType::Assign;
         self.advance();
 
@@ -270,11 +270,11 @@ impl Lexer {
             token_type = TokenType::Equal;
         }
 
-        Token::new(token_type, start, Some(self.position.clone()))
+        Token::new(token_type, start, Some(self.position))
     }
 
     fn make_less(&mut self) -> Token {
-        let start = self.position.clone();
+        let start = self.position;
         let mut token_type = TokenType::Less;
         self.advance();
 
@@ -283,11 +283,11 @@ impl Lexer {
             token_type = TokenType::LessEq;
         }
 
-        Token::new(token_type, start, Some(self.position.clone()))
+        Token::new(token_type, start, Some(self.position))
     }
 
     fn make_greater(&mut self) -> Token {
-        let start = self.position.clone();
+        let start = self.position;
         let mut token_type = TokenType::Greater;
         self.advance();
 
@@ -296,12 +296,12 @@ impl Lexer {
             token_type = TokenType::GreaterEq;
         }
 
-        Token::new(token_type, start, Some(self.position.clone()))
+        Token::new(token_type, start, Some(self.position))
     }
 
     fn make_identifier(&mut self) -> Token {
         let mut id = String::from("");
-        let pos_start = self.position.clone();
+        let pos_start = self.position;
 
         let allowed = LETTERS.to_owned() + "_";
 
@@ -314,7 +314,7 @@ impl Lexer {
             Ok(k) => TokenType::Keywrd(k),
             Err(()) => TokenType::Id(id),
         };
-        Token::new(token_type, pos_start, Some(self.position.clone()))
+        Token::new(token_type, pos_start, Some(self.position))
     }
 
     //TODO: don't use strings
@@ -322,7 +322,7 @@ impl Lexer {
         let mut num: String = String::new();
         let mut dot_count: u8 = 0;
 
-        let start = self.position.clone();
+        let start = self.position;
 
         let s = DIGITS.to_owned() + ".";
 
@@ -345,14 +345,14 @@ impl Lexer {
             return Token::new(
                 TokenType::Int(num.parse::<ChInt>().unwrap()),
                 start,
-                Some(self.position.clone()),
+                Some(self.position),
             );
         }
 
         Token::new(
             TokenType::Float(num.parse::<ChFloat>().unwrap()),
             start,
-            Some(self.position.clone()),
+            Some(self.position),
         )
     }
 }

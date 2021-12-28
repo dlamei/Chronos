@@ -45,7 +45,7 @@ impl Block {
     //allocates a block of memory of given size
     fn new(size: usize) -> Result<Block, BlockError> {
         if !size.is_power_of_two() {
-            return Err(BlockError::BadRequest);
+            Err(BlockError::BadRequest)
         } else {
             Ok(Block {
                 ptr: alloc_block(size)?,
@@ -452,7 +452,7 @@ impl<H: AllocHeader> AllocRaw for ImmixHeap<H> {
         //    write(space as *mut Self::Header, header);
         //}
 
-        let object_space = unsafe { space.offset(header_size as isize) };
+        let object_space = unsafe { space.add(header_size) };
         unsafe {
             Self::write_to_memory(&object_space, object);
         }
@@ -478,7 +478,7 @@ impl<H: AllocHeader> AllocRaw for ImmixHeap<H> {
         //    write(space as *mut Self::Header, header);
         //}
 
-        let object_space = unsafe { space.offset(header_size as isize) };
+        let object_space = unsafe { space.add(header_size) };
         let array: &mut [u8] =
             unsafe { from_raw_parts_mut(object_space as *mut u8, size as usize) };
 

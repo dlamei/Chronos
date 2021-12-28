@@ -369,7 +369,7 @@ impl Parser {
 
     fn array_expression(&mut self) -> Result<Node, Error> {
         self.expect_token(TokenType::LBrace)?;
-        let start = self.current_token.start_pos.clone();
+        let start = self.current_token.start_pos;
         self.advance();
 
         let mut array: Vec<Node> = Vec::new();
@@ -384,7 +384,7 @@ impl Parser {
         }
 
         self.expect_token(TokenType::RBrace)?;
-        let end = self.current_token.end_pos.clone();
+        let end = self.current_token.end_pos;
         self.advance();
 
         Ok(Node::Array(array, start, end))
@@ -413,7 +413,7 @@ impl Parser {
 
         if matches!(self.current_token.token_type, TokenType::Id(_)) {
             var_name = Some(self.current_token.clone());
-            start = Some(self.current_token.start_pos.clone());
+            start = Some(self.current_token.start_pos);
             self.advance();
         }
 
@@ -425,7 +425,7 @@ impl Parser {
         if matches!(self.current_token.token_type, TokenType::Id(_),) {
             arg_tokens.push(self.current_token.clone());
             if start.is_none() {
-                start = Some(self.current_token.start_pos.clone());
+                start = Some(self.current_token.start_pos);
             }
 
             self.advance();
@@ -445,7 +445,7 @@ impl Parser {
         self.expect_token(TokenType::LCurly)?;
 
         if start.is_none() {
-            start = Some(self.current_token.start_pos.clone());
+            start = Some(self.current_token.start_pos);
         }
 
         self.advance();
@@ -454,7 +454,7 @@ impl Parser {
 
         self.expect_token(TokenType::RCurly)?;
 
-        end = Some(self.current_token.end_pos.clone());
+        end = Some(self.current_token.end_pos);
 
         self.advance();
 
@@ -489,7 +489,7 @@ impl Parser {
 
         self.advance();
 
-        start = self.current_token.start_pos.clone();
+        start = self.current_token.start_pos;
         if !match_enum_type(&self.current_token.token_type, &TokenType::Semicln) {
             c1 = Some(self.expression()?.into());
         }
@@ -512,7 +512,7 @@ impl Parser {
         let body = self.expression()?;
 
         self.expect_token(TokenType::RCurly)?;
-        end = self.current_token.start_pos.clone();
+        end = self.current_token.start_pos;
         self.advance();
 
         Ok(Node::For(c1, c2.into(), c3, body.into(), start, end))
@@ -532,7 +532,7 @@ impl Parser {
             ));
         }
 
-        let start = self.current_token.start_pos.clone();
+        let start = self.current_token.start_pos;
 
         self.advance();
         let cond = self.expression()?;
@@ -544,7 +544,7 @@ impl Parser {
 
         self.expect_token(TokenType::RCurly)?;
 
-        let end = self.current_token.end_pos.clone();
+        let end = self.current_token.end_pos;
 
         self.advance();
 

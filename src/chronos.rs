@@ -151,7 +151,7 @@ impl Token {
             };
         }
 
-        let mut end_pos = start_pos.clone();
+        let mut end_pos = start_pos;
         end_pos.advance(&None);
 
         Token {
