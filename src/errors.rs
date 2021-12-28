@@ -19,8 +19,8 @@ pub enum ErrType {
 
 pub struct Error {
     error_type: ErrType,
-    start_pos: Position,
-    end_pos: Position,
+    start_pos: Option<Position>,
+    end_pos: Option<Position>,
     details: String,
     scope: Option<Rc<RefCell<Scope>>>,
     files: Option<Vec<File>>,
@@ -29,15 +29,15 @@ pub struct Error {
 impl Error {
     pub fn new(
         error_type: ErrType,
-        start_pos: &Position,
-        end_pos: &Position,
+        start_pos: Option<Position>,
+        end_pos: Option<Position>,
         details: String,
         scope: Option<Rc<RefCell<Scope>>>,
     ) -> Self {
         Error {
             error_type,
-            start_pos: start_pos.clone(),
-            end_pos: end_pos.clone(),
+            start_pos,
+            end_pos,
             details,
             scope,
             files: None,
@@ -45,8 +45,8 @@ impl Error {
     }
 
     pub fn print(&self) {
-        if let Some(files) = &self.files {
-            println!("{}", self.generate_message(files));
+        if self.files.is_some() && self.start_pos.is_some() && self.end_pos.is_some() {
+            println!("{}", self.generate_message(self.files.as_ref().unwrap()));
         } else {
             println!("{:?}: {}", self.error_type, self.details);
         }
@@ -57,22 +57,22 @@ impl Error {
     }
     
     fn generate_message(&self, files: &Vec<File>) -> String {
-        let mut message = get_traceback(&self.scope, &self.start_pos, files);
-        let file_name = &files.get(self.start_pos.file_nr).unwrap().name;
+        let mut message = get_traceback(&self.scope, &self.start_pos.unwrap(), files);
+        let file_name = &files.get(self.start_pos.unwrap().file_nr).unwrap().name;
 
         write!(message, "{:?}: {}", self.error_type, self.details,).unwrap();
 
         write!(
             message,
             "\n\n{}",
-            get_error_preview(self.start_pos.file_nr, files, &self.start_pos, &self.end_pos)
+            get_error_preview(self.start_pos.unwrap().file_nr, files, &self.start_pos.unwrap(), &self.end_pos.unwrap())
         )
         .unwrap();
 
         write!(
             message,
             "\nFile: {}, Line: {}",
-            file_name, self.start_pos.line
+            file_name, self.start_pos.unwrap().line
         )
         .unwrap();
         message

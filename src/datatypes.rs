@@ -4,9 +4,9 @@ use crate::interpreter::visit_node;
 use std::{cell::RefCell, fmt, fmt::Debug, fmt::Display, rc::Rc};
 
 pub trait HasPosition {
-    fn get_start(&self) -> Position;
-    fn get_end(&self) -> Position;
-    fn set_position(&mut self, start_pos: Position, end_pos: Position);
+    fn get_start(&self) -> Option<Position>;
+    fn get_end(&self) -> Option<Position>;
+    fn set_position(&mut self, start_pos: Option<Position>, end_pos: Option<Position>);
 }
 
 pub trait HasScope {
@@ -31,8 +31,8 @@ pub trait ConvertValue {
     {
         Err(Error::new(
             ErrType::Runtime,
-            &self.get_start(),
-            &self.get_end(),
+            self.get_start(),
+            self.get_end(),
             format!("could not convert {} to Number", self),
             None,
         ))
@@ -49,8 +49,8 @@ pub trait ConvertValue {
 fn generate_undefined_op(caller: &dyn IsChValue, op_name: &str) -> Result<ChValue, Error> {
     Err(Error::new(
         ErrType::UndefinedOperator,
-        &caller.get_start(),
-        &caller.get_end(),
+        caller.get_start(),
+        caller.get_end(),
         format!(
             "operator '{}' not defined for type: {}",
             op_name,
@@ -226,15 +226,15 @@ impl Display for ChValue {
 }
 
 impl HasPosition for ChValue {
-    fn get_start(&self) -> Position {
+    fn get_start(&self) -> Option<Position> {
         unwrap_chvalue!(self, e, e.get_start())
     }
 
-    fn get_end(&self) -> Position {
+    fn get_end(&self) -> Option<Position> {
         unwrap_chvalue!(self, e, e.get_end())
     }
 
-    fn set_position(&mut self, start_pos: Position, end_pos: Position) {
+    fn set_position(&mut self, start_pos: Option<Position>, end_pos: Option<Position>) {
         unwrap_chvalue!(self, e, e.set_position(start_pos, end_pos))
     }
 }
@@ -351,22 +351,22 @@ impl IsChValue for ChValue {
 
 #[derive(Clone, Debug)]
 pub struct ChNone {
-    pub start_pos: Position,
-    pub end_pos: Position,
+    pub start_pos: Option<Position>,
+    pub end_pos: Option<Position>,
 }
 
 impl HasScope for ChNone {}
 
 impl HasPosition for ChNone {
-    fn get_start(&self) -> Position {
+    fn get_start(&self) -> Option<Position> {
         self.start_pos.clone()
     }
 
-    fn get_end(&self) -> Position {
+    fn get_end(&self) -> Option<Position> {
         self.end_pos.clone()
     }
 
-    fn set_position(&mut self, start_pos: Position, end_pos: Position) {
+    fn set_position(&mut self, start_pos: Option<Position>, end_pos: Option<Position>) {
         self.start_pos = start_pos;
         self.end_pos = end_pos;
     }
@@ -410,8 +410,8 @@ impl ConvertValue for ChNone {
     fn convert_to_number(self) -> Result<NumberType, Error> {
         Err(Error::new(
             ErrType::Runtime,
-            &self.get_start(),
-            &self.get_end(),
+            self.get_start(),
+            self.get_end(),
             String::from("can not convert 'none' to Numbertype"),
             None,
         ))
@@ -429,16 +429,16 @@ impl Display for ChNone {
 #[derive(Clone, Debug)]
 pub struct ChBool {
     pub value: bool,
-    pub start_pos: Position,
-    pub end_pos: Position,
+    pub start_pos: Option<Position>,
+    pub end_pos: Option<Position>,
 }
 
 impl ChBool {
     pub fn from(v: bool) -> Self {
         ChBool {
             value: v,
-            start_pos: Position::default(),
-            end_pos: Position::default(),
+            start_pos: None,
+            end_pos: None,
         }
     }
 }
@@ -476,15 +476,15 @@ impl Display for ChBool {
 }
 
 impl HasPosition for ChBool {
-    fn get_start(&self) -> Position {
+    fn get_start(&self) -> Option<Position> {
         self.start_pos.clone()
     }
 
-    fn get_end(&self) -> Position {
+    fn get_end(&self) -> Option<Position> {
         self.end_pos.clone()
     }
 
-    fn set_position(&mut self, start_pos: Position, end_pos: Position) {
+    fn set_position(&mut self, start_pos: Option<Position>, end_pos: Option<Position>) {
         self.start_pos = start_pos;
         self.end_pos = end_pos;
     }
@@ -554,8 +554,8 @@ pub enum NumberType {
 #[derive(Debug, Clone)]
 pub struct ChNumber {
     pub value: NumberType,
-    pub start_pos: Position,
-    pub end_pos: Position,
+    pub start_pos: Option<Position>,
+    pub end_pos: Option<Position>,
 }
 
 impl HasScope for ChNumber {}
@@ -594,15 +594,15 @@ impl ConvertValue for ChNumber {
 }
 
 impl HasPosition for ChNumber {
-    fn get_start(&self) -> Position {
+    fn get_start(&self) -> Option<Position> {
         self.start_pos.clone()
     }
 
-    fn get_end(&self) -> Position {
+    fn get_end(&self) -> Option<Position> {
         self.end_pos.clone()
     }
 
-    fn set_position(&mut self, start_pos: Position, end_pos: Position) {
+    fn set_position(&mut self, start_pos: Option<Position>, end_pos: Option<Position>) {
         self.start_pos = start_pos;
         self.end_pos = end_pos;
     }
@@ -612,17 +612,8 @@ impl ChNumber {
     fn from(value: NumberType, _scope: &mut Rc<RefCell<Scope>>) -> Self {
         ChNumber {
             value,
-            start_pos: Position::default(),
-            end_pos: Position::default(),
-        }
-    }
-
-    fn into_token(self) -> Token {
-        match self.value {
-            NumberType::Int(v) => Token::new(TokenType::Int(v), self.start_pos, Some(self.end_pos)),
-            NumberType::Float(v) => {
-                Token::new(TokenType::Float(v), self.start_pos, Some(self.end_pos))
-            }
+            start_pos: None,
+            end_pos: None,
         }
     }
 
@@ -682,8 +673,8 @@ impl ChOperators for ChNumber {
         } {
             Err(Error::new(
                 ErrType::Runtime,
-                &self.start_pos,
-                &self.end_pos,
+                self.start_pos,
+                self.end_pos,
                 String::from("Division by 0"),
                 None,
             ))
@@ -886,8 +877,8 @@ impl ChOperators for ChNumber {
 #[derive(Debug, Clone)]
 pub struct ChString {
     pub string: String,
-    pub start_pos: Position,
-    pub end_pos: Position,
+    pub start_pos: Option<Position>,
+    pub end_pos: Option<Position>,
 }
 
 impl Display for ChString {
@@ -911,15 +902,15 @@ impl IsChValue for ChString {
 }
 
 impl HasPosition for ChString {
-    fn get_start(&self) -> Position {
+    fn get_start(&self) -> Option<Position> {
         self.start_pos.clone()
     }
 
-    fn get_end(&self) -> Position {
+    fn get_end(&self) -> Option<Position> {
         self.end_pos.clone()
     }
 
-    fn set_position(&mut self, start_pos: Position, end_pos: Position) {
+    fn set_position(&mut self, start_pos: Option<Position>, end_pos: Option<Position>) {
         self.start_pos = start_pos;
         self.end_pos = end_pos;
     }
@@ -937,8 +928,8 @@ impl ChOperators for ChString {
             _ => {
                 return Err(Error::new(
                     ErrType::Runtime,
-                    &self.start_pos,
-                    &self.end_pos,
+                    self.start_pos,
+                    self.end_pos,
                     format!("can't add {:?} to String", other),
                     None,
                 ))
@@ -959,8 +950,8 @@ impl ChOperators for ChString {
             }
             _ => Err(Error::new(
                 ErrType::UndefinedOperator,
-                &self.start_pos,
-                &self.end_pos,
+                self.start_pos,
+                self.end_pos,
                 String::from("multiply is only defined for type Int"),
                 None,
             )),
@@ -975,8 +966,8 @@ impl ChOperators for ChString {
             _ => {
                 return Err(Error::new(
                     ErrType::Runtime,
-                    &self.start_pos,
-                    &self.end_pos,
+                    self.start_pos,
+                    self.end_pos,
                     format!("expected Int found: {:?}", num),
                     None,
                 ))
@@ -986,8 +977,8 @@ impl ChOperators for ChString {
         if num >= self.string.len().try_into().unwrap() {
             return Err(Error::new(
                 ErrType::Runtime,
-                &self.start_pos,
-                &self.end_pos,
+                self.start_pos,
+                self.end_pos,
                 format!(
                     "Array index out of bounds => len: {}, index: {}",
                     self.string.len(),
@@ -1034,21 +1025,21 @@ impl HasScope for ChFunction {
 impl ConvertValue for ChFunction {}
 
 impl HasPosition for ChFunction {
-    fn get_start(&self) -> Position {
+    fn get_start(&self) -> Option<Position> {
         match &self.func_type {
             FuncType::ChronFunc(func) => func.get_start(),
-            FuncType::RustFunc(_) => Position::from_file(0),
+            FuncType::RustFunc(_) => Some(Position::from_file(0)),
         }
     }
 
-    fn get_end(&self) -> Position {
+    fn get_end(&self) -> Option<Position> {
         match &self.func_type {
             FuncType::ChronFunc(func) => func.get_end(),
-            FuncType::RustFunc(_) => Position::from_file(0),
+            FuncType::RustFunc(_) => Some(Position::from_file(0)),
         }
     }
 
-    fn set_position(&mut self, start_pos: Position, end_pos: Position) {
+    fn set_position(&mut self, start_pos: Option<Position>, end_pos: Option<Position>) {
         match &mut self.func_type {
             FuncType::ChronFunc(func) => func.set_position(start_pos, end_pos),
             FuncType::RustFunc(_) => (),
@@ -1121,8 +1112,8 @@ pub struct ChronosFunc {
     pub name: String,
     pub args_name: Vec<Token>,
     pub body: Node,
-    pub start_pos: Position,
-    pub end_pos: Position,
+    pub start_pos: Option<Position>,
+    pub end_pos: Option<Position>,
     pub scope: Rc<RefCell<Scope>>,
 }
 
@@ -1131,14 +1122,14 @@ impl IsFunction for ChronosFunc {
         let mut n_scope = Scope::from_parent(
             format!("<function: {}>", name.unwrap_or_else(|| self.name.clone())),
             self.scope.clone(),
-            self.start_pos.clone(),
+            self.start_pos,
         );
 
         if args.len() != self.args_name.len() {
             return Err(Error::new(
                 ErrType::Runtime,
-                &self.start_pos,
-                &self.end_pos,
+                self.start_pos,
+                self.end_pos,
                 format!(
                     "expected {} arguments, found {} in function '{}'",
                     self.args_name.len(),
@@ -1157,8 +1148,8 @@ impl IsFunction for ChronosFunc {
                 _ => {
                     return Err(Error::new(
                         ErrType::Runtime,
-                        &n.start_pos,
-                        &n.end_pos,
+                        Some(n.start_pos),
+                        Some(n.end_pos),
                         format!("could not resolve {:?} as an argument", n),
                         Some(n_scope.clone()),
                     ))
@@ -1185,15 +1176,15 @@ impl HasScope for ChronosFunc {
 }
 
 impl HasPosition for ChronosFunc {
-    fn get_start(&self) -> Position {
-        self.start_pos.clone()
+    fn get_start(&self) -> Option<Position> {
+        self.start_pos
     }
 
-    fn get_end(&self) -> Position {
-        self.end_pos.clone()
+    fn get_end(&self) -> Option<Position> {
+        self.end_pos
     }
 
-    fn set_position(&mut self, start_pos: Position, end_pos: Position) {
+    fn set_position(&mut self, start_pos: Option<Position>, end_pos: Option<Position>) {
         self.start_pos = start_pos;
         self.end_pos = end_pos;
     }
@@ -1204,8 +1195,8 @@ impl HasPosition for ChronosFunc {
 #[derive(Clone, Debug)]
 pub struct ChArray {
     pub data: Vec<ChValue>,
-    pub start_pos: Position,
-    pub end_pos: Position,
+    pub start_pos: Option<Position>,
+    pub end_pos: Option<Position>,
 }
 
 impl Display for ChArray {
@@ -1223,15 +1214,15 @@ impl Display for ChArray {
 }
 
 impl HasPosition for ChArray {
-    fn get_start(&self) -> Position {
-        self.start_pos.clone()
+    fn get_start(&self) -> Option<Position> {
+        self.start_pos
     }
 
-    fn get_end(&self) -> Position {
-        self.end_pos.clone()
+    fn get_end(&self) -> Option<Position> {
+        self.end_pos
     }
 
-    fn set_position(&mut self, start_pos: Position, end_pos: Position) {
+    fn set_position(&mut self, start_pos: Option<Position>, end_pos: Option<Position>) {
         self.start_pos = start_pos;
         self.end_pos = end_pos;
     }
@@ -1248,8 +1239,8 @@ impl ChOperators for ChArray {
             _ => {
                 return Err(Error::new(
                     ErrType::Runtime,
-                    &self.start_pos,
-                    &self.end_pos,
+                    self.start_pos,
+                    self.end_pos,
                     format!("expected Int found: {:?}", num),
                     None,
                 ))
@@ -1259,8 +1250,8 @@ impl ChOperators for ChArray {
         if num >= self.data.len().try_into().unwrap() {
             return Err(Error::new(
                 ErrType::Runtime,
-                &self.start_pos,
-                &self.end_pos,
+                self.start_pos,
+                self.end_pos,
                 format!(
                     "Array index out of bounds => len: {}, index: {}",
                     self.data.len(),

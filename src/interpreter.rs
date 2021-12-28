@@ -30,13 +30,13 @@ fn visit_numb_node(token: &mut Token, _scope: &mut Rc<RefCell<Scope>>) -> Result
     match token.token_type {
         TokenType::Int(value) => Ok(ChValue::Number(ChNumber {
             value: value.into_number_type(),
-            start_pos: token.start_pos.clone(),
-            end_pos: token.end_pos.clone(),
+            start_pos: Some(token.start_pos),
+            end_pos: Some(token.end_pos),
         })),
         TokenType::Float(value) => Ok(ChValue::Number(ChNumber {
             value: value.into_number_type(),
-            start_pos: token.start_pos.clone(),
-            end_pos: token.end_pos.clone(),
+            start_pos: Some(token.start_pos),
+            end_pos: Some(token.end_pos),
         })),
         _ => panic!("called visit_numb_node on a number node that has a non number token"),
     }
@@ -46,8 +46,8 @@ fn visit_string_node(token: &mut Token, _scope: &mut Rc<RefCell<Scope>>) -> Resu
     match &token.token_type {
         TokenType::String(s) => Ok(ChValue::String(ChString {
             string: s.to_string(),
-            start_pos: token.start_pos.clone(),
-            end_pos: token.end_pos.clone(),
+            start_pos: Some(token.start_pos),
+            end_pos: Some(token.end_pos),
         })),
         _ => panic!("called visit_string_node on a string node that has a non string token"),
     }
@@ -61,14 +61,14 @@ fn visit_access_node(token: &mut Token, scope: &mut Rc<RefCell<Scope>>) -> Resul
 
             match &mut entry {
                 Some(num) => {
-                    num.set_position(token.start_pos.clone(), token.end_pos.clone());
+                    num.set_position(Some(token.start_pos), Some(token.end_pos));
                     num.set_scope(scope.clone());
                     Ok(num.clone())
                 }
                 None => Err(Error::new(
                     ErrType::Runtime,
-                    &token.start_pos,
-                    &token.end_pos,
+                    Some(token.start_pos),
+                    Some(token.end_pos),
                     format!("{:?} is not defined", var_name),
                     Some(scope.clone()),
                 )),
@@ -91,8 +91,8 @@ fn visit_assign_node(
             if !scope.borrow_mut().set_mut(&var_name, ch_type.clone()) {
                 return Err(Error::new(
                     ErrType::Runtime,
-                    &ch_type.get_start(),
-                    &ch_type.get_end(),
+                    ch_type.get_start(),
+                    ch_type.get_end(),
                     format!("cannot assign {} to const {:?}", ch_type, var_name),
                     Some(scope.clone()),
                 ));
@@ -117,7 +117,7 @@ fn visit_unryop_node(
     scope: &mut Rc<RefCell<Scope>>,
 ) -> Result<ChValue, Error> {
     let mut ch_value = visit_node(node, scope)?;
-    ch_value.set_position(op.start_pos.clone(), ch_value.get_end());
+    ch_value.set_position(Some(op.start_pos), ch_value.get_end());
 
     unryop_chvalue(op, ch_value)
 }
@@ -200,8 +200,8 @@ fn add_sub_equal(
         }
         _ => Err(Error::new(
             ErrType::Runtime,
-            &start,
-            &end,
+            start,
+            end,
             format!("expected LVALUE, found {:?}", left_node),
             Some(scope.clone()),
         )),
@@ -213,8 +213,8 @@ fn visit_if_node(
     else_case: &mut Option<Box<Node>>,
     scope: &mut Rc<RefCell<Scope>>,
 ) -> Result<ChValue, Error> {
-    let mut start = Position::default();
-    let mut end = Position::default();
+    let mut start: Option<Position> = None;
+    let mut end: Option<Position> = None;
     let mut first_cond = true;
 
     for (condition, expr) in cases {
@@ -249,7 +249,7 @@ fn visit_for_node(
     start: &mut Position,
     end: &mut Position,
 ) -> Result<ChValue, Error> {
-    let mut n_scope = Scope::from_parent(String::from("<for>"), scope.clone(), start.clone());
+    let mut n_scope = Scope::from_parent(String::from("<for>"), scope.clone(), Some(*start));
 
     if let Some(c) = c1 {
         visit_node(c, &mut n_scope)?;
@@ -263,8 +263,8 @@ fn visit_for_node(
     }
 
     Ok(ChValue::None(ChNone {
-        start_pos: start.clone(),
-        end_pos: end.clone(),
+        start_pos: Some(*start),
+        end_pos: Some(*end),
     }))
 }
 
@@ -275,15 +275,15 @@ fn visit_while_node(
     start: &mut Position,
     end: &mut Position,
 ) -> Result<ChValue, Error> {
-    let mut n_scope = Scope::from_parent(String::from("<while>"), scope.clone(), start.clone());
+    let mut n_scope = Scope::from_parent(String::from("<while>"), scope.clone(), Some(*start));
 
     while visit_node(condition, scope)?.is_true() {
         visit_node(body, &mut n_scope)?;
     }
 
     Ok(ChValue::None(ChNone {
-        start_pos: start.clone(),
-        end_pos: end.clone(),
+        start_pos: Some(*start),
+        end_pos: Some(*end),
     }))
 }
 
@@ -301,8 +301,8 @@ fn visit_funcdef_node(
             _ => {
                 return Err(Error::new(
                     ErrType::InvalidSyntax,
-                    start,
-                    end,
+                    Some(*start),
+                    Some(*end),
                     format!("expected ID found '{:?}'", tok),
                     Some(scope.clone()),
                 ))
@@ -317,8 +317,8 @@ fn visit_funcdef_node(
             name: name.clone(),
             args_name: args.clone(),
             body: body.clone(),
-            start_pos: start.clone(),
-            end_pos: end.clone(),
+            start_pos: Some(*start),
+            end_pos: Some(*end),
             scope: scope.clone(),
         })),
     });
@@ -353,8 +353,8 @@ fn visit_call_node(
         _ => {
             return Err(Error::new(
                 ErrType::Runtime,
-                &c.get_start(),
-                &c.get_end(),
+                c.get_start(),
+                c.get_end(),
                 format!("expected Function found {}", c.get_desc()),
                 Some(scope.clone()),
             ))
@@ -385,8 +385,8 @@ fn visit_array_node(
 
     Ok(ChValue::Array(ChArray {
         data: array,
-        start_pos: start.clone(),
-        end_pos: end.clone(),
+        start_pos: Some(*start),
+        end_pos: Some(*end),
     }))
 }
 

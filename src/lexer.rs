@@ -144,8 +144,8 @@ impl Lexer {
                 self.advance();
                 return Err(Error::new(
                     ErrType::IllegalChar,
-                    &start_pos,
-                    &self.position,
+                    Some(start_pos),
+                    Some(self.position),
                     format!("Lexer: found '{}'", c),
                     None,
                 ));
@@ -229,8 +229,8 @@ impl Lexer {
             )),
             Err(_) => Err(Error::new(
                 ErrType::IllegalChar,
-                &start,
-                &self.position,
+                Some(start),
+                Some(self.position),
                 format!(
                     "Lexer: Unknown Keyword, expected '&&', '||' or '!' found '{}'",
                     keyword

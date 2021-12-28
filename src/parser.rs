@@ -25,8 +25,8 @@ impl Parser {
 
             _ => Err(Error::new(
                 ErrType::InvalidSyntax,
-                &self.current_token.start_pos,
-                &self.current_token.end_pos,
+                Some(self.current_token.start_pos),
+                Some(self.current_token.end_pos),
                 format!(
                     "Parser: expected EOF found {:?}",
                     self.current_token.token_type
@@ -75,8 +75,8 @@ impl Parser {
                     }
                     _ => Err(Error::new(
                         ErrType::InvalidSyntax,
-                        &t.start_pos,
-                        &self.current_token.end_pos,
+                        Some(t.start_pos),
+                        Some(self.current_token.end_pos),
                         format!(
                             "Parser: expected ')' found {:?}",
                             self.current_token.token_type
@@ -92,8 +92,8 @@ impl Parser {
             TokenType::Keywrd(Keyword::Func) => self.func_expression(),
             _ => Err(Error::new(
                 ErrType::InvalidSyntax,
-                &t.start_pos,
-                &t.end_pos,
+                Some(t.start_pos),
+                Some(t.end_pos),
                 format!(
                     "Parser: expected INT, FLOAT, IDENTIFIER, '+', '-' or '(, found: {:?}",
                     t.token_type
@@ -128,8 +128,8 @@ impl Parser {
                 if !matches!(self.current_token.token_type, TokenType::RRound,) {
                     return Err(Error::new(
                         ErrType::InvalidSyntax,
-                        &self.current_token.start_pos,
-                        &self.current_token.end_pos,
+                        Some(self.current_token.start_pos),
+                        Some(self.current_token.end_pos),
                         format!("Parser: expected RROUND found '{:?}'", self.current_token),
                         None,
                     ));
@@ -243,8 +243,8 @@ impl Parser {
         if !match_enum_type(&self.current_token.token_type, &token) {
             Err(Error::new(
                 ErrType::InvalidSyntax,
-                &self.current_token.start_pos,
-                &self.current_token.end_pos,
+                Some(self.current_token.start_pos),
+                Some(self.current_token.end_pos),
                 format!(
                     "Parser: expected {:?} found '{:?}'",
                     token, self.current_token
@@ -264,8 +264,8 @@ impl Parser {
         } else {
             return Err(Error::new(
                 ErrType::InvalidSyntax,
-                &self.current_token.start_pos,
-                &self.current_token.end_pos,
+                Some(self.current_token.start_pos),
+                Some(self.current_token.end_pos),
                 format!("Parser: expected IF found '{:?}'", self.current_token),
                 None,
             ));
@@ -278,8 +278,8 @@ impl Parser {
         if !match_enum_type(&self.current_token.token_type, &TokenType::LCurly) {
             return Err(Error::new(
                 ErrType::InvalidSyntax,
-                &self.current_token.start_pos,
-                &self.current_token.end_pos,
+                Some(self.current_token.start_pos),
+                Some(self.current_token.end_pos),
                 format!("Parser: expected LCURLY found '{:?}'", self.current_token),
                 None,
             ));
@@ -292,8 +292,8 @@ impl Parser {
         if !matches!(self.current_token.token_type, TokenType::RCurly) {
             return Err(Error::new(
                 ErrType::InvalidSyntax,
-                &self.current_token.start_pos,
-                &self.current_token.end_pos,
+                Some(self.current_token.start_pos),
+                Some(self.current_token.end_pos),
                 format!("Parser: expected RCURLY found '{:?}'", self.current_token),
                 None,
             ));
@@ -310,8 +310,8 @@ impl Parser {
             if !matches!(self.current_token.token_type, TokenType::LCurly) {
                 return Err(Error::new(
                     ErrType::InvalidSyntax,
-                    &self.current_token.start_pos,
-                    &self.current_token.end_pos,
+                    Some(self.current_token.start_pos),
+                    Some(self.current_token.end_pos),
                     format!("Parser: expected LCURLY found '{:?}'", self.current_token),
                     None,
                 ));
@@ -324,8 +324,8 @@ impl Parser {
             if !matches!(self.current_token.token_type, TokenType::RCurly) {
                 return Err(Error::new(
                     ErrType::InvalidSyntax,
-                    &self.current_token.start_pos,
-                    &self.current_token.end_pos,
+                    Some(self.current_token.start_pos),
+                    Some(self.current_token.end_pos),
                     format!("Parser: expected RCURLY found '{:?}'", self.current_token),
                     None,
                 ));
@@ -341,8 +341,8 @@ impl Parser {
             if !matches!(self.current_token.token_type, TokenType::LCurly) {
                 return Err(Error::new(
                     ErrType::InvalidSyntax,
-                    &self.current_token.start_pos,
-                    &self.current_token.end_pos,
+                    Some(self.current_token.start_pos),
+                    Some(self.current_token.end_pos),
                     format!("Parser: expected LCURLY found '{:?}'", self.current_token),
                     None,
                 ));
@@ -354,8 +354,8 @@ impl Parser {
             if !matches!(&self.current_token.token_type, &TokenType::RCurly) {
                 return Err(Error::new(
                     ErrType::InvalidSyntax,
-                    &self.current_token.start_pos,
-                    &self.current_token.end_pos,
+                    Some(self.current_token.start_pos),
+                    Some(self.current_token.end_pos),
                     format!("Parser: expected RCURLY found '{:?}'", self.current_token),
                     None,
                 ));
@@ -400,8 +400,8 @@ impl Parser {
         ) {
             return Err(Error::new(
                 ErrType::InvalidSyntax,
-                &self.current_token.start_pos,
-                &self.current_token.end_pos,
+                Some(self.current_token.start_pos),
+                Some(self.current_token.end_pos),
                 format!("Parser: expected FUNC found '{:?}'", self.current_token),
                 None,
             ));
@@ -480,8 +480,8 @@ impl Parser {
         ) {
             return Err(Error::new(
                 ErrType::InvalidSyntax,
-                &self.current_token.start_pos,
-                &self.current_token.end_pos,
+                Some(self.current_token.start_pos),
+                Some(self.current_token.end_pos),
                 format!("Parser: expected FOR found '{:?}'", self.current_token),
                 None,
             ));
@@ -525,8 +525,8 @@ impl Parser {
         ) {
             return Err(Error::new(
                 ErrType::InvalidSyntax,
-                &self.current_token.start_pos,
-                &self.current_token.end_pos,
+                Some(self.current_token.start_pos),
+                Some(self.current_token.end_pos),
                 format!("Parser: expected WHILE found '{:?}'", self.current_token),
                 None,
             ));

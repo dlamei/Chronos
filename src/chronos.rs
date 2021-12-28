@@ -20,7 +20,7 @@ pub fn match_enum_type<T>(t1: &T, t2: &T) -> bool {
 }
 
 //TODO: remove file_name and text from position!!!
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Position {
     //pub file_name: Rc<String>,
     pub file_nr: usize,
@@ -249,12 +249,12 @@ impl Scope {
     pub fn from_parent(
         display_name: String,
         parent: Rc<RefCell<Scope>>,
-        position: Position,
+        position: Option<Position>,
     ) -> Rc<RefCell<Self>> {
         Rc::new(RefCell::new(Scope {
             display_name,
             parent: Some(parent),
-            position: Some(position),
+            position,
             symbol_table: SymbolTable::default(),
         }))
     }
@@ -335,8 +335,8 @@ impl SymbolTable {
 
 fn ch_print(args: Vec<ChValue>, _name: Option<String>) -> Result<ChValue, Error> {
     let ret = ChValue::None(ChNone {
-        start_pos: Position::default(),
-        end_pos: Position::default(),
+        start_pos: None,
+        end_pos: None,
     });
     if args.is_empty() {
         return Ok(ret);
@@ -355,14 +355,14 @@ fn ch_print(args: Vec<ChValue>, _name: Option<String>) -> Result<ChValue, Error>
 }
 
 fn ch_len(args: Vec<ChValue>, _name: Option<String>) -> Result<ChValue, Error> {
-    let mut start = Position::default();
-    let mut end = Position::default();
+    let mut start: Option<Position> = None;
+    let mut end: Option<Position> = None;
 
     if args.len() != 1 {
         return Err(Error::new(
             ErrType::Runtime,
-            &start,
-            &end,
+            start,
+            end,
             format!("Expected 1 argument found: {}", args.len()),
             None,
         ));
@@ -380,8 +380,8 @@ fn ch_len(args: Vec<ChValue>, _name: Option<String>) -> Result<ChValue, Error> {
         })),
         _ => Err(Error::new(
             ErrType::Runtime,
-            &start,
-            &end,
+            start,
+            end,
             format!("{} has no len", arg),
             None,
         )),
@@ -445,8 +445,8 @@ impl Compiler {
         table.set(
             &String::from("none"),
             ChValue::None(ChNone {
-                start_pos: Position::default(),
-                end_pos: Position::default(),
+                start_pos: None,
+                end_pos: None,
             }),
         );
 
