@@ -1,14 +1,11 @@
 #pragma once
 
 #include <cstdint>
-#include <string>
 #include <vector>
+#include <string>
 
 namespace Chronos
 {
-	const char* DIGITS = "1234567890";
-	const char* LETTERS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-
 
 	struct Position
 	{
@@ -17,20 +14,20 @@ namespace Chronos
 		std::size_t column = 0;
 	};
 
-	enum TokenType
+	enum class TokenType
 	{
 		INT = 0,
+		FLOAT,
 		ADD,
 		SUB,
 		MULT,
 		DIV,
 	};
-	
 
 	union TokenValue
 	{
-		int32_t int_value;
-		float float_vlaue;
+		float fval;
+		int32_t ival;
 	};
 
 	struct Token
@@ -43,21 +40,24 @@ namespace Chronos
 	};
 
 
-	const char* token_to_string(Token t);
+	std::string token_to_string(Token t);
 
 	class Lexer
 	{
 		private:
-			std::size_t m_Line = 0;
-			std::size_t m_Column = 0;
+			size_t m_Line = 0;
+			size_t m_Column = 0;
+			size_t m_Index = 0;
 
 			std::size_t m_TextSize = 0;
-			const char *m_Text;
+			const char *m_Text = nullptr;
 			const char *m_CharPtr = nullptr;
 
 			std::vector<Token> m_Tokens;
 
 			void advance();
+
+			Token make_number();
 
 		public:
 
@@ -67,6 +67,8 @@ namespace Chronos
 
 			void parse_tokens();
 			void print_tokens();
+
+			void clear_token();
 
 			Token peek();
 			void pop();

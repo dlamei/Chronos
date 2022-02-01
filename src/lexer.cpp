@@ -1,20 +1,20 @@
-#include <cstring>
 #include "lexer.h"
 #include <iostream>
+#include <string>
 
 namespace Chronos
 {
-	bool is_space(char c) 
+	bool is_space(char c)
 	{
-		switch (c) 
+		switch (c)
 		{
-			case ' ':
-			case '\t':
-			case '\r':
-			case '\n':
-				return true;
-			default:
-				return false;
+		case ' ':
+		case '\t':
+		case '\r':
+		case '\n':
+			return true;
+		default:
+			return false;
 		}
 	}
 
@@ -22,33 +22,48 @@ namespace Chronos
 	{
 		switch (c)
 		{
-			case '0':
-			case '1':
-			case '2':
-			case '3':
-			case '4':
-			case '5':
-			case '6':
-			case '7':
-			case '8':
-			case '9':
-				return true;
-			default: return false;
+		case '0':
+		case '1':
+		case '2':
+		case '3':
+		case '4':
+		case '5':
+		case '6':
+		case '7':
+		case '8':
+		case '9':
+			return true;
+		default: return false;
 		}
 	}
 
 
-	const char* token_to_string(Token t)
-		{
+	std::string token_to_string(Token t)
+	{
 		switch (t.type)
 		{
-			case INT: return "INT";
-			case ADD: return "ADD";
-			case SUB: return "SUB";
-			case MULT: return "MULT";
-			case DIV: return "DIV";
+		case TokenType::INT:
+		{
+			std::string s;
+			s += "INT(";
+			s += std::to_string(t.value.ival);
+			s += ")";
+			return s;
 		}
-		return nullptr;
+		case TokenType::FLOAT:
+		{
+			std::string s;
+			s += "FLOAT(";
+			s += std::to_string(t.value.fval);
+			s += ")";
+			return s;
+		}
+		case TokenType::ADD: return "ADD";
+		case TokenType::SUB: return "SUB";
+		case TokenType::MULT: return "MULT";
+		case TokenType::DIV: return "DIV";
+		}
+		return "";
 	}
 
 
@@ -62,25 +77,28 @@ namespace Chronos
 
 	void Lexer::advance()
 	{
+		if (m_CharPtr == nullptr) return;
 		switch (*m_CharPtr)
 		{
-			case '\n':
-				++m_Line;
-				m_Column = 0;
-				break;
+		case '\n':
+			++m_Line;
+			m_Column = 0;
+			break;
 
-			default:
-				++m_Column;
-				break;
+		default:
+			++m_Column;
+			break;
 		}
 
 
-		if (m_CharPtr - m_Text > m_TextSize)
+		if (m_Index > m_TextSize)
 		{
 			m_CharPtr = nullptr;
-		} else
+		}
+		else
 		{
 			++m_CharPtr;
+			++m_Index;
 		}
 	}
 
@@ -104,40 +122,85 @@ namespace Chronos
 			{
 				advance();
 				continue;
-			} else if (is_digit(c))
+			}
+			else if (is_digit(c))
 			{
+				m_Tokens.push_back(make_number());
 				advance();
 				continue;
 			}
 
-			//std::cout << "char: " << c << "\n";
+			Position pos = { m_Index, m_Line, m_Column };
+
 			switch (c)
 			{
-				case '+':
-					m_Tokens.push_back(Token { TokenType::ADD });
-					break;
-				case '-':
-					m_Tokens.push_back(Token { TokenType::SUB });
-					break;
-				case '*':
-					m_Tokens.push_back(Token { TokenType::MULT });
-					break;
-				case '/':
-					m_Tokens.push_back(Token { TokenType::DIV });
-					break;
+			case '+':
+				m_Tokens.push_back(Token{ TokenType::ADD, 0, pos});
+				break;
+			case '-':
+				m_Tokens.push_back(Token{ TokenType::SUB, 0, pos});
+				break;
+			case '*':
+				m_Tokens.push_back(Token{ TokenType::MULT, 0, pos});
+				break;
+			case '/':
+				m_Tokens.push_back(Token{ TokenType::DIV, 0, pos});
+				break;
 			}
 
 			advance();
 		}
+	}
 
+	Token Lexer::make_number()
+	{
+		std::string num;
+		Position start = { m_Index, m_Line, m_Column };
+		bool has_dot = false;
+
+		while (m_CharPtr && (is_digit(*m_CharPtr) || *m_CharPtr == '.'))
+		{
+			if (*m_CharPtr == '.' && !has_dot)
+			{
+				has_dot = true;
+			}
+			else if (*m_CharPtr == '.' && has_dot)
+			{
+				break;
+			}
+
+			num += *m_CharPtr;
+			advance();
+		}
+
+		Position end = { m_Index, m_Line, m_Column };
+
+		if (has_dot)
+		{
+			TokenValue value;
+			value.fval = std::stof(num);
+			Token t = { TokenType::FLOAT, value, start, end };
+			return t;
+		}
+		else
+		{
+			TokenValue value;
+			value.ival = std::stoi(num);
+			Token t = { TokenType::INT, value, start, end };
+			return t;
+		}
 	}
 
 	void Lexer::print_tokens()
 	{
 		std::cout << "size: " << m_Tokens.size() << "\n";
-		for (Token t : m_Tokens) 
+		for (Token& t : m_Tokens)
 		{
 			std::cout << token_to_string(t) << "\n";
 		}
+	}
+	void Lexer::clear_token()
+	{
+		m_Tokens.clear();
 	}
 }

@@ -18,6 +18,7 @@ int main()
 		lexer.load_text(buffer.c_str(), buffer.size());
 		lexer.parse_tokens();
 		lexer.print_tokens();
+		lexer.clear_token();
 
 	}
 }

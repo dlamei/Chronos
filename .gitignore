@@ -1,4 +1,10 @@
 /target
 *.o
 /bin
+/x64
 
+/Debug
+*.sln
+*.vcxproj
+*.user
+*.filters
