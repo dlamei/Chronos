@@ -1,6 +1,7 @@
-#include "lexer.h"
+#include "Lexer.h"
 #include <iostream>
 #include <string>
+#include <stdio.h>
 
 namespace Chronos
 {
@@ -37,33 +38,41 @@ namespace Chronos
 		}
 	}
 
-
-	std::string token_to_string(Token t)
+	std::string position_to_string(const Position& pos)
 	{
+		std::string s = "indx: ";
+		s += std::to_string(pos.index) + ", line: " + std::to_string(pos.line) + ", column: " + std::to_string(pos.column);
+		return s;
+	}
+
+	std::string token_to_string(const Token& t)
+	{
+		std::string s;
+
 		switch (t.type)
 		{
 		case TokenType::INT:
-		{
-			std::string s;
 			s += "INT(";
 			s += std::to_string(t.value.ival);
 			s += ")";
-			return s;
-		}
+			break;
 		case TokenType::FLOAT:
-		{
-			std::string s;
 			s += "FLOAT(";
 			s += std::to_string(t.value.fval);
 			s += ")";
-			return s;
+			break;
+		case TokenType::ADD: s = "ADD"; break;
+		case TokenType::SUB: s = "SUB"; break;
+		case TokenType::MULT: s = "MULT"; break;
+		case TokenType::DIV: s = "DIV"; break;
 		}
-		case TokenType::ADD: return "ADD";
-		case TokenType::SUB: return "SUB";
-		case TokenType::MULT: return "MULT";
-		case TokenType::DIV: return "DIV";
-		}
-		return "";
+
+#ifdef DEBUG
+		s += " start: " + position_to_string(t.start_pos);
+		s += ", end: " + position_to_string(t.end_pos);
+#endif
+
+		return s;
 	}
 
 
@@ -135,16 +144,16 @@ namespace Chronos
 			switch (c)
 			{
 			case '+':
-				m_Tokens.push_back(Token{ TokenType::ADD, 0, pos});
+				m_Tokens.push_back(create_token(TokenType::ADD, 0, pos, pos));
 				break;
 			case '-':
-				m_Tokens.push_back(Token{ TokenType::SUB, 0, pos});
+				m_Tokens.push_back(create_token(TokenType::SUB, 0, pos, pos));
 				break;
 			case '*':
-				m_Tokens.push_back(Token{ TokenType::MULT, 0, pos});
+				m_Tokens.push_back(create_token(TokenType::MULT, 0, pos, pos));
 				break;
 			case '/':
-				m_Tokens.push_back(Token{ TokenType::DIV, 0, pos});
+				m_Tokens.push_back(create_token(TokenType::DIV, 0, pos, pos));
 				break;
 			}
 
@@ -179,15 +188,13 @@ namespace Chronos
 		{
 			TokenValue value;
 			value.fval = std::stof(num);
-			Token t = { TokenType::FLOAT, value, start, end };
-			return t;
+			return create_token( TokenType::FLOAT, value, start, end );
 		}
 		else
 		{
 			TokenValue value;
 			value.ival = std::stoi(num);
-			Token t = { TokenType::INT, value, start, end };
-			return t;
+			return create_token( TokenType::INT, value, start, end );
 		}
 	}
 

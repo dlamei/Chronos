@@ -2,7 +2,9 @@
 #include <string>
 #include <cstdint>
 
-#include "lexer.h"
+
+#include "Lexer.h"
+#include "Parser.h"
 
 
 int main()
@@ -18,7 +20,9 @@ int main()
 		lexer.load_text(buffer.c_str(), buffer.size());
 		lexer.parse_tokens();
 		lexer.print_tokens();
+		Chronos::parse_tokens(lexer.m_Tokens);
 		lexer.clear_token();
+
 
 	}
 }

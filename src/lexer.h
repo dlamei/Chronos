@@ -4,6 +4,8 @@
 #include <vector>
 #include <string>
 
+#include "common.h"
+
 namespace Chronos
 {
 
@@ -26,8 +28,8 @@ namespace Chronos
 
 	union TokenValue
 	{
-		float fval;
 		int32_t ival;
+		float fval;
 	};
 
 	struct Token
@@ -35,12 +37,20 @@ namespace Chronos
 		TokenType type;
 		TokenValue value;
 
+#ifdef DEBUG
 		Position start_pos;
 		Position end_pos;
+#endif
 	};
 
+#ifdef DEBUG
+	#define create_token(type, value, start, end) { type, value, start, end}
+#else
+	#define create_token(type, value, start, end) { type, value }
+#endif
 
-	std::string token_to_string(Token t);
+
+	std::string token_to_string(const Token& t);
 
 	class Lexer
 	{
@@ -53,13 +63,13 @@ namespace Chronos
 			const char *m_Text = nullptr;
 			const char *m_CharPtr = nullptr;
 
-			std::vector<Token> m_Tokens;
 
 			void advance();
 
 			Token make_number();
 
 		public:
+			std::vector<Token> m_Tokens;
 
 			Lexer() {}
 
