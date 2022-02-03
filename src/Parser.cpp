@@ -24,14 +24,25 @@ namespace Chronos
 		case NodeType::NUM:
 			s += "NUM(";
 			s += to_string(n.value.token);
-			s += "NUM)";
+			s += ")";
 			break;
 		case NodeType::BINOP:
 			s += "BINOP(";
 			s += to_string(*n.value.binop_value.left);
-			s += " " + to_string(n.value.binop_value.type) + " ";
+			s += ", " + to_string(n.value.binop_value.type) + ", ";
 			s += to_string(*n.value.binop_value.right);
 			s += ")";
+			break;
+
+		case NodeType::UNRYOP:
+			s += "UNRYOP(";
+			s += to_string(n.value.unry_value.type) + ", ";
+			s += to_string(*n.value.unry_value.right);
+			s += ")";
+			break;
+
+		default:
+			exit(-1);
 
 		}
 
@@ -89,7 +100,9 @@ namespace Chronos
 			auto fac = factor();
 			if (!fac) return fac;
 			Node* fac_node = fac.get_result();
-			return new Node(create_node(NodeType::UNRYOP, {}, token_start(t), node_end(*fac_node)));
+			Node* n = new Node(create_node(NodeType::UNRYOP, {}, token_start(t), node_end(*fac_node)));
+			n->value.unry_value = { TokenType::SUB, fac_node };
+			return n;
 		}
 
 		default:

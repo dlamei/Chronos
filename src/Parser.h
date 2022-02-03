@@ -25,8 +25,8 @@ namespace Chronos
 		struct Unry_val
 		{
 			TokenType type;
-			Node* left;
-		};
+			Node* right;
+		}unry_value;
 	};
 
 	enum class NodeType
