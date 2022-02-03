@@ -38,14 +38,38 @@ namespace Chronos
 		}
 	}
 
-	std::string position_to_string(const Position& pos)
+	std::string to_string(const Position& pos)
 	{
 		std::string s = "indx: ";
 		s += std::to_string(pos.index) + ", line: " + std::to_string(pos.line) + ", column: " + std::to_string(pos.column);
 		return s;
 	}
 
-	std::string token_to_string(const Token& t)
+	std::string to_string(const TokenType t)
+	{
+		switch (t)
+		{
+		case TokenType::INT: return "INT";
+		case TokenType::FLOAT: return "FLOAT";
+		case TokenType::ADD: return "ADD";
+		case TokenType::SUB: return "SUB";
+		case TokenType::MULT: return "MULT";
+		case TokenType::DIV: return "DIV";
+		case TokenType::EQUAL: return "EQUAL";
+		case TokenType::LESS: return "LESS";
+		case TokenType::GREATER: return "GREATER";
+		case TokenType::LESS_EQ: return "LESS_EQ";
+		case TokenType::GREATER_EQ: return "GREATER_EQ";
+		case TokenType::LROUND: return "LROUND";
+		case TokenType::RROUND: return "RROUND";
+
+		case TokenType::KW_AND: return "KW_AND";
+		case TokenType::KW_OR: return "KW_OR";
+		default: _CrtDbgBreak();
+		}
+	}
+
+	std::string to_string(const Token& t)
 	{
 		std::string s;
 
@@ -61,15 +85,16 @@ namespace Chronos
 			s += std::to_string(t.value.fval);
 			s += ")";
 			break;
-		case TokenType::ADD: s = "ADD"; break;
-		case TokenType::SUB: s = "SUB"; break;
-		case TokenType::MULT: s = "MULT"; break;
-		case TokenType::DIV: s = "DIV"; break;
+		case TokenType::ADD: 
+		case TokenType::SUB: 
+		case TokenType::MULT: 
+		case TokenType::DIV: 
+			return to_string(t.type);
 		}
 
 #ifdef DEBUG
-		s += " start: " + position_to_string(t.start_pos);
-		s += ", end: " + position_to_string(t.end_pos);
+		s += " start: " + to_string(t.start_pos);
+		s += ", end: " + to_string(t.end_pos);
 #endif
 
 		return s;
@@ -100,7 +125,7 @@ namespace Chronos
 		}
 
 
-		if (m_Index > m_TextSize)
+		if (m_Index >= m_TextSize)
 		{
 			m_CharPtr = nullptr;
 		}
@@ -126,6 +151,7 @@ namespace Chronos
 		while (m_CharPtr)
 		{
 			char c = *m_CharPtr;
+			std::cout << m_TextSize << ", " << m_Index << std::endl;
 
 			if (is_space(c))
 			{
@@ -135,7 +161,7 @@ namespace Chronos
 			else if (is_digit(c))
 			{
 				m_Tokens.push_back(make_number());
-				advance();
+				//advance();
 				continue;
 			}
 
@@ -188,13 +214,13 @@ namespace Chronos
 		{
 			TokenValue value;
 			value.fval = std::stof(num);
-			return create_token( TokenType::FLOAT, value, start, end );
+			return create_token(TokenType::FLOAT, value, start, end);
 		}
 		else
 		{
 			TokenValue value;
 			value.ival = std::stoi(num);
-			return create_token( TokenType::INT, value, start, end );
+			return create_token(TokenType::INT, value, start, end);
 		}
 	}
 
@@ -203,11 +229,19 @@ namespace Chronos
 		std::cout << "size: " << m_Tokens.size() << "\n";
 		for (Token& t : m_Tokens)
 		{
-			std::cout << token_to_string(t) << "\n";
+			std::cout << to_string(t) << ", ";
 		}
+		std::cout << "\n";
 	}
-	void Lexer::clear_token()
+	void Lexer::clear()
 	{
 		m_Tokens.clear();
+		m_Line = 0;
+		m_Column = 0;
+		m_Index = 0;
+
+		m_TextSize = 0;
+		m_Text = nullptr;
+		m_CharPtr = nullptr;
 	}
 }
