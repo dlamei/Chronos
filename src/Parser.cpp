@@ -1,4 +1,5 @@
 #include <iostream>
+#include <algorithm>
 
 #include "Parser.h"
 
@@ -116,6 +117,7 @@ namespace Chronos
 		if (m_CurrentToken->type == TokenType::LROUND)
 		{
 			//TODO
+			exit(-1);
 		}
 		else
 		{

@@ -52,8 +52,8 @@ namespace Chronos
 #define node_end(node) (node).end_pos
 #define create_node(type, value, start, end) { type, value, start, end}
 #else
-#define node_start(node) 0
-#define node_end(node) 0
+#define node_start(node)
+#define node_end(node)
 #define create_node(type, value, start, end) { type, value }
 #endif
 

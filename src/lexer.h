@@ -59,8 +59,8 @@ namespace Chronos
 	#define token_end(token) token.end_pos
 #else
 	#define create_token(type, value, start, end) { type, value }
-	#define token_start(token) 0
-	#define token_end(token) 0
+	#define token_start(token)
+	#define token_end(token)
 #endif
 
 

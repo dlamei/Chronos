@@ -65,7 +65,7 @@ namespace Chronos
 
 		case TokenType::KW_AND: return "KW_AND";
 		case TokenType::KW_OR: return "KW_OR";
-		default: _CrtDbgBreak();
+		default: exit(-2);
 		}
 	}
 
@@ -151,7 +151,6 @@ namespace Chronos
 		while (m_CharPtr)
 		{
 			char c = *m_CharPtr;
-			std::cout << m_TextSize << ", " << m_Index << std::endl;
 
 			if (is_space(c))
 			{
@@ -161,7 +160,6 @@ namespace Chronos
 			else if (is_digit(c))
 			{
 				m_Tokens.push_back(make_number());
-				//advance();
 				continue;
 			}
 
