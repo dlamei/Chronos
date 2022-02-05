@@ -8,16 +8,32 @@ gcc -m32 main.o -o main
 **.data** defining constant variables\
 **.text** read only data
 
-## datatypes:
+## registers:
+| purpose      | 32-bit | low 16-bits | high / low 8-bits |
+|--------------|--------|-------------|-------------------|
+|general       |eax     |ax           |ah / al            |
+|general       |ecx     |cx           |ch / cl            |
+|general       |edx     |dx           |dh / dl            |
+|general       |ebx     |bx           |bh / bl            |
+|stack ptr     |esp     |sp           |                   |
+|frame ptr     |ebp     |bp           |                   |
+|src index ptr |esi     |si           |                   |
+|dest indx     |edi     |di           |                   |
+
+**eip** location of the current instruction\
+**esp** is the stack pointer (goes from low to high)\
+**ebp** is the base pointer (holds the value of esp)
+
+## Syscall table (linux):
+https://chromium.googlesource.com/chromiumos/docs/+/HEAD/constants/syscalls.md#Calling-Conventions
+
+## Instruction set:
+https://en.wikipedia.org/wiki/X86_instruction_listings
+
+## writing data:
 db writing a byte\
 dw writing a word\
-dd writing a 4 bytes
-
-## system exit:
-
-	mov eax, 1
-	mov ebx, 0
-	int 0x80
+dd writing 4 bytes
 
 ## writing to stdout:
 
@@ -27,10 +43,6 @@ dd writing a 4 bytes
 	mov edx, 4		(num of bytes to write)
 	int 0x80		(syscall)
 
-## stack pointer:
-**esp** is the stack pointer (goes from low to high)\
-**ebp** is the base pointer (holds the value of esp)
-
 ## alloc 2 bytes on the stack and write to it:
 
 	sub esp, 2
@@ -38,14 +50,18 @@ dd writing a 4 bytes
 	mov [esp+1], byte 'i'
 
 ## calling functions:
-push eip to stack\
-jump\
-ret (pop location and jump to it)
+### call:
+push eip to the stack\
+jump to the label
+### ret:
+pop location from the stack (should be the location after the call instruction)\
+jump to it
 
 
 ## nested func calls:
+we need to perserve the stack, because eip was pushed to it\
 push ebp to the stack,\
-pop ebp from the stack at the end
+pop from the stack at the end
 
 	push ebp
 	mov ebp, esp
