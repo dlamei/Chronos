@@ -1,0 +1,12 @@
+GLOBAL main
+EXTERN printf
+SECTION .data
+SECTION .text
+main:
+PUSH EBP
+MOV EBP, ESP
+SUB ESP, 16
+MOV EAX, 1
+MOV EBX, 32
+INT 0x80
+

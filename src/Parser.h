@@ -15,18 +15,18 @@ namespace Chronos
 	{
 		Token token;
 
-		struct Binop_val
+		struct
 		{
 			Node* left;
 			TokenType type;
 			Node* right;
 		} binop_value;
 
-		struct Unry_val
+		struct
 		{
 			TokenType type;
 			Node* right;
-		}unry_value;
+		} unry_value;
 	};
 
 	enum class NodeType
