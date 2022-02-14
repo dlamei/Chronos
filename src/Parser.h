@@ -11,6 +11,9 @@ namespace Chronos
 {
 	struct Node;
 
+	void delete_nodes(Node* nodes);
+
+
 	union NodeValue
 	{
 		Token token;
@@ -41,12 +44,11 @@ namespace Chronos
 		NodeType type;
 		NodeValue value;
 
-#ifdef DEBUG
 		Position start_pos;
 		Position end_pos;
-#endif
 	};
 
+	//TODO: position should always be included
 #ifdef DEBUG
 #define node_start(node) (node).start_pos
 #define node_end(node) (node).end_pos

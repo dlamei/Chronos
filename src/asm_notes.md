@@ -41,11 +41,14 @@ https://en.wikipedia.org/wiki/X86_instruction_listings
 
 ## Some instructions
 ---
+`DB` define byte\
+`DW` define word (2 bytes)\
+`DD` define double (4 bytes)\
+`DQ` define quad word (8 bytes)
+
 `INT` generates a sofware interrupt\
 calls one of 256 functions pointed to by the interrupt address talbe\
 0x80 makes a syscall
-
-`PROC` TODO
 
 `ENTER` creates a stack frame\
 first parameter specifies an amount of space to allocate for local variables\

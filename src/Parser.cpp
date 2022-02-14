@@ -1,5 +1,6 @@
 #include <iostream>
 #include <algorithm>
+#include <stack>
 
 #include "Parser.h"
 
@@ -14,6 +15,41 @@ namespace Chronos
 		}
 
 		std::cout << "\n";
+	}
+
+	void delete_nodes(Node* root)
+	{
+		if (!root) return; 
+
+		std::stack<Node*> nodes;
+		nodes.push(root);
+
+		while (!nodes.empty())
+		{
+			Node* n = nodes.top();
+			nodes.pop();
+
+			switch (n->type)
+			{
+			case NodeType::NUM:
+				break;
+
+			case NodeType::UNRYOP:
+				nodes.push(n->value.unry_value.right);
+				break;
+
+			case NodeType::BINOP:
+				nodes.push(n->value.binop_value.right);
+				nodes.push(n->value.binop_value.left);
+				break;
+
+			default:
+				ASSERT(false, "delete for this type not defined");
+				exit(-1);
+			}
+
+			delete n;
+		}
 	}
 
 	std::string to_string(const Node& n)
@@ -47,7 +83,7 @@ namespace Chronos
 
 		}
 
-#ifdef DEBUG
+#ifdef PRINT_POS
 		s += " start: " + to_string(n.start_pos);
 		s += ", end: " + to_string(n.end_pos);
 #endif
@@ -184,8 +220,7 @@ namespace Chronos
 		if (m_Tokens.empty()) return nullptr;
 		auto exp = expression();
 		if (!exp) return exp;
-		Node* n = exp.get_result();
-		return { n };
+		return { exp.get_result() };
 	}
 
 }

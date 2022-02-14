@@ -1,6 +1,7 @@
 #pragma once
 
-//#define DEBUG
+#define DEBUG
+//#define PRINT_POS
 
 #ifdef DEBUG
 #include <cassert>

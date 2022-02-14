@@ -1,6 +1,5 @@
 #include <fstream>
 #include <unordered_map>
-#include <vector>
 #include <string>
 
 #include "Parser.h"
@@ -8,9 +7,20 @@
 
 namespace Chronos
 {
+	enum class ASMExprType
+	{
+		INSTRUCTION = 0,
+ 		LABEL,
+		COMMENT,
+	};
+
 	struct ASMExpr
 	{
-		ASMExpr() {}
+		ASMExprType type;
+
+		ASMExpr(ASMExprType t)
+			: type(t) {}
+
 		virtual std::string get_string()
 		{
 			return "";
@@ -23,7 +33,7 @@ namespace Chronos
 		const char* name;
 
 		Label(const char* n)
-			: name(n) {}
+			: ASMExpr(ASMExprType::LABEL), name(n) {}
 
 		virtual std::string get_string()
 		{
@@ -31,24 +41,43 @@ namespace Chronos
 		}
 	};
 
-	enum class InstructionType
+	struct Comment : ASMExpr
 	{
-		PUSH,
+		std::string msg = ";";
+
+		Comment(const char* m)
+			: ASMExpr(ASMExprType::LABEL)
+		{
+			msg += m;
+		}
+
+		virtual std::string get_string()
+		{
+			return { msg };
+		}
+	};
+
+	enum class InstType
+	{
+		PUSH = 0,
+		POP,
 		NOP,
+		CALL,
 		MOV,
 		ADD,
 		SUB,
+		MUL,
+		DIV,
 		INT,
 		GLOBAL,
 		EXTERN,
 		SECTION,
-
 		NONE,
 	};
 
 	enum class Register
 	{
-		EAX, ECX, EDX, EBX, ESP, EBP, ESI, EDI,
+		EAX = 0, ECX, EDX, EBX, ESP, EBP, ESI, EDI,
 		AX, CX, DX, BX, SP, BP, SI, DI,
 		AH, AL, CH, CL, DH, DL, BH, BL,
 		NONE,
@@ -56,9 +85,10 @@ namespace Chronos
 
 	enum class ArgType
 	{
-		REGISTER,
+		REGISTER = 0,
 		REGISTER_OFFSET,
-		INT_VALUE,
+		INT,
+		FLOAT,
 		HEX,
 		LABEL,
 		NONE,
@@ -76,23 +106,27 @@ namespace Chronos
 		} reg_offset;
 
 		int int_value;
+		float float_value;
 		int hex_value;
-		Label label;
+		const char* label;
 
 		~ArgValue() {}
 		ArgValue()
 			: int_value(0) {}
 	};
 
-	struct Argument
+	struct ASMArg
 	{
 		ArgType type;
 		ArgValue value;
 
-		Argument()
+		ASMArg()
 			: type(ArgType::NONE) {}
 
-		Argument& operator=(const Argument& other)
+		ASMArg(ArgType t)
+			: type(t) {}
+
+		ASMArg& operator=(const ASMArg& other)
 		{
 			type = other.type;
 			switch (type)
@@ -100,7 +134,7 @@ namespace Chronos
 			case ArgType::HEX:
 				value.hex_value = other.value.hex_value;
 				break;
-			case ArgType::INT_VALUE:
+			case ArgType::INT:
 				value.int_value = other.value.int_value;
 				break;
 			case ArgType::LABEL:
@@ -117,7 +151,7 @@ namespace Chronos
 			return *this;
 		}
 
-		Argument(const Argument& other)
+		ASMArg(const ASMArg& other)
 			: type(other.type)
 		{
 			switch (type)
@@ -125,7 +159,7 @@ namespace Chronos
 			case ArgType::HEX:
 				value.hex_value = other.value.hex_value;
 				break;
-			case ArgType::INT_VALUE:
+			case ArgType::INT:
 				value.int_value = other.value.int_value;
 				break;
 			case ArgType::LABEL:
@@ -140,31 +174,37 @@ namespace Chronos
 			}
 		}
 
-		Argument(Label l)
+		ASMArg(const char* l)
 			: type(ArgType::LABEL)
 		{
 			value.label = l;
 		}
 
-		Argument(Register reg)
+		ASMArg(Register reg)
 			: type(ArgType::REGISTER)
 		{
 			value.reg = reg;
 		}
 
-		Argument(Register reg, int offset)
+		ASMArg(Register reg, int offset)
 			: type(ArgType::REGISTER_OFFSET)
 		{
 			value.reg_offset.reg = reg;
 			value.reg_offset.offset = offset;
 		}
 
-		Argument(ArgType t, int val)
+		ASMArg(float f)
+			: type(ArgType::FLOAT)
+		{
+			value.float_value = f;
+		}
+
+		ASMArg(ArgType t, int val)
 			: type(t)
 		{
 			switch (type)
 			{
-			case ArgType::INT_VALUE:
+			case ArgType::INT:
 				value.int_value = val;
 				return;
 
@@ -177,23 +217,23 @@ namespace Chronos
 		}
 	};
 
-	std::string to_string(Argument& arg);
-	std::string to_string(InstructionType& type);
+	std::string to_string(ASMArg& arg);
+	std::string to_string(InstType& type);
 
 	struct Instruction : ASMExpr
 	{
-		InstructionType type = InstructionType::NONE;
-		std::vector<Argument> args;
+		InstType type = InstType::NONE;
+		std::vector<ASMArg> args;
 
-		Instruction(InstructionType t, std::vector<Argument> a)
-			: args(a), type(t) {}
+		Instruction(InstType t, std::vector<ASMArg> a)
+			: ASMExpr(ASMExprType::INSTRUCTION), args(a), type(t) {}
 
 		virtual std::string get_string()
 		{
 			std::string s = to_string(type);
 			s += " ";
 
-			int i = 0;
+			size_t i = 0;
 			for (; i < args.size() - 1; i++)
 			{
 				s += to_string(args[i]);
@@ -208,22 +248,37 @@ namespace Chronos
 
 	std::string to_string(Register reg);
 	std::string to_string(Instruction& instruction);
-	std::string to_string(std::vector<ASMExpr*>& code);
+	std::string to_string(std::deque<ASMExpr*>& code);
 
 	class Compiler
 	{
 	private:
-		Node* m_Root;
-		const char* m_Name;
-		std::vector<ASMExpr*> m_Code;
+		const char* m_Name = "";
+
+		int m_MainLblPtr = 0;
+
+		std::deque<ASMExpr*> m_Code;
 
 		std::ofstream m_Output;
 
+		void write_inst(InstType t, std::vector<ASMArg>&& a);
+		void write_label(const char* label);
+		void write_comment(const char* msg);
+		void print_eax();
+
 		void eval_num(Token& token);
+		void eval_binop(Node* node);
 		void eval_expr(Node* node);
 
+
 	public:
-		void compile(const char* name, Node* node);
+		void compile(const char* name, Node* node, int exit_code = 0);
+		void close();
+
+		~Compiler()
+		{
+			close();
+		}
 	};
 
 

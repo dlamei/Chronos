@@ -26,14 +26,22 @@ int main()
 
 		parser.load_tokens(lexer.get_tokens());
 		Chronos::ParseResult res = parser.parse_nodes();
-		if (!res) 
 		//if (res) std::cout << "result: " << Chronos::to_string(*res.get_result()) << "\n";
 		//else std::cout << "error: " << res.get_error() << "\n";
 
+
+
+		if (res)
+		{
+			Chronos::Node* nodes = res.get_result();
+			if (nodes) std::cout << "result: " << Chronos::to_string(*nodes) << "\n";
+			compiler.compile("Chronos", nodes);
+
+			compiler.close();
+			Chronos::delete_nodes(nodes);
+		}
+		else std::cout << "error: " << res.get_error() << "\n";
+
 		lexer.clear();
-
-		compiler.compile("Chronos", nullptr);
-
-
 	}
 }

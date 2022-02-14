@@ -92,7 +92,7 @@ namespace Chronos
 			return to_string(t.type);
 		}
 
-#ifdef DEBUG
+#ifdef PRINT_POS
 		s += " start: " + to_string(t.start_pos);
 		s += ", end: " + to_string(t.end_pos);
 #endif
