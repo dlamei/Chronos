@@ -95,84 +95,36 @@ namespace Chronos
 	};
 
 
-	union ArgValue
-	{
-		Register reg;
-
-		struct 
-		{
-			Register reg;
-			int offset;
-		} reg_offset;
-
-		int int_value;
-		float float_value;
-		int hex_value;
-		const char* label;
-
-		~ArgValue() {}
-		ArgValue()
-			: int_value(0) {}
-	};
 
 	struct ASMArg
 	{
 		ArgType type;
-		ArgValue value;
+
+		union ArgValue
+		{
+			Register reg;
+
+			struct 
+			{
+				Register reg;
+				int offset;
+			} reg_offset;
+
+			int int_value;
+			float float_value;
+			int hex_value;
+			const char* label;
+
+			~ArgValue() {}
+			ArgValue()
+				: int_value(0) {}
+		} value;
 
 		ASMArg()
 			: type(ArgType::NONE) {}
 
 		ASMArg(ArgType t)
 			: type(t) {}
-
-		ASMArg& operator=(const ASMArg& other)
-		{
-			type = other.type;
-			switch (type)
-			{
-			case ArgType::HEX:
-				value.hex_value = other.value.hex_value;
-				break;
-			case ArgType::INT:
-				value.int_value = other.value.int_value;
-				break;
-			case ArgType::LABEL:
-				value.label = other.value.label;
-				break;
-			case ArgType::REGISTER:
-				value.reg = other.value.reg;
-				break;
-			case ArgType::REGISTER_OFFSET:
-				value.reg_offset = other.value.reg_offset;
-				break;
-			}
-
-			return *this;
-		}
-
-		ASMArg(const ASMArg& other)
-			: type(other.type)
-		{
-			switch (type)
-			{
-			case ArgType::HEX:
-				value.hex_value = other.value.hex_value;
-				break;
-			case ArgType::INT:
-				value.int_value = other.value.int_value;
-				break;
-			case ArgType::LABEL:
-				value.label = other.value.label;
-				break;
-			case ArgType::REGISTER:
-				value.reg = other.value.reg;
-				break;
-			case ArgType::REGISTER_OFFSET:
-				value.reg_offset = other.value.reg_offset;
-				break;
-			}
-		}
 
 		ASMArg(const char* l)
 			: type(ArgType::LABEL)
@@ -265,6 +217,7 @@ namespace Chronos
 		void write_label(const char* label);
 		void write_comment(const char* msg);
 		void print_eax();
+		void print_top();
 
 		void eval_num(Token& token);
 		void eval_binop(Node* node);

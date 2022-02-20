@@ -241,6 +241,11 @@ namespace Chronos
 		write_inst(InstType::CALL, { ASMArg("printf") });
 	}
 	
+	void Compiler::print_top()
+	{
+		write_inst(InstType::PUSH, { ASMArg("int_format") });
+		write_inst(InstType::CALL, { ASMArg("printf") });
+	}
 
 	void Compiler::compile(const char* name, Node* node, int exit_code)
 	{
@@ -264,8 +269,7 @@ namespace Chronos
 
 		eval_expr(node);
 
-		write_inst(InstType::POP, { ASMArg(Register::EAX) });
-		print_eax();
+		print_top();
 
 		write_comment("");
 		write_comment("end code");
