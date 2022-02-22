@@ -87,11 +87,17 @@ namespace Chronos
 	{
 		REGISTER = 0,
 		REGISTER_OFFSET,
+		REGISTER_DEREF,
 		INT,
 		FLOAT,
 		HEX,
 		LABEL,
 		NONE,
+	};
+
+	enum class ASMSize
+	{
+		DWORD = 0,
 	};
 
 
@@ -104,11 +110,18 @@ namespace Chronos
 		{
 			Register reg;
 
-			struct 
+			struct Offset
 			{
 				Register reg;
 				int offset;
 			} reg_offset;
+
+			struct
+			{
+				Register reg;
+				int offset;
+				ASMSize size;
+			} deref_value;
 
 			int int_value;
 			float float_value;
@@ -143,6 +156,14 @@ namespace Chronos
 		{
 			value.reg_offset.reg = reg;
 			value.reg_offset.offset = offset;
+		}
+
+		ASMArg(ASMSize size, Register reg, int offset)
+			: type(ArgType::REGISTER_DEREF)
+		{
+			value.deref_value.reg = reg;
+			value.deref_value.offset = offset;
+			value.deref_value.size = size;
 		}
 
 		ASMArg(float f)
@@ -199,6 +220,7 @@ namespace Chronos
 
 
 	std::string to_string(Register reg);
+	std::string to_string(ASMSize size);
 	std::string to_string(Instruction& instruction);
 	std::string to_string(std::deque<ASMExpr*>& code);
 

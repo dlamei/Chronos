@@ -3,18 +3,13 @@
 #include <cstdint>
 #include <deque>
 #include <string>
+#include <variant>
 
 #include "common.h"
+#include "Error.h"
 
 namespace Chronos
 {
-
-	struct Position
-	{
-		std::size_t index = 0;
-		std::size_t line = 0;
-		std::size_t column = 0;
-	};
 
 	enum class TokenType
 	{
@@ -31,38 +26,29 @@ namespace Chronos
 		GREATER_EQ,
 		LROUND,
 		RROUND,
+		ASSIGN,
+		SEMICLN,
+		ID,
 
 		KW_AND,
 		KW_OR,
+
+		NONE,
 	};
 
-	union TokenValue
-	{
-		int32_t ival;
-		float fval;
-	};
+	using TokenValue = std::variant<int, float, std::string>;
 
 	struct Token
 	{
 		TokenType type;
 		TokenValue value;
 
-#ifdef DEBUG
 		Position start_pos;
 		Position end_pos;
-#endif
 	};
 
-#ifdef DEBUG
-	#define create_token(type, value, start, end) { type, value, start, end}
-	#define token_start(token) token.start_pos
-	#define token_end(token) token.end_pos
-#else
-	#define create_token(type, value, start, end) { type, value }
-	#define token_start(token)
-	#define token_end(token)
-#endif
-
+	Token create_token(TokenType type, TokenValue value, Position start, Position end);
+	Token create_token(TokenType type, TokenValue value, Position start);
 
 	std::string to_string(const TokenType t);
 	std::string to_string(const Token& t);
@@ -72,6 +58,8 @@ namespace Chronos
 	{
 		private:
 			std::deque<Token> m_Tokens;
+			Error m_Error;
+			bool m_HasError = false;
 
 			size_t m_Line = 0;
 			size_t m_Column = 0;
@@ -85,6 +73,7 @@ namespace Chronos
 			void advance();
 
 			Token make_number();
+			Token make_identifier();
 
 		public:
 
@@ -104,6 +93,8 @@ namespace Chronos
 
 			Token peek();
 			void pop();
+			bool has_error() { return m_HasError; }
+			Error get_error() { return m_Error; }
 
 	};
 }

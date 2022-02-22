@@ -41,6 +41,17 @@ namespace Chronos
 		exit(-1);
 	}
 
+	std::string to_string(ASMSize size)
+	{
+		switch (size)
+		{
+		case ASMSize::DWORD: return "DWORD";
+		}
+
+		ASSERT(false, "to_string for ASMSize not defined");
+		exit(-1);
+	}
+
 	std::string to_string(ASMArg& arg)
 	{
 		switch (arg.type)
@@ -53,6 +64,17 @@ namespace Chronos
 		case ArgType::REGISTER_OFFSET:
 		{
 			std::string s = "[";
+			s += to_string(arg.value.reg_offset.reg);
+			if (arg.value.reg_offset.offset > 0) s += "+";
+			s += std::to_string(arg.value.reg_offset.offset);
+			s += "]";
+			return s;
+		}
+
+		case ArgType::REGISTER_DEREF:
+		{
+			std::string s = to_string(arg.value.deref_value.size) + " ";
+			s += "[";
 			s += to_string(arg.value.reg_offset.reg);
 			if (arg.value.reg_offset.offset > 0) s += "+";
 			s += std::to_string(arg.value.reg_offset.offset);
@@ -152,7 +174,7 @@ namespace Chronos
 		{
 		case TokenType::INT:
 			//m_Code.push_back(new Instruction(InstType::MOV, { {Register::EAX, {ArgType::INT, t.value.ival}} }));
-			m_Code.push_back(new Instruction(InstType::PUSH, { ASMArg(ArgType::INT, t.value.ival)} ));
+			m_Code.push_back(new Instruction(InstType::PUSH, { ASMArg(ArgType::INT, std::get<int>(t.value))} ));
 			break;
 
 		case TokenType::FLOAT:
@@ -168,13 +190,13 @@ namespace Chronos
 	{
 		ASSERT(node->type == NodeType::BINOP, "expected binop type");
 
-		eval_expr(node->value.binop_value.right);
-		eval_expr(node->value.binop_value.left);
+		eval_expr(std::get<BinopValue>(node->value).right);
+		eval_expr(std::get<BinopValue>(node->value).left);
 
 		write_inst(InstType::POP, { ASMArg(Register::EAX) });
 		write_inst(InstType::POP, { ASMArg(Register::EBX) });
 
-		switch (node->value.binop_value.type)
+		switch (std::get<BinopValue>(node->value).type)
 		{
 		case TokenType::ADD:
 			write_inst(InstType::ADD, { ASMArg(Register::EAX), ASMArg(Register::EBX) });
@@ -206,7 +228,7 @@ namespace Chronos
 		switch (node->type)
 		{
 		case NodeType::NUM: 
-			eval_num(node->value.token);
+			eval_num(std::get<Token>(node->value));
 			break;
 
 		case NodeType::BINOP:
@@ -257,13 +279,25 @@ namespace Chronos
 
 		write_inst(InstType::GLOBAL, { ASMArg("main") });
 		write_inst(InstType::EXTERN, { ASMArg("printf") });
+		write_inst(InstType::EXTERN, { ASMArg("alloc_heap") });
+		write_inst(InstType::EXTERN, { ASMArg("heap_alloc_int") });
+
 		write_inst(InstType::SECTION, { ASMArg(".data") });
 		write_label("int_format db \"%d\", 0xa, 0x0");
+		write_label("hex_format db \"%#06x\", 0xa, 0x0");
+
+		write_inst(InstType::SECTION, { ASMArg(".bss") });
+		write_label("heap_ptr: resb 4");
+
 		write_inst(InstType::SECTION, { ASMArg(".text") });
 		write_label("main:");
 		write_inst(InstType::PUSH, { ASMArg(Register::EBP) });
 		write_inst(InstType::MOV, { ASMArg(Register::EBP), ASMArg(Register::ESP) });
 		write_inst(InstType::SUB, { ASMArg(Register::ESP), ASMArg(ArgType::INT, 16) });
+
+		write_inst(InstType::CALL, { ASMArg("alloc_heap") });
+		write_inst(InstType::MOV, { ASMArg("[heap_ptr]"), ASMArg(Register::EAX)});
+
 		write_comment("begin code:");
 		write_comment("");
 

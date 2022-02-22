@@ -15,38 +15,55 @@ extern "C"
 
 int main()
 {
-	heap_block* block = heap_alloc_block();
-	reserve_block_memory(block, 4);
+	//ch_heap* h = alloc_heap();
+	//
+	//for (int i = 0; i < 10; i++)
+	//{
+	//	ch_int* ptr = heap_alloc_int(h, i);
+	//	if (ptr)
+	//	{
+	//		print_line_marks(h->blocks);
+	//		std::cout << type_from_ptr(h->blocks, ptr) << "\n";
+	//	}
+	//}
 
 	//std::cin.get();
-	//std::string buffer;
-	//Chronos::Lexer lexer;
-	//Chronos::Parser parser;
-	//Chronos::Compiler compiler;
 
-	//while (1)
-	//{
-	//	printf("chronos > ");
-	//	std::getline(std::cin, buffer);
+	Chronos::FileManager fm;
 
-	//	lexer.load_text(buffer.c_str(), buffer.size());
-	//	lexer.parse_tokens();
-	//	lexer.print_tokens();
+	std::string buffer;
+	Chronos::Lexer lexer;
+	Chronos::Parser parser;
+	Chronos::Compiler compiler;
 
-	//	parser.load_tokens(lexer.get_tokens());
-	//	Chronos::ParseResult res = parser.parse_nodes();
+	while (1)
+	{
+		printf("chronos > ");
+		std::getline(std::cin, buffer);
 
-	//	if (res)
-	//	{
-	//		Chronos::Node* nodes = res.get_result();
-	//		if (nodes) std::cout << "result: " << Chronos::to_string(*nodes) << "\n";
-	//		compiler.compile("Chronos", nodes);
+		fm.add_line(buffer, "<STDIN>");
 
-	//		compiler.close();
-	//		Chronos::delete_nodes(nodes);
-	//	}
-	//	else std::cout << "error: " << res.get_error() << "\n";
+		lexer.load_text(buffer.c_str(), buffer.size());
+		lexer.parse_tokens();
+		lexer.print_tokens();
 
-	//	lexer.clear();
-	//}
+		if (lexer.has_error()) std::cout << lexer.get_error().generate_message(fm.get_files()) << "\n";
+
+		parser.load_tokens(lexer.get_tokens());
+		Chronos::ParseResult res = parser.parse_nodes();
+
+		if (res)
+		{
+			Chronos::Node* nodes = res.get_result();
+			if (nodes) std::cout << "result: " << Chronos::to_string(*nodes) << "\n";
+			compiler.compile("Chronos", nodes);
+
+			compiler.close();
+			Chronos::delete_nodes(nodes);
+		}
+		else std::cout << "error: " << res.get_error().generate_message(fm.get_files()) << "\n";
+
+		lexer.clear();
+		fm.clear();
+	}
 }

@@ -4,9 +4,20 @@
 #include <iostream>
 
 #include "common.h"
+#include <vector>
 
 namespace Chronos
 {
+	struct Position
+	{
+		std::size_t index = 0;
+		std::size_t line = 0;
+		std::size_t column = 0;
+
+		std::size_t file_nr = 0;
+		std::size_t offset = 0;
+	};
+
 	struct File
 	{
 		std::string name;
@@ -21,11 +32,22 @@ namespace Chronos
 
 	public:
 
+		void clear()
+		{
+			m_Files.clear();
+			m_CurrentLine = -1;
+		}
+
 		void add_file(std::string name, std::string text)
 		{
 			File file = { name, text };
 			m_Files.push_back(file);
 			m_CurrentLine = 0;
+		}
+
+		std::vector<File>& get_files()
+		{
+			return m_Files;
 		}
 
 		void add_line(std::string line, std::string file_name)
@@ -50,17 +72,22 @@ namespace Chronos
 		INVALID_SYNTAX,
 		RUNTIME,
 		UNDEFINED_OPERATOR,
+
+		NONE
 	};
+
+	std::string error_to_string(ErrorType e);
 
 	struct Error
 	{
-		ErrorType type;
+		ErrorType type = ErrorType::NONE;
 		std::string details;
 
-#ifdef DEBUG
 		Position start_pos;
 		Position end_pos;
-#endif
+
+		std::string generate_message(std::vector<File>& files);
+		std::string get_error_preview(std::size_t file_nr, std::vector<File>& files);
 	};
 
 

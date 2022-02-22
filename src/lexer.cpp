@@ -2,9 +2,13 @@
 #include <iostream>
 #include <string>
 #include <stdio.h>
+#include <ctype.h>
+#include <unordered_map>
 
 namespace Chronos
 {
+	const std::string LETTERS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
 	bool is_space(char c)
 	{
 		switch (c)
@@ -17,6 +21,12 @@ namespace Chronos
 		default:
 			return false;
 		}
+	}
+
+	bool is_letter(char c)
+	{
+		int pos = LETTERS.find(c);
+		return (pos != std::string::npos);
 	}
 
 	bool is_digit(char c)
@@ -45,6 +55,13 @@ namespace Chronos
 		return s;
 	}
 
+	TokenType get_tokentype(const char* s)
+	{
+		if (s == "&&") return TokenType::KW_AND;
+		else if (s == "||") return TokenType::KW_OR;
+		else return TokenType::NONE;
+	}
+
 	std::string to_string(const TokenType t)
 	{
 		switch (t)
@@ -62,10 +79,15 @@ namespace Chronos
 		case TokenType::GREATER_EQ: return "GREATER_EQ";
 		case TokenType::LROUND: return "LROUND";
 		case TokenType::RROUND: return "RROUND";
+		case TokenType::ASSIGN: return "ASSIGN";
+		case TokenType::SEMICLN: return "SEMICLN";
+		case TokenType::ID: return "ID";
 
 		case TokenType::KW_AND: return "KW_AND";
 		case TokenType::KW_OR: return "KW_OR";
-		default: exit(-2);
+		default:
+			ASSERT(false, "to_string not defined for tokentype");
+			exit(-1);
 		}
 	}
 
@@ -77,18 +99,22 @@ namespace Chronos
 		{
 		case TokenType::INT:
 			s += "INT(";
-			s += std::to_string(t.value.ival);
+			s += std::to_string(std::get<int>(t.value));
 			s += ")";
 			break;
 		case TokenType::FLOAT:
 			s += "FLOAT(";
-			s += std::to_string(t.value.fval);
+			s += std::to_string(std::get<float>(t.value));
 			s += ")";
 			break;
-		case TokenType::ADD: 
-		case TokenType::SUB: 
-		case TokenType::MULT: 
-		case TokenType::DIV: 
+		case TokenType::ID:
+			s += "ID(";
+			s += std::get<std::string>(t.value);
+			s += ")";
+			break;
+
+
+		default:
 			return to_string(t.type);
 		}
 
@@ -98,6 +124,19 @@ namespace Chronos
 #endif
 
 		return s;
+	}
+
+	Token create_token(TokenType type, TokenValue value, Position start, Position end)
+	{
+		return { type, value, start, end };
+	}
+
+	Token create_token(TokenType type, TokenValue value, Position start)
+	{
+		Position end = start;
+		end.column++;
+		end.index++;
+		return { type, value, start, end };
 	}
 
 
@@ -151,6 +190,7 @@ namespace Chronos
 		while (m_CharPtr)
 		{
 			char c = *m_CharPtr;
+			if (c == NULL) return;
 
 			if (is_space(c))
 			{
@@ -162,23 +202,47 @@ namespace Chronos
 				m_Tokens.push_back(make_number());
 				continue;
 			}
+			else if (is_letter(c))
+			{
+				m_Tokens.push_back(make_identifier());
+				continue;
+			}
 
 			Position pos = { m_Index, m_Line, m_Column };
 
 			switch (c)
 			{
 			case '+':
-				m_Tokens.push_back(create_token(TokenType::ADD, 0, pos, pos));
+				m_Tokens.push_back(create_token(TokenType::ADD, { 0 }, pos));
 				break;
 			case '-':
-				m_Tokens.push_back(create_token(TokenType::SUB, 0, pos, pos));
+				m_Tokens.push_back(create_token(TokenType::SUB, { 0 }, pos));
 				break;
 			case '*':
-				m_Tokens.push_back(create_token(TokenType::MULT, 0, pos, pos));
+				m_Tokens.push_back(create_token(TokenType::MULT, { 0 }, pos));
 				break;
 			case '/':
-				m_Tokens.push_back(create_token(TokenType::DIV, 0, pos, pos));
+				m_Tokens.push_back(create_token(TokenType::DIV, { 0 }, pos));
 				break;
+			case '(':
+				m_Tokens.push_back(create_token(TokenType::LROUND, { 0 }, pos));
+				break;
+			case ')':
+				m_Tokens.push_back(create_token(TokenType::RROUND, { 0 }, pos));
+				break;
+			case '=':
+				m_Tokens.push_back(create_token(TokenType::ASSIGN, { 0 }, pos));
+				break;
+
+
+			default:
+				m_HasError = true;
+				advance();
+				Position current_pos = { m_Index, m_Line, m_Column };
+				std::string details = "found char: ";
+				details.push_back(c);
+				m_Error = { ErrorType::ILLEGAL_CHAR, details, pos, current_pos};
+				return;
 			}
 
 			advance();
@@ -211,14 +275,41 @@ namespace Chronos
 		if (has_dot)
 		{
 			TokenValue value;
-			value.fval = std::stof(num);
+			value = std::stof(num);
 			return create_token(TokenType::FLOAT, value, start, end);
 		}
 		else
 		{
 			TokenValue value;
-			value.ival = std::stoi(num);
+			value = std::stoi(num);
 			return create_token(TokenType::INT, value, start, end);
+		}
+	}
+
+	Token Lexer::make_identifier()
+	{
+		std::string id = "";
+		Position start = { m_Index, m_Line, m_Column };
+
+		std::string allowed = LETTERS + "_";
+
+		while (m_CharPtr && (allowed.find(*m_CharPtr) != std::string::npos))
+		{
+			id.push_back(*m_CharPtr);
+			advance();
+		}
+
+		TokenType type = get_tokentype(id.c_str());
+		Position end = { m_Index, m_Line, m_Column };
+
+		if (type != TokenType::NONE)
+		{
+			return create_token(type, { 0 }, start, end);
+		}
+		else
+		{
+			Token t = create_token(TokenType::ID, id, start, end);
+			return t;
 		}
 	}
 
@@ -233,6 +324,8 @@ namespace Chronos
 	}
 	void Lexer::clear()
 	{
+		m_HasError = false;
+
 		m_Tokens.clear();
 		m_Line = 0;
 		m_Column = 0;

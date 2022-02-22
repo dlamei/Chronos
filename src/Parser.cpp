@@ -35,12 +35,12 @@ namespace Chronos
 				break;
 
 			case NodeType::UNRYOP:
-				nodes.push(n->value.unry_value.right);
+				nodes.push(std::get<UnryValue>(n->value).right);
 				break;
 
 			case NodeType::BINOP:
-				nodes.push(n->value.binop_value.right);
-				nodes.push(n->value.binop_value.left);
+				nodes.push(std::get<BinopValue>(n->value).right);
+				nodes.push(std::get<BinopValue>(n->value).left);
 				break;
 
 			default:
@@ -60,21 +60,21 @@ namespace Chronos
 		{
 		case NodeType::NUM:
 			s += "NUM(";
-			s += to_string(n.value.token);
+			s += to_string(std::get<Token>(n.value));
 			s += ")";
 			break;
 		case NodeType::BINOP:
 			s += "BINOP(";
-			s += to_string(*n.value.binop_value.left);
-			s += ", " + to_string(n.value.binop_value.type) + ", ";
-			s += to_string(*n.value.binop_value.right);
+			s += to_string(*std::get<BinopValue>(n.value).left);
+			s += ", " + to_string(std::get<BinopValue>(n.value).type) + ", ";
+			s += to_string(*std::get<BinopValue>(n.value).right);
 			s += ")";
 			break;
 
 		case NodeType::UNRYOP:
 			s += "UNRYOP(";
-			s += to_string(n.value.unry_value.type) + ", ";
-			s += to_string(*n.value.unry_value.right);
+			s += to_string(std::get<UnryValue>(n.value).type) + ", ";
+			s += to_string(*std::get<UnryValue>(n.value).right);
 			s += ")";
 			break;
 
@@ -119,9 +119,33 @@ namespace Chronos
 		case TokenType::INT:
 		case TokenType::FLOAT:
 			advance();
-			return { new Node(create_node(NodeType::NUM, t, token_start(t), token_end(t))) };
+			return { new Node({ NodeType::NUM, t, t.start_pos, t.end_pos }) };
+
+		case TokenType::LROUND:
+		{
+			advance();
+			ParseResult res = expression();
+			if (!res) return res;
+			Node* expr = res.get_result();
+
+			if (m_CurrentToken->type == TokenType::RROUND)
+			{
+				advance();
+				return { expr };
+			}
+			else {
+				std::string details = "Parser: expected ')' found: " + to_string(t.type);
+			Error e = { ErrorType::INVALID_SYNTAX, details, m_CurrentToken->start_pos, m_CurrentToken->end_pos };
+			return e;
+			}
+		}
+
 		default:
-			return { "Parser: expected INT, FLOAT, IDENTIFIER, '+', '-', or '(', found: " + to_string(t.type) };
+		{
+			std::string details = "Parser: expected INT, FLOAT, IDENTIFIER, '+', '-', or '(', found: " + to_string(t.type);
+			Error e = { ErrorType::INVALID_SYNTAX, details, t.start_pos, t.end_pos };
+			return e;
+		}
 		}
 	}
 
@@ -137,8 +161,8 @@ namespace Chronos
 			auto fac = factor();
 			if (!fac) return fac;
 			Node* fac_node = fac.get_result();
-			Node* n = new Node(create_node(NodeType::UNRYOP, {}, token_start(t), node_end(*fac_node)));
-			n->value.unry_value = { TokenType::SUB, fac_node };
+			Node* n = new Node({ NodeType::UNRYOP, {}, t.start_pos, fac_node->end_pos });
+			n->value = UnryValue { TokenType::SUB, fac_node };
 			return n;
 		}
 
@@ -202,8 +226,8 @@ namespace Chronos
 			if (!right) return right;
 			Node* right_node = right.get_result();
 
-			Node* node = new Node(create_node(NodeType::BINOP, {}, node_start(*left_node), node_end(*right_node)));
-			node->value.binop_value = { left_node, op_token.type, right_node };
+			Node* node = new Node({ NodeType::BINOP, {}, left_node->start_pos, right_node->end_pos });
+			node->value = BinopValue { left_node, op_token.type, right_node };
 			left_node = node;
 		}
 

@@ -49,6 +49,9 @@ private:
 		T result;
 		U error;
 
+		ResultType()
+			: error() {}
+
 		ResultType(U s)
 			: error(s) {}
 
@@ -64,7 +67,7 @@ private:
 public:
 
 	Result()
-		: value("undefined")
+		: value()
 	{
 		is_ok = false;
 	}
@@ -72,7 +75,7 @@ public:
 	~Result() {}
 
 	Result(const Result& other)
-		: value("undefined")
+		: value()
 	{
 		is_ok = other.is_ok;
 		if (other.is_ok)

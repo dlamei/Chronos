@@ -13,24 +13,21 @@ namespace Chronos
 
 	void delete_nodes(Node* nodes);
 
-
-	union NodeValue
+	struct UnryValue
 	{
-		Token token;
-
-		struct
-		{
-			Node* left;
-			TokenType type;
-			Node* right;
-		} binop_value;
-
-		struct
-		{
-			TokenType type;
-			Node* right;
-		} unry_value;
+		TokenType type;
+		Node* right;
 	};
+
+	struct BinopValue
+	{
+		Node* left;
+		TokenType type;
+		Node* right;
+	};
+
+
+	using NodeValue = std::variant<Token, UnryValue, BinopValue>;
 
 	enum class NodeType
 	{
@@ -48,18 +45,7 @@ namespace Chronos
 		Position end_pos;
 	};
 
-	//TODO: position should always be included
-#ifdef DEBUG
-#define node_start(node) (node).start_pos
-#define node_end(node) (node).end_pos
-#define create_node(type, value, start, end) { type, value, start, end}
-#else
-#define node_start(node)
-#define node_end(node)
-#define create_node(type, value, start, end) { type, value }
-#endif
-
-	using ParseResult = Result<Node*, std::string>;
+	using ParseResult = Result<Node*, Error>;
 
 	std::string to_string(const Node& n);
 

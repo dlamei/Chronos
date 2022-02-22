@@ -1,10 +1,75 @@
 #pragma once
 
+#define BLOCK_SIZE 32
+#define LINE_SIZE 8
+#define LINE_COUNT (BLOCK_SIZE / LINE_SIZE)
 
 typedef char byte;
 
-struct heap_block;
+enum mark_type
+{
+	FREE = 0,
+	MARKED,
+	CONS_MARKED,
 
-struct heap_block* heap_alloc_block();
+};
+
+struct block_header
+{
+	enum mark_type line_mark[LINE_COUNT];
+	enum mark_type block_mark;
+};
+
+
+struct heap_block
+{
+	struct block_header header;
+	byte memory[BLOCK_SIZE];
+
+};
+
+struct bump_block
+{
+	struct heap_block data;
+	uint32_t cursor;
+	uint32_t limit;
+
+};
+
+void print_line_marks(struct bump_block* block);
+
+struct heap_block* alloc_heap_block();
 void free_heap_block(struct heap_block* block);
-byte* reserve_block_memory(struct heap_block* block, uint32_t byte_size);
+
+struct bump_block* alloc_bump_block();
+byte* bump_reserve_size(struct bump_block* block, uint32_t alloc_size);
+void free_bump_block(struct bump_block* block);
+
+enum ch_type
+{
+	CH_INT = 0,
+
+	CH_COUNT,
+};
+
+struct ch_header
+{
+	enum ch_type type;
+};
+
+struct ch_int
+{
+	struct ch_header header;
+	int value;
+};
+
+struct ch_heap
+{
+	struct bump_block* blocks;
+};
+
+int type_from_ptr(struct bump_block* block, void* ptr);
+struct ch_int* bump_write_int(struct bump_block* block, int value);
+
+struct ch_heap* alloc_heap();
+struct ch_int* heap_alloc_int(struct ch_heap* heap, int value);
