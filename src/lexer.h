@@ -45,10 +45,17 @@ namespace Chronos
 
 		Position start_pos;
 		Position end_pos;
-	};
 
-	Token create_token(TokenType type, TokenValue value, Position start, Position end);
-	Token create_token(TokenType type, TokenValue value, Position start);
+		Token(TokenType t, TokenValue v, Position a, Position b)
+			: type(t), value(v), start_pos(a), end_pos(b) {}
+
+		Token(TokenType t, TokenValue v, Position pos)
+			: type(t), value(v), start_pos(pos), end_pos(pos) 
+		{
+			end_pos.column++;
+			end_pos.index++;
+		}
+	};
 
 	std::string to_string(const TokenType t);
 	std::string to_string(const Token& t);

@@ -6,6 +6,8 @@
 
 namespace Chronos
 {
+	using namespace NodeValues;
+
 	void print_tokens(const std::deque<Token>& tokens)
 	{
 		std::cout << "\n";
@@ -35,12 +37,19 @@ namespace Chronos
 				break;
 
 			case NodeType::UNRYOP:
-				nodes.push(std::get<UnryValue>(n->value).right);
+				nodes.push(std::get<UnryOp>(n->value).right);
 				break;
 
 			case NodeType::BINOP:
-				nodes.push(std::get<BinopValue>(n->value).right);
-				nodes.push(std::get<BinopValue>(n->value).left);
+				nodes.push(std::get<BinOp>(n->value).right);
+				nodes.push(std::get<BinOp>(n->value).left);
+				break;
+
+			case NodeType::ASSIGN:
+				nodes.push(std::get<AssignOp>(n->value).expr);
+				break;
+
+			case NodeType::ACCESS:
 				break;
 
 			default:
@@ -65,20 +74,31 @@ namespace Chronos
 			break;
 		case NodeType::BINOP:
 			s += "BINOP(";
-			s += to_string(*std::get<BinopValue>(n.value).left);
-			s += ", " + to_string(std::get<BinopValue>(n.value).type) + ", ";
-			s += to_string(*std::get<BinopValue>(n.value).right);
+			s += to_string(*std::get<BinOp>(n.value).left);
+			s += ", " + to_string(std::get<BinOp>(n.value).type) + ", ";
+			s += to_string(*std::get<BinOp>(n.value).right);
 			s += ")";
 			break;
-
 		case NodeType::UNRYOP:
 			s += "UNRYOP(";
-			s += to_string(std::get<UnryValue>(n.value).type) + ", ";
-			s += to_string(*std::get<UnryValue>(n.value).right);
+			s += to_string(std::get<UnryOp>(n.value).type) + ", ";
+			s += to_string(*std::get<UnryOp>(n.value).right);
+			s += ")";
+			break;
+		case NodeType::ASSIGN:
+			s += "ASSIGN(";
+			s += std::get<AssignOp>(n.value).var + ", ";
+			s += to_string(*std::get<AssignOp>(n.value).expr);
+			s += ")";
+			break;
+		case NodeType::ACCESS:
+			s += "ACCESS(";
+			s += std::get<std::string>(n.value);
 			s += ")";
 			break;
 
 		default:
+			ASSERT(false, "to_string not defined for this NodeType");
 			exit(-1);
 
 		}
@@ -118,15 +138,21 @@ namespace Chronos
 		{
 		case TokenType::INT:
 		case TokenType::FLOAT:
+		{
 			advance();
-			return { new Node({ NodeType::NUM, t, t.start_pos, t.end_pos }) };
-
+			return new Node({ NodeType::NUM, t, t.start_pos, t.end_pos });
+		}
+		case TokenType::ID:
+		{
+			advance();
+			return new Node({ NodeType::ACCESS, std::get<std::string>(t.value), t.start_pos, t.end_pos });
+		}
 		case TokenType::LROUND:
 		{
 			advance();
 			ParseResult res = expression();
-			if (!res) return res;
-			Node* expr = res.get_result();
+			if (res.index() == ParseErr) return res;
+			Node* expr = std::get<Node*>(res);
 
 			if (m_CurrentToken->type == TokenType::RROUND)
 			{
@@ -158,11 +184,12 @@ namespace Chronos
 		case TokenType::SUB:
 		{
 			advance();
+			if (m_TokenIndex >= m_Tokens.size()) return Error({ ErrorType::INVALID_SYNTAX, "Parser: Expected Expression found EOF", t.start_pos, t.end_pos });
 			auto fac = factor();
-			if (!fac) return fac;
-			Node* fac_node = fac.get_result();
-			Node* n = new Node({ NodeType::UNRYOP, {}, t.start_pos, fac_node->end_pos });
-			n->value = UnryValue { TokenType::SUB, fac_node };
+			if (fac.index() == ParseErr) return fac;
+			Node* fac_node = std::get<Node*>(fac);
+			Node* n = new Node({ NodeType::UNRYOP, 0, t.start_pos, fac_node->end_pos });
+			n->value = UnryOp { TokenType::SUB, fac_node };
 			return n;
 		}
 
@@ -188,8 +215,8 @@ namespace Chronos
 	ParseResult Parser::callable()
 	{
 		auto res = atom();
-		if (!res) return res;
-		Node* res_node = res.get_result();
+		if (res.index() == ParseErr) return res;
+		Node* res_node = std::get<Node*>(res);
 		return wrap_callable(res_node);
 	}
 
@@ -214,8 +241,8 @@ namespace Chronos
 		std::function<ParseResult(Parser*)> func_b)
 	{
 		auto left = func_a(this);
-		if (!left) return left;
-		Node* left_node = left.get_result();
+		if (left.index() == ParseErr) return left;
+		Node* left_node = std::get<Node*>(left);
 		
 		while (std::find(ops.begin(), ops.end(), m_CurrentToken->type) != ops.end())
 		{
@@ -223,11 +250,11 @@ namespace Chronos
 			advance();
 
 			auto right = func_b(this);
-			if (!right) return right;
-			Node* right_node = right.get_result();
+			if (right.index() == ParseErr) return right;
+			Node* right_node = std::get<Node*>(right);
 
-			Node* node = new Node({ NodeType::BINOP, {}, left_node->start_pos, right_node->end_pos });
-			node->value = BinopValue { left_node, op_token.type, right_node };
+			Node* node = new Node({ NodeType::BINOP, 0, left_node->start_pos, right_node->end_pos});
+			node->value = BinOp { left_node, op_token.type, right_node };
 			left_node = node;
 		}
 
@@ -236,15 +263,38 @@ namespace Chronos
 
 	ParseResult Parser::expression()
 	{
-		return binop_expression(&Parser::comp_expression, { TokenType::KW_AND, TokenType::KW_OR }, &Parser::comp_expression);
+		switch (m_CurrentToken->type)
+		{
+		case TokenType::ID:
+		{
+			Token var = *m_CurrentToken;
+			advance();
+
+			if (m_CurrentToken->type == TokenType::ASSIGN)
+			{
+				advance();
+				ParseResult res = expression();
+				if (res.index() == ParseErr) return res;
+				return new Node({ NodeType::ASSIGN, AssignOp { std::get<std::string>(var.value), std::get<Node*>(res) } });
+			}
+			else
+			{
+				retreat();
+				return binop_expression(&Parser::comp_expression, { TokenType::KW_AND, TokenType::KW_OR }, &Parser::comp_expression);
+			}
+		}
+		default:
+		{
+			return binop_expression(&Parser::comp_expression, { TokenType::KW_AND, TokenType::KW_OR }, &Parser::comp_expression);
+		}
+		}
+		//return binop_expression(&Parser::comp_expression, { TokenType::KW_AND, TokenType::KW_OR }, &Parser::comp_expression);
 	}
 
 	ParseResult Parser::parse_nodes()
 	{
 		if (m_Tokens.empty()) return nullptr;
-		auto exp = expression();
-		if (!exp) return exp;
-		return { exp.get_result() };
+		return expression();
 	}
 
 }

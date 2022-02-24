@@ -126,20 +126,6 @@ namespace Chronos
 		return s;
 	}
 
-	Token create_token(TokenType type, TokenValue value, Position start, Position end)
-	{
-		return { type, value, start, end };
-	}
-
-	Token create_token(TokenType type, TokenValue value, Position start)
-	{
-		Position end = start;
-		end.column++;
-		end.index++;
-		return { type, value, start, end };
-	}
-
-
 	void Lexer::load_text(const char* text, size_t size)
 	{
 		m_TextSize = size;
@@ -213,25 +199,25 @@ namespace Chronos
 			switch (c)
 			{
 			case '+':
-				m_Tokens.push_back(create_token(TokenType::ADD, { 0 }, pos));
+				m_Tokens.push_back(Token(TokenType::ADD, { 0 }, pos));
 				break;
 			case '-':
-				m_Tokens.push_back(create_token(TokenType::SUB, { 0 }, pos));
+				m_Tokens.push_back(Token(TokenType::SUB, { 0 }, pos));
 				break;
 			case '*':
-				m_Tokens.push_back(create_token(TokenType::MULT, { 0 }, pos));
+				m_Tokens.push_back(Token(TokenType::MULT, { 0 }, pos));
 				break;
 			case '/':
-				m_Tokens.push_back(create_token(TokenType::DIV, { 0 }, pos));
+				m_Tokens.push_back(Token(TokenType::DIV, { 0 }, pos));
 				break;
 			case '(':
-				m_Tokens.push_back(create_token(TokenType::LROUND, { 0 }, pos));
+				m_Tokens.push_back(Token(TokenType::LROUND, { 0 }, pos));
 				break;
 			case ')':
-				m_Tokens.push_back(create_token(TokenType::RROUND, { 0 }, pos));
+				m_Tokens.push_back(Token(TokenType::RROUND, { 0 }, pos));
 				break;
 			case '=':
-				m_Tokens.push_back(create_token(TokenType::ASSIGN, { 0 }, pos));
+				m_Tokens.push_back(Token(TokenType::ASSIGN, { 0 }, pos));
 				break;
 
 
@@ -276,13 +262,13 @@ namespace Chronos
 		{
 			TokenValue value;
 			value = std::stof(num);
-			return create_token(TokenType::FLOAT, value, start, end);
+			return Token(TokenType::FLOAT, value, start, end);
 		}
 		else
 		{
 			TokenValue value;
 			value = std::stoi(num);
-			return create_token(TokenType::INT, value, start, end);
+			return Token(TokenType::INT, value, start, end);
 		}
 	}
 
@@ -304,11 +290,11 @@ namespace Chronos
 
 		if (type != TokenType::NONE)
 		{
-			return create_token(type, { 0 }, start, end);
+			return Token(type, { 0 }, start, end);
 		}
 		else
 		{
-			Token t = create_token(TokenType::ID, id, start, end);
+			Token t = Token(TokenType::ID, id, start, end);
 			return t;
 		}
 	}

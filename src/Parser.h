@@ -13,28 +13,42 @@ namespace Chronos
 
 	void delete_nodes(Node* nodes);
 
-	struct UnryValue
-	{
-		TokenType type;
-		Node* right;
-	};
-
-	struct BinopValue
-	{
-		Node* left;
-		TokenType type;
-		Node* right;
-	};
-
-
-	using NodeValue = std::variant<Token, UnryValue, BinopValue>;
 
 	enum class NodeType
 	{
 		NUM,
 		BINOP,
 		UNRYOP,
+		ASSIGN,
+		ACCESS,
 	};
+
+	namespace NodeValues
+	{
+		struct UnryOp
+		{
+			TokenType type;
+			Node* right;
+		};
+
+		struct AssignOp
+		{
+			std::string var;
+			Node* expr;
+		};
+
+		struct BinOp
+		{
+			Node* left;
+			TokenType type;
+			Node* right;
+		};
+	}
+
+	const short ParseOk = 1;
+	const short ParseErr = 0;
+	using ParseResult = std::variant<Error, Node*>;
+	using NodeValue = std::variant<int, std::string, Token, NodeValues::UnryOp, NodeValues::AssignOp, NodeValues::BinOp, Node*>;
 
 	struct Node
 	{
@@ -45,7 +59,8 @@ namespace Chronos
 		Position end_pos;
 	};
 
-	using ParseResult = Result<Node*, Error>;
+	//using ParseResult = Result<Node*, Error>;
+
 
 	std::string to_string(const Node& n);
 

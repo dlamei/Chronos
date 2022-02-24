@@ -9,22 +9,19 @@
 
 extern "C"
 {
-	#include "chlib.h"
+#include "chlib.h"
 }
 
 
 int main()
 {
 	//ch_heap* h = alloc_heap();
-	//
-	//for (int i = 0; i < 10; i++)
+
+	//ch_int* ptr = heap_alloc_int(h, 3);
+	//if (ptr)
 	//{
-	//	ch_int* ptr = heap_alloc_int(h, i);
-	//	if (ptr)
-	//	{
-	//		print_line_marks(h->blocks);
-	//		std::cout << type_from_ptr(h->blocks, ptr) << "\n";
-	//	}
+	//	print_line_marks(h->blocks);
+	//	std::cout << type_from_ptr(h->blocks, ptr) << "\n";
 	//}
 
 	//std::cin.get();
@@ -36,7 +33,9 @@ int main()
 	Chronos::Parser parser;
 	Chronos::Compiler compiler;
 
-	while (1)
+	std::vector<Chronos::Node*> nodes;
+
+	for (int i = 0; i < 3; i++)
 	{
 		printf("chronos > ");
 		std::getline(std::cin, buffer);
@@ -47,23 +46,30 @@ int main()
 		lexer.parse_tokens();
 		lexer.print_tokens();
 
-		if (lexer.has_error()) std::cout << lexer.get_error().generate_message(fm.get_files()) << "\n";
+		if (lexer.has_error())
+		{
+			std::cout << lexer.get_error().generate_message(fm.get_files()) << "\n";
+		}
 
 		parser.load_tokens(lexer.get_tokens());
 		Chronos::ParseResult res = parser.parse_nodes();
 
-		if (res)
+		if (res.index() == Chronos::ParseOk)
 		{
-			Chronos::Node* nodes = res.get_result();
-			if (nodes) std::cout << "result: " << Chronos::to_string(*nodes) << "\n";
-			compiler.compile("Chronos", nodes);
+			Chronos::Node* node = std::get<Chronos::Node*>(res);
+			if (node) std::cout << "result: " << Chronos::to_string(*node) << "\n";
+			nodes.push_back(node);
+			//compiler.compile("Chronos", nodes);
 
-			compiler.close();
-			Chronos::delete_nodes(nodes);
 		}
-		else std::cout << "error: " << res.get_error().generate_message(fm.get_files()) << "\n";
+		else std::cout << "error: " << std::get<Chronos::Error>(res).generate_message(fm.get_files()) << "\n";
 
 		lexer.clear();
 		fm.clear();
 	}
+
+	compiler.compile("Chronos", nodes);
+
+	compiler.close();
+	for (auto node : nodes) Chronos::delete_nodes(node);
 }

@@ -1,253 +1,187 @@
 #include <fstream>
 #include <unordered_map>
 #include <string>
+#include <stack>
 
 #include "Parser.h"
 #include "common.h"
 
+#define HEADER_SIZE 4
+#define PTR_SIZE 4
+
 namespace Chronos
 {
-	enum class ASMExprType
+
+	enum class ValueType
 	{
-		INSTRUCTION = 0,
- 		LABEL,
-		COMMENT,
+		INT_VAL,
+		UNKNOWN,
 	};
 
-	struct ASMExpr
+	namespace x86ASM
 	{
-		ASMExprType type;
 
-		ASMExpr(ASMExprType t)
-			: type(t) {}
-
-		virtual std::string get_string()
+		enum Section : uint8_t
 		{
-			return "";
-		}
-	};
+			DATA = 0,
+			BSS,
+			TEXT,
+			NO_SECTION,
+		};
 
-
-	struct Label : ASMExpr
-	{
-		const char* name;
-
-		Label(const char* n)
-			: ASMExpr(ASMExprType::LABEL), name(n) {}
-
-		virtual std::string get_string()
+		enum InstType : uint8_t
 		{
-			return { name };
-		}
-	};
+			PUSH = 0,
+			POP,
+			NOP,
+			CALL,
+			MOV,
+			ADD,
+			SUB,
+			MUL,
+			DIV,
+			INT,
+			GLOBAL,
+			EXTERN,
+			NO_INST,
+		};
 
-	struct Comment : ASMExpr
-	{
-		std::string msg = ";";
-
-		Comment(const char* m)
-			: ASMExpr(ASMExprType::LABEL)
+		enum class Reg : uint8_t
 		{
-			msg += m;
-		}
+			EAX = 0, ECX, EDX, EBX, ESP, EBP, ESI, EDI,
+			AX, CX, DX, BX, SP, BP, SI, DI,
+			AH, AL, CH, CL, DH, DL, BH, BL,
+			NO_REG,
+		};
 
-		virtual std::string get_string()
+		enum DerefSize : uint8_t
 		{
-			return { msg };
-		}
-	};
+			BYTE = 0,
+			WORD,
+			DWORD,
+			QWORD,
+			NO_DEREF,
+		};
 
-	enum class InstType
-	{
-		PUSH = 0,
-		POP,
-		NOP,
-		CALL,
-		MOV,
-		ADD,
-		SUB,
-		MUL,
-		DIV,
-		INT,
-		GLOBAL,
-		EXTERN,
-		SECTION,
-		NONE,
-	};
-
-	enum class Register
-	{
-		EAX = 0, ECX, EDX, EBX, ESP, EBP, ESI, EDI,
-		AX, CX, DX, BX, SP, BP, SI, DI,
-		AH, AL, CH, CL, DH, DL, BH, BL,
-		NONE,
-	};
-
-	enum class ArgType
-	{
-		REGISTER = 0,
-		REGISTER_OFFSET,
-		REGISTER_DEREF,
-		INT,
-		FLOAT,
-		HEX,
-		LABEL,
-		NONE,
-	};
-
-	enum class ASMSize
-	{
-		DWORD = 0,
-	};
-
-
-
-	struct ASMArg
-	{
-		ArgType type;
-
-		union ArgValue
+		enum ReserveSize : uint8_t
 		{
-			Register reg;
+			RESB = 0,
+			RESW,
+			RESQ,
+			NO_RESERVE,
+		};
 
-			struct Offset
-			{
-				Register reg;
-				int offset;
-			} reg_offset;
-
-			struct
-			{
-				Register reg;
-				int offset;
-				ASMSize size;
-			} deref_value;
-
-			int int_value;
-			float float_value;
-			int hex_value;
-			const char* label;
-
-			~ArgValue() {}
-			ArgValue()
-				: int_value(0) {}
-		} value;
-
-		ASMArg()
-			: type(ArgType::NONE) {}
-
-		ASMArg(ArgType t)
-			: type(t) {}
-
-		ASMArg(const char* l)
-			: type(ArgType::LABEL)
+		enum DefineSize : uint8_t
 		{
-			value.label = l;
-		}
+			DB = 0,
+			DW,
+			DQ,
+			NO_DEFINE,
+		};
 
-		ASMArg(Register reg)
-			: type(ArgType::REGISTER)
+		static const int LABEL_ADR = 0;
+		static const int REGISTER = 1;
+		using MemAdress = std::variant<const char*, Reg>;
+
+		struct MemAccess
 		{
-			value.reg = reg;
-		}
+			MemAdress adress = Reg::NO_REG;
+			int offset = 0;
+			DerefSize size = NO_DEREF;
 
-		ASMArg(Register reg, int offset)
-			: type(ArgType::REGISTER_OFFSET)
+			MemAccess(const char* adr)
+				: adress(adr) {}
+			MemAccess(Reg reg)
+				: adress(reg) {}
+			MemAccess(Reg reg, int off)
+				: adress(reg), offset(off) {}
+			MemAccess(const char* adr, int off)
+				: adress(adr), offset(off) {}
+			MemAccess(Reg reg, int off, DerefSize s)
+				: adress(reg), offset(off), size(s) {}
+			MemAccess(const char* reg, int off, DerefSize s)
+				: adress(reg), offset(off), size(s) {}
+		};
+
+		struct ReserveMem
 		{
-			value.reg_offset.reg = reg;
-			value.reg_offset.offset = offset;
-		}
+			const char* name;
+			ReserveSize size = NO_RESERVE;
+			int count;
+		};
 
-		ASMArg(ASMSize size, Register reg, int offset)
-			: type(ArgType::REGISTER_DEREF)
+
+		struct DefineMem
 		{
-			value.deref_value.reg = reg;
-			value.deref_value.offset = offset;
-			value.deref_value.size = size;
-		}
+			const char* name;
+			DefineSize size = NO_DEFINE;
+			std::vector<std::variant<const char*, int>> bytes;
+		};
 
-		ASMArg(float f)
-			: type(ArgType::FLOAT)
+
+		static const int MEM_ACCESS = 0;
+		static const int TEMP_VALUE = 1;
+		static const int NO_ADR = 2;
+
+		struct BasicInst
 		{
-			value.float_value = f;
-		}
+			InstType type;
+			std::variant<MemAccess, int, bool> adresses[2] = { false, false };
 
-		ASMArg(ArgType t, int val)
-			: type(t)
-		{
-			switch (type)
-			{
-			case ArgType::INT:
-				value.int_value = val;
-				return;
+		};
 
-			case ArgType::HEX:
-				value.hex_value = val;
-				return;
-			}
+		static const int BASIC_INST = 0;
+		static const int RESERVE_MEM = 1;
+		static const int DEFINE_MEM = 2;
+		static const int SECTION = 3;
 
-			ASSERT(false, "type has no int value");
-		}
-	};
+		using Instruction = std::variant<BasicInst, ReserveMem, DefineMem, Section>;
 
-	std::string to_string(ASMArg& arg);
-	std::string to_string(InstType& type);
+		using Label = const char*;
+	}
 
-	struct Instruction : ASMExpr
-	{
-		InstType type = InstType::NONE;
-		std::vector<ASMArg> args;
-
-		Instruction(InstType t, std::vector<ASMArg> a)
-			: ASMExpr(ASMExprType::INSTRUCTION), args(a), type(t) {}
-
-		virtual std::string get_string()
-		{
-			std::string s = to_string(type);
-			s += " ";
-
-			size_t i = 0;
-			for (; i < args.size() - 1; i++)
-			{
-				s += to_string(args[i]);
-				s += ", ";
-			}
-
-			s += to_string(args[i]);
-			return s;
-		}
-	};
-
-
-	std::string to_string(Register reg);
-	std::string to_string(ASMSize size);
-	std::string to_string(Instruction& instruction);
-	std::string to_string(std::deque<ASMExpr*>& code);
+	std::string to_string(std::unordered_map<x86ASM::Label, std::vector<x86ASM::Instruction>>& m_Code);
+	using ASMCode = std::unordered_map<x86ASM::Label, std::vector<x86ASM::Instruction>>;
 
 	class Compiler
 	{
 	private:
 		const char* m_Name = "";
 
-		int m_MainLblPtr = 0;
+		x86ASM::Label m_CurrentLabel = "";
+		ASMCode m_Code;
 
-		std::deque<ASMExpr*> m_Code;
+		std::unordered_map<std::string, int> m_VarTable;
+		int m_BPOffset = 4;
+
+		uint32_t m_StackMemAllocAdr;
 
 		std::ofstream m_Output;
 
-		void write_inst(InstType t, std::vector<ASMArg>&& a);
-		void write_label(const char* label);
-		void write_comment(const char* msg);
-		void print_eax();
-		void print_top();
+		void set_label(x86ASM::Label l) { m_CurrentLabel = l; }
+		void write(x86ASM::Instruction i);
+		void write(x86ASM::InstType t, x86ASM::MemAccess a);
+		void write(x86ASM::InstType t, x86ASM::MemAccess a, x86ASM::MemAccess b);
+		void write(x86ASM::InstType t, x86ASM::MemAccess a, int b);
+		void write(x86ASM::InstType t, int a);
+		void write_section(x86ASM::Section s);
+		void write_mem_def(const char* var, x86ASM::DefineSize size, std::vector<std::variant<const char*, int>> bytes);
+		void write_mem_res(const char* var, x86ASM::ReserveSize size, int count);
+		void write_comment(const char* comment);
+		void set_stack_mem();
 
-		void eval_num(Token& token);
-		void eval_binop(Node* node);
-		void eval_expr(Node* node);
+		void print_top();
+		void print_chint();
+
+		ValueType eval_num(Token& token);
+		ValueType eval_binop(Node* node);
+		ValueType eval_assing(NodeValues::AssignOp& op);
+		ValueType eval_expr(Node* node);
+		ValueType eval_access(std::string var);
 
 
 	public:
-		void compile(const char* name, Node* node, int exit_code = 0);
+		void compile(const char* name, std::vector<Node*> node);
 		void close();
 
 		~Compiler()

@@ -1,15 +1,18 @@
 #pragma once
 
-#define BLOCK_SIZE 32
+#define BLOCK_SIZE 64
 #define LINE_SIZE 8
 #define LINE_COUNT (BLOCK_SIZE / LINE_SIZE)
+
+#define HEAP_DEBUG
+
 
 typedef char byte;
 
 enum mark_type
 {
-	FREE = 0,
-	MARKED,
+	MARKED = 0,
+	FREE,
 	CONS_MARKED,
 
 };

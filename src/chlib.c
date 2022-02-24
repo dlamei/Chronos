@@ -12,6 +12,12 @@ typedef enum mark_type MarkType;
 typedef struct block_header BlockHeader;
 typedef struct heap_block HeapBlock;
 
+#ifdef HEAP_DEBUG
+debug_print(msg, i) { printf(msg, i); }
+#else
+debug_print(msg)
+#endif
+
 
 HeapBlock* alloc_heap_block()
 {
@@ -92,6 +98,9 @@ BumpBlock* alloc_bump_block()
 		bump_block->data.header.line_mark[i] = FREE;
 	}
 
+	debug_print("heap_init:\n");
+	print_line_marks(bump_block);
+
 	return bump_block;
 }
 
@@ -106,9 +115,16 @@ byte* bump_reserve_size(BumpBlock* block, uint32_t alloc_size)
 
 	uint32_t next_bump = block->cursor + alloc_size;
 
+	//debug_print("reserve size:\n");
+	debug_print("cursor: %d\n", block->cursor);
+	//debug_print("limit: %d\n", block->limit);
+	//debug_print("size: %d\n", alloc_size);
+
 	if (next_bump <= block->limit)
 	{
-		block->data.header.line_mark[block->cursor / LINE_SIZE] = MARKED;
+
+		block->data.header.line_mark[block->cursor / LINE_SIZE] = 0;
+
 		for (uint32_t i = 1; i < alloc_size / LINE_SIZE; i++)
 		{
 			block->data.header.line_mark[block->cursor / LINE_SIZE + i] = CONS_MARKED;
@@ -144,19 +160,20 @@ int type_from_ptr(BumpBlock* block, void* ptr)
 
 void print_line_marks(BumpBlock* block)
 {
-	printf("{ [");
-	if (block->data.header.line_mark == FREE) printf("_");
-	else if (block->data.header.line_mark != FREE) printf("M");
-	printf("]: ");
-	printf("[");
+	debug_print("{ [");
+	if (block->data.header.line_mark == FREE) debug_print("_");
+	else if (block->data.header.line_mark != FREE) debug_print("M");
+	debug_print("]: ");
+	debug_print("[");
 	for (int i = 0; i < LINE_COUNT; ++i)
 	{
-		if (block->data.header.line_mark[i] == FREE) printf("_");
-		else if (block->data.header.line_mark[i] == CONS_MARKED) printf("C");
-		else if (block->data.header.line_mark[i] == MARKED) printf("M");
-		else printf("e");
+		MarkType type = block->data.header.line_mark[i];
+		if (type == FREE) debug_print("_");
+		else if (type == CONS_MARKED) debug_print("C");
+		else if (type == MARKED) debug_print("M");
+		else debug_print("%d, ", (int) type);
 	}
-	printf("] }\n");
+	debug_print("] }\n");
 }
 
 ChInt* bump_write_int(BumpBlock* block, int value)
@@ -173,6 +190,7 @@ typedef struct ch_heap ChHeap;
 ChHeap* alloc_heap()
 {
 	ChHeap* h = malloc(sizeof(ChHeap));
+	if (!h) return NULL;
 	h->blocks = alloc_bump_block();
 	return h;
 }
@@ -180,5 +198,8 @@ ChHeap* alloc_heap()
 struct ch_int* heap_alloc_int(ChHeap* heap, int value)
 {
 	//TODO: multiple blocks + resize
-	return bump_write_int(heap->blocks, value);
+	debug_print("write int: %d\n", value);
+	struct ch_int* ptr = bump_write_int(heap->blocks, value);
+	print_line_marks(heap->blocks);
+	return ptr;
 }
