@@ -70,7 +70,7 @@ namespace Chronos
 		case TokenType::FLOAT: return "FLOAT";
 		case TokenType::ADD: return "ADD";
 		case TokenType::SUB: return "SUB";
-		case TokenType::MULT: return "MULT";
+		case TokenType::MUL: return "MUL";
 		case TokenType::DIV: return "DIV";
 		case TokenType::EQUAL: return "EQUAL";
 		case TokenType::LESS: return "LESS";
@@ -205,7 +205,7 @@ namespace Chronos
 				m_Tokens.push_back(Token(TokenType::SUB, { 0 }, pos));
 				break;
 			case '*':
-				m_Tokens.push_back(Token(TokenType::MULT, { 0 }, pos));
+				m_Tokens.push_back(Token(TokenType::MUL, { 0 }, pos));
 				break;
 			case '/':
 				m_Tokens.push_back(Token(TokenType::DIV, { 0 }, pos));

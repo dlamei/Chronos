@@ -17,7 +17,7 @@ namespace Chronos
 		FLOAT,
 		ADD,
 		SUB,
-		MULT,
+		MUL,
 		DIV,
 		EQUAL,
 		LESS,

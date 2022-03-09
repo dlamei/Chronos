@@ -18,6 +18,10 @@ debug_print(msg, i) { printf(msg, i); }
 debug_print(msg)
 #endif
 
+void print_float(float f)
+{
+	printf("%f\n", f);
+}
 
 HeapBlock* alloc_heap_block()
 {
@@ -98,7 +102,7 @@ BumpBlock* alloc_bump_block()
 		bump_block->data.header.line_mark[i] = FREE;
 	}
 
-	debug_print("heap_init:\n");
+	debug_print("block init:\n");
 	print_line_marks(bump_block);
 
 	return bump_block;

@@ -39,6 +39,8 @@ struct bump_block
 
 };
 
+void print_float(float f);
+
 void print_line_marks(struct bump_block* block);
 
 struct heap_block* alloc_heap_block();

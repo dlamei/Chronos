@@ -222,7 +222,7 @@ namespace Chronos
 
 	ParseResult Parser::term()
 	{
-		return binop_expression(&Parser::factor, { TokenType::MULT, TokenType::DIV }, &Parser::factor);
+		return binop_expression(&Parser::factor, { TokenType::MUL, TokenType::DIV }, &Parser::factor);
 	}
 
 	ParseResult Parser::arith_expression()
