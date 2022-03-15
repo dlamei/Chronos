@@ -4,6 +4,7 @@
 #include <deque>
 #include <string>
 #include <variant>
+#include <optional>
 
 #include "Debug.h"
 #include "Error.h"
@@ -61,6 +62,14 @@ namespace Chronos
 	std::string to_string(const Token& t);
 	std::string to_string(const Position& pos);
 
+	enum class LexerRes : uint8_t
+	{
+		OK = 1,
+		ERROR = 0
+	};
+
+	using LexerResult = std::variant<Error, Token>;
+
 	class Lexer
 	{
 		private:
@@ -79,8 +88,12 @@ namespace Chronos
 
 			void advance();
 
+			void set_error(Error e);
+
+			std::optional<Error> expect_char(const char c);
 			Token make_number();
 			Token make_identifier();
+			LexerResult make_and();
 
 		public:
 

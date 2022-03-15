@@ -35,7 +35,7 @@ int main()
 
 	std::vector<Chronos::Node*> nodes;
 
-	for (int i = 0; i < 1; i++)
+	for (int i = 0; i < 3; i++)
 	{
 		printf("chronos > ");
 		std::getline(std::cin, buffer);
@@ -54,7 +54,7 @@ int main()
 		parser.load_tokens(lexer.get_tokens());
 		Chronos::ParseResult res = parser.parse_nodes();
 
-		if (res.index() == Chronos::ParseOk)
+		if (res.index() == (int) Chronos::ParseRes::OK)
 		{
 			Chronos::Node* node = std::get<Chronos::Node*>(res);
 			if (node) std::cout << "result: " << Chronos::to_string(*node) << "\n";

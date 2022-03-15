@@ -151,7 +151,7 @@ namespace Chronos
 		{
 			advance();
 			ParseResult res = expression();
-			if (res.index() == ParseErr) return res;
+			if (res.index() == (int) ParseRes::ERROR) return res;
 			Node* expr = std::get<Node*>(res);
 
 			if (m_CurrentToken->type == TokenType::RROUND)
@@ -186,7 +186,7 @@ namespace Chronos
 			advance();
 			if (m_TokenIndex >= m_Tokens.size()) return Error({ ErrorType::INVALID_SYNTAX, "Parser: Expected Expression found EOF", t.start_pos, t.end_pos });
 			auto fac = factor();
-			if (fac.index() == ParseErr) return fac;
+			if (fac.index() == (int) ParseRes::ERROR) return fac;
 			Node* fac_node = std::get<Node*>(fac);
 			Node* n = new Node({ NodeType::UNRYOP, 0, t.start_pos, fac_node->end_pos });
 			n->value = UnryOp { TokenType::SUB, fac_node };
@@ -215,7 +215,7 @@ namespace Chronos
 	ParseResult Parser::callable()
 	{
 		auto res = atom();
-		if (res.index() == ParseErr) return res;
+		if (res.index() == (int) ParseRes::ERROR) return res;
 		Node* res_node = std::get<Node*>(res);
 		return wrap_callable(res_node);
 	}
@@ -241,7 +241,7 @@ namespace Chronos
 		std::function<ParseResult(Parser*)> func_b)
 	{
 		auto left = func_a(this);
-		if (left.index() == ParseErr) return left;
+		if (left.index() == (int) ParseRes::ERROR) return left;
 		Node* left_node = std::get<Node*>(left);
 		
 		while (std::find(ops.begin(), ops.end(), m_CurrentToken->type) != ops.end())
@@ -250,7 +250,7 @@ namespace Chronos
 			advance();
 
 			auto right = func_b(this);
-			if (right.index() == ParseErr) return right;
+			if (right.index() == (int) ParseRes::ERROR) return right;
 			Node* right_node = std::get<Node*>(right);
 
 			Node* node = new Node({ NodeType::BINOP, 0, left_node->start_pos, right_node->end_pos});
@@ -274,7 +274,7 @@ namespace Chronos
 			{
 				advance();
 				ParseResult res = expression();
-				if (res.index() == ParseErr) return res;
+				if (res.index() == (int) ParseRes::ERROR) return res;
 				return new Node({ NodeType::ASSIGN, AssignOp { std::get<std::string>(var.value), std::get<Node*>(res) } });
 			}
 			else

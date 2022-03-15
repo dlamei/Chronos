@@ -45,8 +45,12 @@ namespace Chronos
 		};
 	}
 
-	const short ParseOk = 1;
-	const short ParseErr = 0;
+	enum class ParseRes : uint8_t
+	{
+		OK = 1,
+		ERROR = 0
+	};
+
 	using ParseResult = std::variant<Error, Node*>;
 	using NodeValue = std::variant<int, std::string, Token, NodeValues::UnryOp, NodeValues::AssignOp, NodeValues::BinOp, Node*>;
 

@@ -372,11 +372,11 @@ namespace Chronos
 	{
 		switch (type)
 		{
-		case ValueType::INT_VAL:
+		case ValueType::INT:
 			write(PUSH, "int_format");
 			write(CALL, "printf");
 			break;
-		case ValueType::FLOAT_VAL:
+		case ValueType::FLOAT:
 			write(CALL, "print_float");
 			break;
 		default:
@@ -403,17 +403,17 @@ namespace Chronos
 			//write(PUSH, { "heap_ptr", 0, DWORD });
 			//write(CALL, "heap_alloc_int");
 			//write(ADD, Reg::ESP, 8);
-			return ValueType::INT_VAL;
+			return ValueType::INT;
 
 		case TokenType::FLOAT:
 			write(PUSH, std::get<float>(t.value));
-			return ValueType::FLOAT_VAL;
+			return ValueType::FLOAT;
 
 		default:
 			ASSERT(false, "num node should not have this token" + to_string(t));
 		}
 
-		return ValueType::UNKNWN_PTR;
+		return ValueType::POINTER;
 	}
 
 	void Compiler::int_int_binop(TokenType type)
@@ -448,7 +448,6 @@ namespace Chronos
 	void Compiler::float_float_binop(TokenType type)
 	{
 		write(MOVSS, Reg::XMM1, { Reg::ESP, 0, DWORD });
-		//write(ADD, Reg::ESP, 4);
 		write(MOVSS, Reg::XMM0, { Reg::ESP, 4, DWORD });
 		write(ADD, Reg::ESP, 8);
 
@@ -476,7 +475,7 @@ namespace Chronos
 		write(SUB, Reg::ESP, 4);
 	}
 
-	ValueType Compiler::eval_binop(Node* node)
+	ValueType Compiler::eval_arith_binop(Node* node)
 	{
 		ASSERT(node->type == NodeType::BINOP, "expected binop type");
 
@@ -486,32 +485,70 @@ namespace Chronos
 		ValueType ltype = eval_expr(left);
 		ValueType rtype = eval_expr(right);
 
-		if (ltype == ValueType::FLOAT_VAL && rtype == ValueType::INT_VAL)
+		if (ltype == ValueType::FLOAT && rtype == ValueType::INT)
 		{
 			write(CVTSI2SS, Reg::XMM0, { Reg::ESP, 0, DWORD });
 			write(MOVSS, { Reg::ESP, 0, DWORD }, Reg::XMM0);
-			rtype = ValueType::FLOAT_VAL;
+			rtype = ValueType::FLOAT;
 		}
-		else if (ltype == ValueType::INT_VAL && rtype == ValueType::FLOAT_VAL)
+		else if (ltype == ValueType::INT && rtype == ValueType::FLOAT)
 		{
 			write(CVTSI2SS, Reg::XMM0, { Reg::ESP, 4, DWORD });
 			write(MOVSS, { Reg::ESP, 4, DWORD }, Reg::XMM0);
-			ltype = ValueType::FLOAT_VAL;
+			ltype = ValueType::FLOAT;
 		}
 
-		if (ltype == ValueType::INT_VAL && rtype == ValueType::INT_VAL)
+		if (ltype == ValueType::INT && rtype == ValueType::INT)
 		{
 			int_int_binop(std::get<BinOp>(node->value).type);
-			return ValueType::INT_VAL;
+			return ValueType::INT;
 		}
-		else if (ltype == ValueType::FLOAT_VAL && rtype == ValueType::FLOAT_VAL)
+		else if (ltype == ValueType::FLOAT && rtype == ValueType::FLOAT)
 		{
 			float_float_binop(std::get<BinOp>(node->value).type);
-			return ValueType::FLOAT_VAL;
+			return ValueType::FLOAT;
 		}
 
+		return ValueType::POINTER;
+	}
 
-		return ValueType::UNKNWN_PTR;
+	ValueType Compiler::eval_logic_binop(Node* node)
+	{
+		ASSERT(node->type == NodeType::BINOP, "expected binop type");
+
+		Node* right = std::get<BinOp>(node->value).right;
+		Node* left = std::get<BinOp>(node->value).left;
+
+		ValueType ltype = eval_expr(left);
+		ValueType rtype = eval_expr(right);
+
+		if (ltype == ValueType::INT)
+		{
+
+		}
+	}
+
+	ValueType Compiler::eval_binop(Node* node)
+	{
+		ASSERT(node->type == NodeType::BINOP, "expected binop type");
+		BinOp& binop_val = std::get<BinOp>(node->value);
+
+		switch (binop_val.type)
+		{
+		case TokenType::ADD:
+		case TokenType::SUB:
+		case TokenType::MUL:
+		case TokenType::DIV:
+			return eval_arith_binop(node);
+
+		case TokenType::KW_AND:
+		case TokenType::KW_OR:
+			return eval_logic_binop(node);
+
+		default:
+			ASSERT(false, "type of binop not supported");
+			exit(-1);
+		}
 	}
 
 	ValueType Compiler::eval_assing(NodeValues::AssignOp& op)
@@ -531,28 +568,29 @@ namespace Chronos
 
 		//TODO: check if already present and check type of present var
 		m_VarTable.insert({ op.var, StackVal { m_BPOffset, type } });
+		write(MOV, Reg::EAX, { Reg::ESP, 0, DWORD });
 		write(MOV, { Reg::EBP, -m_BPOffset, DWORD }, Reg::EAX);
 		m_BPOffset += 4;
 
 		//write(MOV, Reg::EAX, { Reg::EAX, 4, DWORD });
-
-		return ValueType::INT_VAL;
+		return type;
 	}
 
 	ValueType Compiler::eval_access(std::string var)
 	{
 		if (m_VarTable.find(var) != m_VarTable.end())
 		{
-			write(MOV, Reg::EAX, { Reg::EBP, -m_VarTable.at(var).offset, DWORD });
-			return ValueType::INT_VAL;
+			//write(MOV, Reg::EAX, { Reg::EBP, -m_VarTable.at(var).offset, DWORD });
+			write(PUSH, { Reg::EBP, -m_VarTable.at(var).offset, DWORD });
+			return m_VarTable.at(var).type;
 		}
 
-		return ValueType::UNKNWN_PTR;
+		return ValueType::POINTER;
 	}
 
 	ValueType Compiler::eval_expr(Node* node)
 	{
-		if (!node) return ValueType::UNKNWN_PTR;
+		if (!node) return ValueType::POINTER;
 
 		switch (node->type)
 		{
@@ -570,7 +608,7 @@ namespace Chronos
 
 		default:
 			ASSERT(false, "not implemented yet");
-			return ValueType::UNKNWN_PTR;
+			return ValueType::POINTER;
 		}
 	}
 

@@ -14,9 +14,9 @@ namespace Chronos
 
 	enum class ValueType
 	{
-		INT_VAL,
-		FLOAT_VAL,
-		UNKNWN_PTR,
+		INT,
+		FLOAT,
+		POINTER,
 	};
 
 	namespace x86ASM
@@ -208,6 +208,8 @@ namespace Chronos
 		ValueType eval_num(Token& token);
 		void int_int_binop(TokenType type);
 		void float_float_binop(TokenType type);
+		ValueType eval_arith_binop(Node* node);
+		ValueType eval_logic_binop(Node* node);
 		ValueType eval_binop(Node* node);
 		ValueType eval_assing(NodeValues::AssignOp& op);
 		ValueType eval_expr(Node* node);

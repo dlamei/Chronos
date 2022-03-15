@@ -7,7 +7,7 @@
 
 namespace Chronos
 {
-	const std::string LETTERS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+	const std::string LETTERS = "_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 	bool is_space(char c)
 	{
@@ -161,6 +161,12 @@ namespace Chronos
 		}
 	}
 
+	void Lexer::set_error(Error e)
+	{
+		m_HasError = true;
+		m_Error = e;
+	}
+
 	Token Lexer::peek()
 	{
 		return m_Tokens.back();
@@ -201,6 +207,13 @@ namespace Chronos
 			case '+':
 				m_Tokens.push_back(Token(TokenType::ADD, { 0 }, pos));
 				break;
+			case '&':
+			{
+				auto token = make_and();
+				if (token.index() == (int)LexerRes::ERROR) set_error(std::get<Error>(token));
+				else m_Tokens.push_back(std::get<Token>(token));
+				break;
+			}
 			case '-':
 				m_Tokens.push_back(Token(TokenType::SUB, { 0 }, pos));
 				break;
@@ -233,6 +246,25 @@ namespace Chronos
 
 			advance();
 		}
+	}
+
+	std::optional<Error> Lexer::expect_char(const char c)
+	{
+		if (*m_CharPtr != c)
+		{
+			Position start = { m_Index, m_Line, m_Column };
+
+			std::string details = "expected '";
+			details.push_back(c);
+			details += "', found: ";
+			details.push_back(*m_CharPtr);
+			advance();
+
+			Position end = { m_Index, m_Line, m_Column };
+			return Error{ ErrorType::ILLEGAL_CHAR, details, start, end };
+		}
+
+		return {};
 	}
 
 	Token Lexer::make_number()
@@ -277,7 +309,7 @@ namespace Chronos
 		std::string id = "";
 		Position start = { m_Index, m_Line, m_Column };
 
-		std::string allowed = LETTERS + "_";
+		std::string allowed = LETTERS + "&|";
 
 		while (m_CharPtr && (allowed.find(*m_CharPtr) != std::string::npos))
 		{
@@ -294,9 +326,22 @@ namespace Chronos
 		}
 		else
 		{
-			Token t = Token(TokenType::ID, id, start, end);
-			return t;
+			return Token(TokenType::ID, id, start, end);
 		}
+	}
+
+	LexerResult Lexer::make_and()
+	{
+		Position start = { m_Index, m_Line, m_Column };
+
+		std::optional<Error> e;
+		if (e = expect_char('&')) return e.value();
+		advance();
+		if (e = expect_char('&')) return e.value();
+
+		Position end = { m_Index, m_Line, m_Column };
+
+		return Token(TokenType::KW_AND, 0, start, end);
 	}
 
 	void Lexer::print_tokens()
