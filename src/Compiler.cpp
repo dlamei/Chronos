@@ -406,7 +406,6 @@ namespace Chronos
 			return ValueType::INT_VAL;
 
 		case TokenType::FLOAT:
-			//write(MOV, Reg::EAX, std::get<float>(t.value));
 			write(PUSH, std::get<float>(t.value));
 			return ValueType::FLOAT_VAL;
 
@@ -415,21 +414,6 @@ namespace Chronos
 		}
 
 		return ValueType::UNKNWN_PTR;
-	}
-
-	bool can_calc_temp(Node& n)
-	{
-		if (n.type == NodeType::ACCESS) return true; //TODO: check value of pointer
-		if (n.type != NodeType::NUM) return false;
-		Token& t = std::get<Token>(n.value);
-		if (t.type != TokenType::INT) return false;
-		return true;
-	}
-
-	bool is_ptr(ValueType type)
-	{
-		if (type == ValueType::INT_VAL) return false;
-		return true;
 	}
 
 	void Compiler::int_int_binop(TokenType type)
@@ -464,9 +448,9 @@ namespace Chronos
 	void Compiler::float_float_binop(TokenType type)
 	{
 		write(MOVSS, Reg::XMM1, { Reg::ESP, 0, DWORD });
-		write(ADD, Reg::ESP, 4);
-		write(MOVSS, Reg::XMM0, { Reg::ESP, 0, DWORD });
-		write(ADD, Reg::ESP, 4);
+		//write(ADD, Reg::ESP, 4);
+		write(MOVSS, Reg::XMM0, { Reg::ESP, 4, DWORD });
+		write(ADD, Reg::ESP, 8);
 
 		InstType inst_type = NO_INST;
 
@@ -490,35 +474,6 @@ namespace Chronos
 
 		write(MOVSS, { Reg::ESP, -4, DWORD }, Reg::XMM0);
 		write(SUB, Reg::ESP, 4);
-
-		//write(FLD, { Reg::ESP, 0, DWORD });
-		//write(ADD, Reg::ESP, 4);
-		//write(FLD, { Reg::ESP, 0, DWORD });
-		//write(ADD, Reg::ESP, 4);
-
-		//switch (type)
-		//{
-		//case TokenType::ADD:
-		//	write(FADD, Reg::ST0, Reg::ST1);
-		//	break;
-		//case TokenType::SUB:
-		//	write(FSUB, Reg::ST0, Reg::ST1);
-		//	break;
-		//case TokenType::MUL:
-		//	write(FMUL, Reg::ST0, Reg::ST1);
-		//	break;
-		//case TokenType::DIV:
-		//	write(FDIV, Reg::ST0, Reg::ST1);
-		//	break;
-
-		//default:
-		//	ASSERT(false, "unexpected token for binop");
-		//	return;
-		//}
-
-
-		//write(FSTP, { Reg::ESP, -4, DWORD });
-		//write(SUB, Reg::ESP, 4);
 	}
 
 	ValueType Compiler::eval_binop(Node* node)
@@ -531,9 +486,17 @@ namespace Chronos
 		ValueType ltype = eval_expr(left);
 		ValueType rtype = eval_expr(right);
 
-		if (ltype == ValueType::INT_VAL && rtype == ValueType::FLOAT_VAL)
+		if (ltype == ValueType::FLOAT_VAL && rtype == ValueType::INT_VAL)
 		{
-			
+			write(CVTSI2SS, Reg::XMM0, { Reg::ESP, 0, DWORD });
+			write(MOVSS, { Reg::ESP, 0, DWORD }, Reg::XMM0);
+			rtype = ValueType::FLOAT_VAL;
+		}
+		else if (ltype == ValueType::INT_VAL && rtype == ValueType::FLOAT_VAL)
+		{
+			write(CVTSI2SS, Reg::XMM0, { Reg::ESP, 4, DWORD });
+			write(MOVSS, { Reg::ESP, 4, DWORD }, Reg::XMM0);
+			ltype = ValueType::FLOAT_VAL;
 		}
 
 		if (ltype == ValueType::INT_VAL && rtype == ValueType::INT_VAL)
@@ -547,27 +510,6 @@ namespace Chronos
 			return ValueType::FLOAT_VAL;
 		}
 
-
-		//switch (std::get<BinOp>(node->value).type)
-		//{
-		//case TokenType::ADD:
-		//	write(ADD, Reg::EAX, Reg::ECX);
-		//	break;
-		//case TokenType::SUB:
-		//	write(SUB, Reg::EAX, Reg::ECX);
-		//	break;
-		//case TokenType::MUL:
-		//	write(MUL, Reg::ECX);
-		//	break;
-		//case TokenType::DIV:
-		//	write(MOV, Reg::EDX, 0);
-		//	write(DIV, Reg::ECX);
-		//	break;
-
-		//default:
-		//	ASSERT(false, "op type not defined");
-		//	break;
-		//}
 
 		return ValueType::UNKNWN_PTR;
 	}

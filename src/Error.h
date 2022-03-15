@@ -3,7 +3,7 @@
 #include <string>
 #include <iostream>
 
-#include "common.h"
+#include "Debug.h"
 #include <vector>
 
 namespace Chronos

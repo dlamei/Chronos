@@ -5,7 +5,7 @@
 #include <string>
 #include <variant>
 
-#include "common.h"
+#include "Debug.h"
 #include "Error.h"
 
 namespace Chronos

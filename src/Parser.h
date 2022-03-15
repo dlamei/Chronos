@@ -3,7 +3,7 @@
 #include <vector>
 #include <functional>
 
-#include "common.h"
+#include "Debug.h"
 #include "Lexer.h"
 #include "Error.h"
 

@@ -4,7 +4,7 @@
 #include <stack>
 
 #include "Parser.h"
-#include "common.h"
+#include "Debug.h"
 
 #define HEADER_SIZE 4
 #define PTR_SIZE 4
@@ -199,7 +199,6 @@ namespace Chronos
 		void write_section(x86ASM::Section s);
 		void write_mem_def(const char* var, x86ASM::DefineSize size, std::vector<std::variant<const char*, int>> bytes);
 		void write_mem_res(const char* var, x86ASM::ReserveSize size, int count);
-		void write_comment(const char* comment);
 		void set_stack_mem();
 
 		void print_top();
