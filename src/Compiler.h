@@ -21,6 +21,12 @@ namespace Chronos
 
 	namespace x86ASM
 	{
+		using Label = const char*;
+		//using SubLabel = std::string;
+		struct SubLabel
+		{
+			uint32_t count = 0;
+		};
 
 		enum Section : uint8_t
 		{
@@ -32,38 +38,18 @@ namespace Chronos
 
 		enum InstType : uint16_t
 		{
-			PUSH = 0,
-			POP,
-			NOP,
+			PUSH = 0, MOV, POP, NOP,
 			CALL,
-			MOV,
-			ADD,
-			SUB,
-			MUL,
-			DIV,
-			AND,
-			OR,
-			XOR,
-			FLD,
-			FLID,
-			FSTP,
-			FISTP,
-			FISTTP,
-			FADD,
-			FSUB,
-			FMUL,
-			FDIV,
-			MOVSS,
-			ADDSS,
-			SUBSS,
-			MULSS,
-			DIVSS,
-			CVTSI2SD,
-			CVTSI2SS,
-			CVTSS2SD,
+			ADD, SUB, MUL,DIV,
+			AND, OR, XOR,
+			CMP, TEST,
+			FLD, FLID, FSTP, FISTP, FISTTP,
+			FADD, FSUB, FMUL, FDIV,
+			MOVSS, ADDSS, SUBSS, MULSS, DIVSS, UCOMISS, PXOR,
+			CVTSI2SD, CVTSI2SS, CVTSS2SD,
+			JE, JNE, JP, JZ, JMP,
 			INT,
-			GLOBAL,
-			EXTERN,
+			GLOBAL, EXTERN,
 			NO_INST,
 		};
 
@@ -102,9 +88,14 @@ namespace Chronos
 			NO_DEFINE,
 		};
 
-		static const int LABEL_ADR = 0;
-		static const int REGISTER = 1;
-		using MemAdress = std::variant<const char*, Reg>;
+		enum MemAdressType
+		{
+			REGISTER = 0,
+			LABEL_ADR,
+			SUB_LABEL_ADR,
+		};
+
+		using MemAdress = std::variant<Reg, const char*, SubLabel>;
 
 		struct MemAccess
 		{
@@ -114,6 +105,8 @@ namespace Chronos
 
 			MemAccess(const char* adr)
 				: adress(adr) {}
+			MemAccess(SubLabel l)
+				: adress(l) {}
 			MemAccess(Reg reg)
 				: adress(reg) {}
 			MemAccess(Reg reg, int off)
@@ -154,14 +147,16 @@ namespace Chronos
 
 		};
 
-		static const int BASIC_INST = 0;
-		static const int RESERVE_MEM = 1;
-		static const int DEFINE_MEM = 2;
-		static const int SECTION = 3;
+		enum InstructionType : uint8_t
+		{
+			BASIC_INST = 0,
+			RESERVE_MEM,
+			DEFINE_MEM,
+			SECTION,
+			SUB_LABEL,
+		};
 
-		using Instruction = std::variant<BasicInst, ReserveMem, DefineMem, Section>;
-
-		using Label = const char*;
+		using Instruction = std::variant<BasicInst, ReserveMem, DefineMem, Section, SubLabel>;
 	}
 
 	std::string to_string(std::unordered_map<x86ASM::Label, std::vector<x86ASM::Instruction>>& m_Code);
@@ -183,12 +178,16 @@ namespace Chronos
 
 		std::unordered_map<std::string, StackVal> m_VarTable; //<name, offset>
 		int m_BPOffset = 4;
+		uint32_t m_CurrentSubLabel = 0;
 
 		uint32_t m_StackMemAllocAdr;
 
 		std::ofstream m_Output;
 
 		void set_label(x86ASM::Label l) { m_CurrentLabel = l; }
+		x86ASM::SubLabel sub_label();
+		x86ASM::SubLabel sub_label(uint32_t offset); 
+		void offset_sub_label(uint32_t offset); 
 		void write(x86ASM::Instruction i);
 		void write(x86ASM::InstType t, x86ASM::MemAccess a);
 		void write(x86ASM::InstType t, x86ASM::MemAccess a, x86ASM::MemAccess b);
@@ -201,6 +200,9 @@ namespace Chronos
 		void write_mem_res(const char* var, x86ASM::ReserveSize size, int count);
 		void set_stack_mem();
 
+		void zero_cmp_float();
+		void zero_cmp_int();
+
 		void print_top();
 		void print_chint();
 		void print_value(ValueType type);
@@ -209,7 +211,8 @@ namespace Chronos
 		void int_int_binop(TokenType type);
 		void float_float_binop(TokenType type);
 		ValueType eval_arith_binop(Node* node);
-		ValueType eval_logic_binop(Node* node);
+		ValueType eval_AND_binop(Node* node);
+		ValueType eval_OR_binop(Node* node);
 		ValueType eval_binop(Node* node);
 		ValueType eval_assing(NodeValues::AssignOp& op);
 		ValueType eval_expr(Node* node);

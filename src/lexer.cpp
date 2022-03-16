@@ -214,6 +214,13 @@ namespace Chronos
 				else m_Tokens.push_back(std::get<Token>(token));
 				break;
 			}
+			case '|':
+			{
+				auto token = make_or();
+				if (token.index() == (int)LexerRes::ERROR) set_error(std::get<Error>(token));
+				else m_Tokens.push_back(std::get<Token>(token));
+				break;
+			}
 			case '-':
 				m_Tokens.push_back(Token(TokenType::SUB, { 0 }, pos));
 				break;
@@ -342,6 +349,20 @@ namespace Chronos
 		Position end = { m_Index, m_Line, m_Column };
 
 		return Token(TokenType::KW_AND, 0, start, end);
+	}
+
+	LexerResult Lexer::make_or()
+	{
+		Position start = { m_Index, m_Line, m_Column };
+
+		std::optional<Error> e;
+		if (e = expect_char('|')) return e.value();
+		advance();
+		if (e = expect_char('|')) return e.value();
+
+		Position end = { m_Index, m_Line, m_Column };
+
+		return Token(TokenType::KW_OR, 0, start, end);
 	}
 
 	void Lexer::print_tokens()

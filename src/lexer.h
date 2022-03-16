@@ -94,6 +94,7 @@ namespace Chronos
 			Token make_number();
 			Token make_identifier();
 			LexerResult make_and();
+			LexerResult make_or();
 
 		public:
 

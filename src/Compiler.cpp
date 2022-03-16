@@ -22,22 +22,22 @@ namespace Chronos
 		case Reg::EBP: return "EBP";
 		case Reg::ESI: return "ESI";
 		case Reg::EDI: return "EDI";
-		case Reg::AX : return  "AX";
-		case Reg::CX : return  "CX";
-		case Reg::DX : return  "DX";
-		case Reg::BX : return  "BX";
-		case Reg::SP : return  "SP";
-		case Reg::BP : return  "BP";
-		case Reg::SI : return  "SI";
-		case Reg::DI : return  "DI";
-		case Reg::AH : return  "AH";
-		case Reg::AL : return  "AL";
-		case Reg::CH : return  "CH";
-		case Reg::CL : return  "CL";
-		case Reg::DH : return  "DH";
-		case Reg::DL : return  "DL";
-		case Reg::BH : return  "BH";
-		case Reg::BL : return  "BL";
+		case Reg::AX: return  "AX";
+		case Reg::CX: return  "CX";
+		case Reg::DX: return  "DX";
+		case Reg::BX: return  "BX";
+		case Reg::SP: return  "SP";
+		case Reg::BP: return  "BP";
+		case Reg::SI: return  "SI";
+		case Reg::DI: return  "DI";
+		case Reg::AH: return  "AH";
+		case Reg::AL: return  "AL";
+		case Reg::CH: return  "CH";
+		case Reg::CL: return  "CL";
+		case Reg::DH: return  "DH";
+		case Reg::DL: return  "DL";
+		case Reg::BH: return  "BH";
+		case Reg::BL: return  "BL";
 
 		case Reg::ST1: return "ST1";
 		case Reg::ST0: return "ST0";
@@ -68,36 +68,45 @@ namespace Chronos
 	{
 		switch (type)
 		{
-			case INT: return "INT";
-			case AND: return "AND";
-			case MOV: return "MOV";
-			case NOP: return "NOP";
-			case PUSH: return "PUSH";
-			case POP: return "POP";
-			case CALL: return "CALL";
-			case ADD: return "ADD";
-			case FLD: return "FLD";
-			case FLID: return "FLID";
-			case FSTP: return "FSTP";
-			case FISTP: return "FISTP";
-			case FISTTP: return "FISTTP";
-			case FADD: return "FADD";
-			case FSUB: return "FSUB";
-			case FMUL: return "FMUL";
-			case FDIV: return "FDIV";
-			case MOVSS: return "MOVSS";
-			case ADDSS: return "ADDSS";
-			case SUBSS: return "SUBSS";
-			case MULSS: return "MULSS";
-			case DIVSS: return "DIVSS";
-			case CVTSI2SD: return "CVTSI2SD";
-			case CVTSI2SS: return "CVTSI2SS";
-			case CVTSS2SD: return "CVTSS2SD";
-			case SUB: return "SUB";
-			case MUL: return "MUL";
-			case DIV: return "DIV";
-			case GLOBAL: return "GLOBAL";
-			case EXTERN: return "EXTERN";
+		case INT: return "INT";
+		case AND: return "AND";
+		case MOV: return "MOV";
+		case NOP: return "NOP";
+		case PUSH: return "PUSH";
+		case POP: return "POP";
+		case CALL: return "CALL";
+		case ADD: return "ADD";
+		case FLD: return "FLD";
+		case FLID: return "FLID";
+		case FSTP: return "FSTP";
+		case FISTP: return "FISTP";
+		case FISTTP: return "FISTTP";
+		case FADD: return "FADD";
+		case FSUB: return "FSUB";
+		case FMUL: return "FMUL";
+		case FDIV: return "FDIV";
+		case MOVSS: return "MOVSS";
+		case ADDSS: return "ADDSS";
+		case SUBSS: return "SUBSS";
+		case MULSS: return "MULSS";
+		case DIVSS: return "DIVSS";
+		case CVTSI2SD: return "CVTSI2SD";
+		case CVTSI2SS: return "CVTSI2SS";
+		case CVTSS2SD: return "CVTSS2SD";
+		case SUB: return "SUB";
+		case MUL: return "MUL";
+		case DIV: return "DIV";
+		case CMP: return "CMP";
+		case JE: return "JE";
+		case JNE: return "JNE";
+		case JP: return "JP";
+		case UCOMISS: return "UCOMISS";
+		case PXOR: return "PXOR";
+		case TEST: return "TEST";
+		case JZ: return "JZ";
+		case JMP: return "JMP";
+		case GLOBAL: return "GLOBAL";
+		case EXTERN: return "EXTERN";
 		}
 
 		ASSERT(false, "case for int_type not implemented!");
@@ -189,6 +198,11 @@ namespace Chronos
 		return s;
 	}
 
+	std::string to_string(SubLabel l)
+	{
+		return std::string(".L") + std::to_string(l.count);
+	}
+
 	std::string to_string(const MemAdress& adr)
 	{
 		switch (adr.index())
@@ -197,6 +211,8 @@ namespace Chronos
 			return std::get<const char*>(adr);
 		case REGISTER:
 			return to_string(std::get<Reg>(adr));
+		case SUB_LABEL_ADR:
+			return to_string(std::get<SubLabel>(adr));
 		default:
 			ASSERT(false, "undefined address");
 			return "";
@@ -238,6 +254,7 @@ namespace Chronos
 
 	std::string to_string(const Instruction& inst)
 	{
+		//int indx = inst.index()
 		switch (inst.index())
 		{
 		case BASIC_INST:
@@ -248,6 +265,9 @@ namespace Chronos
 			return to_string(std::get<DefineMem>(inst));
 		case SECTION:
 			return to_string(std::get<Section>(inst));
+		case SUB_LABEL:
+			return to_string(std::get<SubLabel>(inst)) + ":";
+			//return std::string(".L") + std::to_string(std::get<SubLabel>(inst).count) + ":";
 		}
 
 		ASSERT(false, "undefined Instruction");
@@ -298,6 +318,21 @@ namespace Chronos
 		m_Code.clear();
 	}
 
+	SubLabel Compiler::sub_label()
+	{
+		return SubLabel{ m_CurrentSubLabel };
+	}
+
+	SubLabel Compiler::sub_label(uint32_t offset)
+	{
+		return SubLabel{ m_CurrentSubLabel + offset };
+	}
+
+	void Compiler::offset_sub_label(uint32_t offset)
+	{
+		m_CurrentSubLabel += offset;
+	}
+
 	void Compiler::write(Instruction i)
 	{
 		if (m_Code.find(m_CurrentLabel) == m_Code.end())
@@ -312,32 +347,32 @@ namespace Chronos
 
 	void Compiler::write(InstType t, MemAccess a)
 	{
-		write(Instruction { BasicInst{ t, { a, false } } });
+		write(Instruction{ BasicInst{ t, { a, false } } });
 	}
 
 	void Compiler::write(InstType t, MemAccess a, MemAccess b)
 	{
-		write(Instruction { BasicInst{ t, { a, b } } });
+		write(Instruction{ BasicInst{ t, { a, b } } });
 	}
 
 	void Compiler::write(InstType t, MemAccess a, int b)
 	{
-		write(Instruction { BasicInst{ t, { a, b } } });
+		write(Instruction{ BasicInst{ t, { a, b } } });
 	}
 
 	void Compiler::write(InstType t, MemAccess a, float b)
 	{
-		write(Instruction { BasicInst{ t, { a, b } } });
+		write(Instruction{ BasicInst{ t, { a, b } } });
 	}
 
 	void Compiler::write(InstType t, int a)
 	{
-		write(Instruction { BasicInst{ t, { a, false } } });
+		write(Instruction{ BasicInst{ t, { a, false } } });
 	}
 
 	void Compiler::write(InstType t, float a)
 	{
-		write(Instruction { BasicInst{ t, { a, false } } });
+		write(Instruction{ BasicInst{ t, { a, false } } });
 	}
 
 	void Compiler::write_section(Section s)
@@ -347,12 +382,12 @@ namespace Chronos
 
 	void Compiler::write_mem_def(const char* var, DefineSize size, std::vector<std::variant<const char*, int>> bytes)
 	{
-		write(Instruction { DefineMem { var, size, std::move(bytes) } });
+		write(Instruction{ DefineMem { var, size, std::move(bytes) } });
 	}
 
 	void Compiler::write_mem_res(const char* var, ReserveSize size, int count)
 	{
-		write(Instruction { ReserveMem { var, size, count } });
+		write(Instruction{ ReserveMem { var, size, count } });
 	}
 
 	void Compiler::print_top()
@@ -383,13 +418,26 @@ namespace Chronos
 			write(PUSH, "hex_format");
 			write(CALL, "printf");
 		}
-		
+
 	}
-	
+
 	void Compiler::set_stack_mem()
 	{
 		BasicInst binst = { SUB, {Reg::ESP, m_BPOffset} };
-		m_Code.at(m_CurrentLabel).insert(m_Code.at(m_CurrentLabel).begin() + m_StackMemAllocAdr,  binst);
+		m_Code.at(m_CurrentLabel).insert(m_Code.at(m_CurrentLabel).begin() + m_StackMemAllocAdr, binst);
+	}
+
+	void Compiler::zero_cmp_float()
+	{
+		write(PXOR, Reg::XMM0, Reg::XMM0);
+		write(ADD, Reg::ESP, 4);
+		write(UCOMISS, Reg::XMM0, { Reg::ESP, -4, DWORD });
+	}
+
+	void Compiler::zero_cmp_int()
+	{
+		write(POP, Reg::ECX);
+		write(TEST, Reg::ECX, Reg::ECX);
 	}
 
 	ValueType Compiler::eval_num(Token& t)
@@ -397,12 +445,7 @@ namespace Chronos
 		switch (t.type)
 		{
 		case TokenType::INT:
-			//write(MOV, Reg::EAX, std::get<int>(t.value));
 			write(PUSH, std::get<int>(t.value));
-			//write(PUSH, std::get<int>(t.value));
-			//write(PUSH, { "heap_ptr", 0, DWORD });
-			//write(CALL, "heap_alloc_int");
-			//write(ADD, Reg::ESP, 8);
 			return ValueType::INT;
 
 		case TokenType::FLOAT:
@@ -418,8 +461,6 @@ namespace Chronos
 
 	void Compiler::int_int_binop(TokenType type)
 	{
-		write(POP, Reg::ECX);
-		write(POP, Reg::EAX);
 
 		switch (type)
 		{
@@ -447,24 +488,20 @@ namespace Chronos
 
 	void Compiler::float_float_binop(TokenType type)
 	{
-		write(MOVSS, Reg::XMM1, { Reg::ESP, 0, DWORD });
-		write(MOVSS, Reg::XMM0, { Reg::ESP, 4, DWORD });
-		write(ADD, Reg::ESP, 8);
-
 		InstType inst_type = NO_INST;
 
 		switch (type)
 		{
-		case TokenType::ADD: 
+		case TokenType::ADD:
 			inst_type = ADDSS;
 			break;
-		case TokenType::SUB: 
+		case TokenType::SUB:
 			inst_type = SUBSS;
 			break;
-		case TokenType::MUL: 
+		case TokenType::MUL:
 			inst_type = MULSS;
 			break;
-		case TokenType::DIV: 
+		case TokenType::DIV:
 			inst_type = DIVSS;
 			break;
 		}
@@ -487,24 +524,32 @@ namespace Chronos
 
 		if (ltype == ValueType::FLOAT && rtype == ValueType::INT)
 		{
-			write(CVTSI2SS, Reg::XMM0, { Reg::ESP, 0, DWORD });
-			write(MOVSS, { Reg::ESP, 0, DWORD }, Reg::XMM0);
-			rtype = ValueType::FLOAT;
+			write(MOVSS, Reg::XMM0, { Reg::ESP, 4, DWORD });
+			write(CVTSI2SS, Reg::XMM1, { Reg::ESP, 0, DWORD });
+			write(ADD, Reg::ESP, 8);
+			float_float_binop(std::get<BinOp>(node->value).type);
+			return ValueType::FLOAT;
 		}
 		else if (ltype == ValueType::INT && rtype == ValueType::FLOAT)
 		{
 			write(CVTSI2SS, Reg::XMM0, { Reg::ESP, 4, DWORD });
-			write(MOVSS, { Reg::ESP, 4, DWORD }, Reg::XMM0);
-			ltype = ValueType::FLOAT;
+			write(MOVSS, Reg::XMM1, { Reg::ESP, 0, DWORD });
+			write(ADD, Reg::ESP, 8);
+			float_float_binop(std::get<BinOp>(node->value).type);
+			return ValueType::FLOAT;
 		}
-
-		if (ltype == ValueType::INT && rtype == ValueType::INT)
+		else if (ltype == ValueType::INT && rtype == ValueType::INT)
 		{
+			write(POP, Reg::ECX);
+			write(POP, Reg::EAX);
 			int_int_binop(std::get<BinOp>(node->value).type);
 			return ValueType::INT;
 		}
 		else if (ltype == ValueType::FLOAT && rtype == ValueType::FLOAT)
 		{
+			write(MOVSS, Reg::XMM0, { Reg::ESP, 4, DWORD });
+			write(MOVSS, Reg::XMM1, { Reg::ESP, 0, DWORD });
+			write(ADD, Reg::ESP, 8);
 			float_float_binop(std::get<BinOp>(node->value).type);
 			return ValueType::FLOAT;
 		}
@@ -512,7 +557,7 @@ namespace Chronos
 		return ValueType::POINTER;
 	}
 
-	ValueType Compiler::eval_logic_binop(Node* node)
+	ValueType Compiler::eval_AND_binop(Node* node)
 	{
 		ASSERT(node->type == NodeType::BINOP, "expected binop type");
 
@@ -520,12 +565,95 @@ namespace Chronos
 		Node* left = std::get<BinOp>(node->value).left;
 
 		ValueType ltype = eval_expr(left);
-		ValueType rtype = eval_expr(right);
 
 		if (ltype == ValueType::INT)
 		{
-
+			zero_cmp_int();
+			write(JE, sub_label(0));
 		}
+		else if (ltype == ValueType::FLOAT)
+		{
+			zero_cmp_float();
+			write(JE, sub_label(0));
+		}
+
+		ValueType rtype = eval_expr(right);
+		if (rtype == ValueType::INT)
+		{
+			zero_cmp_int();
+			write(JE, sub_label(0));
+		}
+		else if (rtype == ValueType::FLOAT)
+		{
+			zero_cmp_float();
+			write(JE, sub_label(0));
+		}
+
+		write(MOV, Reg::EAX, 1);
+		write(JMP, sub_label(1));
+
+		write(sub_label(0));
+		write(MOV, Reg::EAX, 0);
+		write(sub_label(1));
+		write(PUSH, Reg::EAX);
+
+		offset_sub_label(2);
+
+		return ValueType::INT;
+	}
+
+	ValueType Compiler::eval_OR_binop(Node* node)
+	{
+		ASSERT(node->type == NodeType::BINOP, "expected binop type");
+
+		Node* right = std::get<BinOp>(node->value).right;
+		Node* left = std::get<BinOp>(node->value).left;
+
+		ValueType ltype = eval_expr(left);
+
+		if (ltype == ValueType::INT)
+		{
+			zero_cmp_int();
+			write(JNE, sub_label(0));
+		}
+		else if (ltype == ValueType::FLOAT)
+		{
+			zero_cmp_float();
+			write(JNE, sub_label(0));
+		}
+
+		ValueType rtype = eval_expr(right);
+		if (rtype == ValueType::INT)
+		{
+			zero_cmp_int();
+			write(JE, sub_label(1));
+		}
+		else if (rtype == ValueType::FLOAT)
+		{
+			zero_cmp_float();
+			write(JE, sub_label(1));
+		}
+
+		write(sub_label(0));
+		write(MOV, Reg::EAX, 1);
+		write(JMP, sub_label(2));
+
+		write(sub_label(1));
+		write(MOV, Reg::EAX, 0);
+
+		write(sub_label(2));
+		write(PUSH, Reg::EAX);
+		//write(MOV, Reg::EAX, 1);
+		//write(JMP, sub_label(1));
+
+		//write(sub_label(0));
+		//write(MOV, Reg::EAX, 0);
+		//write(sub_label(1));
+		//write(PUSH, Reg::EAX);
+
+		offset_sub_label(3);
+
+		return ValueType::INT;
 	}
 
 	ValueType Compiler::eval_binop(Node* node)
@@ -542,8 +670,9 @@ namespace Chronos
 			return eval_arith_binop(node);
 
 		case TokenType::KW_AND:
+			return eval_AND_binop(node);
 		case TokenType::KW_OR:
-			return eval_logic_binop(node);
+			return eval_OR_binop(node);
 
 		default:
 			ASSERT(false, "type of binop not supported");
@@ -555,24 +684,12 @@ namespace Chronos
 	{
 		ValueType type = eval_expr(op.expr);
 
-		//if (is_ptr(tmp))
-		//{
-		//	//Copy the value into eax
-		//	write(MOV, Reg::EAX, { Reg::EAX, HEADER_SIZE, DWORD });
-		//}
-
-		//write(PUSH, Reg::EAX);
-		//write(PUSH, { "heap_ptr", 0, DWORD });
-		//write(CALL, "heap_alloc_int");
-		//write(ADD, Reg::ESP, 8);
-
 		//TODO: check if already present and check type of present var
 		m_VarTable.insert({ op.var, StackVal { m_BPOffset, type } });
 		write(MOV, Reg::EAX, { Reg::ESP, 0, DWORD });
 		write(MOV, { Reg::EBP, -m_BPOffset, DWORD }, Reg::EAX);
 		m_BPOffset += 4;
 
-		//write(MOV, Reg::EAX, { Reg::EAX, 4, DWORD });
 		return type;
 	}
 
@@ -580,7 +697,6 @@ namespace Chronos
 	{
 		if (m_VarTable.find(var) != m_VarTable.end())
 		{
-			//write(MOV, Reg::EAX, { Reg::EBP, -m_VarTable.at(var).offset, DWORD });
 			write(PUSH, { Reg::EBP, -m_VarTable.at(var).offset, DWORD });
 			return m_VarTable.at(var).type;
 		}
@@ -594,7 +710,7 @@ namespace Chronos
 
 		switch (node->type)
 		{
-		case NodeType::NUM: 
+		case NodeType::NUM:
 			return eval_num(std::get<Token>(node->value));
 
 		case NodeType::BINOP:
@@ -628,9 +744,9 @@ namespace Chronos
 		write(EXTERN, "heap_alloc_int");
 
 		write_section(DATA);
-		write_mem_def("int_format", DB, {"\"%d\"", 10, 0});
-		write_mem_def("hex_format", DB, {"\"%#06x\"", 10, 0});
-		write_mem_def("double_format", DB, {"\"%f\"", 10, 0});
+		write_mem_def("int_format", DB, { "\"%d\"", 10, 0 });
+		write_mem_def("hex_format", DB, { "\"%#06x\"", 10, 0 });
+		write_mem_def("double_format", DB, { "\"%f\"", 10, 0 });
 
 		write_section(BSS);
 		write_mem_res("heap_ptr", RESB, PTR_SIZE);
@@ -645,7 +761,6 @@ namespace Chronos
 
 		write(CALL, "alloc_heap");
 		write(MOV, { "heap_ptr", 0, DWORD }, Reg::EAX);
-		write(PUSH, { "heap_ptr", 0, DWORD });
 
 		for (auto node : nodes)
 		{
