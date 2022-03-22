@@ -1,3 +1,5 @@
+#pragma once
+
 #include <fstream>
 #include <unordered_map>
 #include <string>
@@ -5,19 +7,13 @@
 
 #include "Parser.h"
 #include "Debug.h"
+#include "TypeChecker.h"
 
 #define HEADER_SIZE 4
 #define PTR_SIZE 4
 
 namespace Chronos
 {
-
-	enum class ValueType
-	{
-		INT,
-		FLOAT,
-		POINTER,
-	};
 
 	namespace x86ASM
 	{
@@ -40,12 +36,12 @@ namespace Chronos
 		{
 			PUSH = 0, MOV, POP, NOP,
 			CALL,
-			ADD, SUB, MUL,DIV,
+			ADD, SUB, MUL, DIV, NEG,
 			AND, OR, XOR,
 			CMP, TEST,
 			FLD, FLID, FSTP, FISTP, FISTTP,
 			FADD, FSUB, FMUL, FDIV,
-			MOVSS, ADDSS, SUBSS, MULSS, DIVSS, UCOMISS, PXOR,
+			MOVD, MOVSS, ADDSS, SUBSS, MULSS, DIVSS, UCOMISS, PXOR,
 			CVTSI2SD, CVTSI2SS, CVTSS2SD,
 			JE, JNE, JP, JZ, JMP,
 			INT,
@@ -180,8 +176,6 @@ namespace Chronos
 		int m_BPOffset = 4;
 		uint32_t m_CurrentSubLabel = 0;
 
-		uint32_t m_StackMemAllocAdr;
-
 		std::ofstream m_Output;
 
 		void set_label(x86ASM::Label l) { m_CurrentLabel = l; }
@@ -198,7 +192,6 @@ namespace Chronos
 		void write_section(x86ASM::Section s);
 		void write_mem_def(const char* var, x86ASM::DefineSize size, std::vector<std::variant<const char*, int>> bytes);
 		void write_mem_res(const char* var, x86ASM::ReserveSize size, int count);
-		void set_stack_mem();
 
 		void zero_cmp_float();
 		void zero_cmp_int();
@@ -207,20 +200,22 @@ namespace Chronos
 		void print_chint();
 		void print_value(ValueType type);
 
-		ValueType eval_num(Token& token);
+		void eval_num(Token& token);
 		void int_int_binop(TokenType type);
 		void float_float_binop(TokenType type);
-		ValueType eval_arith_binop(Node* node);
-		ValueType eval_AND_binop(Node* node);
-		ValueType eval_OR_binop(Node* node);
-		ValueType eval_binop(Node* node);
-		ValueType eval_assing(NodeValues::AssignOp& op);
-		ValueType eval_expr(Node* node);
-		ValueType eval_access(std::string var);
+		void eval_arith_binop(Node* node);
+		void eval_AND_binop(Node* node);
+		void eval_OR_binop(Node* node);
+		void eval_binop(Node* node);
+		void eval_SUB_unryop(Node* node);
+		void eval_unryop(Node* node);
+		void eval_assing(Node* node);
+		void eval_expr(Node* node);
+		void eval_access(std::string var);
 
 
 	public:
-		void compile(const char* name, std::vector<Node*> node);
+		void compile(const char* name, Node* node);
 		void close();
 
 		~Compiler()

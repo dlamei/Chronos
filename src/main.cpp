@@ -33,7 +33,8 @@ int main()
 	Chronos::Parser parser;
 	Chronos::Compiler compiler;
 
-	std::vector<Chronos::Node*> nodes;
+	Chronos::NodeValues::Root nodes;
+	Chronos::Node* root = new Chronos::Node({ Chronos::NodeType::ROOT,  nodes });
 
 	for (int i = 0; i < 3; i++)
 	{
@@ -58,7 +59,8 @@ int main()
 		{
 			Chronos::Node* node = std::get<Chronos::Node*>(res);
 			if (node) std::cout << "result: " << Chronos::to_string(*node) << "\n";
-			nodes.push_back(node);
+			std::get<Chronos::NodeValues::Root>(root->value).nodes.push_back(node);
+			//nodes.push_back(node);
 			//compiler.compile("Chronos", nodes);
 
 		}
@@ -68,8 +70,8 @@ int main()
 		fm.clear();
 	}
 
-	compiler.compile("Chronos", nodes);
+	compiler.compile("Chronos", root);
 
 	compiler.close();
-	for (auto node : nodes) Chronos::delete_nodes(node);
+	Chronos::delete_nodes(root);
 }

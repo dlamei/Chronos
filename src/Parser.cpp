@@ -33,6 +33,10 @@ namespace Chronos
 
 			switch (n->type)
 			{
+			case NodeType::ROOT:
+				for (Node* node : std::get<Root>(n->value).nodes) nodes.push(node);
+				break;
+
 			case NodeType::NUM:
 				break;
 
@@ -124,7 +128,7 @@ namespace Chronos
 	void Parser::retreat()
 	{
 		--m_TokenIndex;
-		if (m_TokenIndex > 0)
+		if (m_TokenIndex >= 0)
 		{
 			m_CurrentToken = &m_Tokens[m_TokenIndex];
 		}
@@ -181,6 +185,7 @@ namespace Chronos
 
 		switch (t.type)
 		{
+		case TokenType::NOT:
 		case TokenType::SUB:
 		{
 			advance();
@@ -189,7 +194,7 @@ namespace Chronos
 			if (fac.index() == (int) ParseRes::ERROR) return fac;
 			Node* fac_node = std::get<Node*>(fac);
 			Node* n = new Node({ NodeType::UNRYOP, 0, t.start_pos, fac_node->end_pos });
-			n->value = UnryOp { TokenType::SUB, fac_node };
+			n->value = UnryOp { t.type, fac_node };
 			return n;
 		}
 

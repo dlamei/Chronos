@@ -13,18 +13,34 @@ namespace Chronos
 
 	void delete_nodes(Node* nodes);
 
+	enum class ValueType
+	{
+		INT,
+		FLOAT,
+		POINTER,
+
+		NONE,
+	};
+
 
 	enum class NodeType
 	{
-		NUM,
+		NUM = 0,
 		BINOP,
 		UNRYOP,
 		ASSIGN,
 		ACCESS,
+
+		ROOT,
 	};
 
 	namespace NodeValues
 	{
+		struct Root
+		{
+			std::vector<Node*> nodes;
+		};
+
 		struct UnryOp
 		{
 			TokenType type;
@@ -52,7 +68,7 @@ namespace Chronos
 	};
 
 	using ParseResult = std::variant<Error, Node*>;
-	using NodeValue = std::variant<int, std::string, Token, NodeValues::UnryOp, NodeValues::AssignOp, NodeValues::BinOp, Node*>;
+	using NodeValue = std::variant<int, std::string, Token, NodeValues::UnryOp, NodeValues::AssignOp, NodeValues::BinOp, Node*, NodeValues::Root>;
 
 	struct Node
 	{
@@ -61,6 +77,8 @@ namespace Chronos
 
 		Position start_pos;
 		Position end_pos;
+
+		ValueType value_type = ValueType::NONE;
 	};
 
 	//using ParseResult = Result<Node*, Error>;

@@ -25,6 +25,7 @@ namespace Chronos
 		GREATER,
 		LESS_EQ,
 		GREATER_EQ,
+		NOT,
 		LROUND,
 		RROUND,
 		ASSIGN,

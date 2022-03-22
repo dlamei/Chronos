@@ -85,6 +85,7 @@ namespace Chronos
 		case FSUB: return "FSUB";
 		case FMUL: return "FMUL";
 		case FDIV: return "FDIV";
+		case MOVD: return "MOVD";
 		case MOVSS: return "MOVSS";
 		case ADDSS: return "ADDSS";
 		case SUBSS: return "SUBSS";
@@ -96,6 +97,7 @@ namespace Chronos
 		case SUB: return "SUB";
 		case MUL: return "MUL";
 		case DIV: return "DIV";
+		case NEG: return "NEG";
 		case CMP: return "CMP";
 		case JE: return "JE";
 		case JNE: return "JNE";
@@ -254,7 +256,6 @@ namespace Chronos
 
 	std::string to_string(const Instruction& inst)
 	{
-		//int indx = inst.index()
 		switch (inst.index())
 		{
 		case BASIC_INST:
@@ -267,7 +268,6 @@ namespace Chronos
 			return to_string(std::get<Section>(inst));
 		case SUB_LABEL:
 			return to_string(std::get<SubLabel>(inst)) + ":";
-			//return std::string(".L") + std::to_string(std::get<SubLabel>(inst).count) + ":";
 		}
 
 		ASSERT(false, "undefined Instruction");
@@ -421,12 +421,6 @@ namespace Chronos
 
 	}
 
-	void Compiler::set_stack_mem()
-	{
-		BasicInst binst = { SUB, {Reg::ESP, m_BPOffset} };
-		m_Code.at(m_CurrentLabel).insert(m_Code.at(m_CurrentLabel).begin() + m_StackMemAllocAdr, binst);
-	}
-
 	void Compiler::zero_cmp_float()
 	{
 		write(PXOR, Reg::XMM0, Reg::XMM0);
@@ -440,23 +434,22 @@ namespace Chronos
 		write(TEST, Reg::ECX, Reg::ECX);
 	}
 
-	ValueType Compiler::eval_num(Token& t)
+	void Compiler::eval_num(Token& t)
 	{
 		switch (t.type)
 		{
 		case TokenType::INT:
 			write(PUSH, std::get<int>(t.value));
-			return ValueType::INT;
+			break;
 
 		case TokenType::FLOAT:
 			write(PUSH, std::get<float>(t.value));
-			return ValueType::FLOAT;
+			break;
 
 		default:
 			ASSERT(false, "num node should not have this token" + to_string(t));
 		}
 
-		return ValueType::POINTER;
 	}
 
 	void Compiler::int_int_binop(TokenType type)
@@ -512,15 +505,18 @@ namespace Chronos
 		write(SUB, Reg::ESP, 4);
 	}
 
-	ValueType Compiler::eval_arith_binop(Node* node)
+	void Compiler::eval_arith_binop(Node* node)
 	{
 		ASSERT(node->type == NodeType::BINOP, "expected binop type");
 
 		Node* right = std::get<BinOp>(node->value).right;
 		Node* left = std::get<BinOp>(node->value).left;
 
-		ValueType ltype = eval_expr(left);
-		ValueType rtype = eval_expr(right);
+		eval_expr(left);
+		eval_expr(right);
+
+		ValueType ltype = left->value_type;
+		ValueType rtype = right->value_type;
 
 		if (ltype == ValueType::FLOAT && rtype == ValueType::INT)
 		{
@@ -528,7 +524,6 @@ namespace Chronos
 			write(CVTSI2SS, Reg::XMM1, { Reg::ESP, 0, DWORD });
 			write(ADD, Reg::ESP, 8);
 			float_float_binop(std::get<BinOp>(node->value).type);
-			return ValueType::FLOAT;
 		}
 		else if (ltype == ValueType::INT && rtype == ValueType::FLOAT)
 		{
@@ -536,14 +531,12 @@ namespace Chronos
 			write(MOVSS, Reg::XMM1, { Reg::ESP, 0, DWORD });
 			write(ADD, Reg::ESP, 8);
 			float_float_binop(std::get<BinOp>(node->value).type);
-			return ValueType::FLOAT;
 		}
 		else if (ltype == ValueType::INT && rtype == ValueType::INT)
 		{
 			write(POP, Reg::ECX);
 			write(POP, Reg::EAX);
 			int_int_binop(std::get<BinOp>(node->value).type);
-			return ValueType::INT;
 		}
 		else if (ltype == ValueType::FLOAT && rtype == ValueType::FLOAT)
 		{
@@ -551,20 +544,19 @@ namespace Chronos
 			write(MOVSS, Reg::XMM1, { Reg::ESP, 0, DWORD });
 			write(ADD, Reg::ESP, 8);
 			float_float_binop(std::get<BinOp>(node->value).type);
-			return ValueType::FLOAT;
 		}
 
-		return ValueType::POINTER;
 	}
 
-	ValueType Compiler::eval_AND_binop(Node* node)
+	void Compiler::eval_AND_binop(Node* node)
 	{
 		ASSERT(node->type == NodeType::BINOP, "expected binop type");
 
 		Node* right = std::get<BinOp>(node->value).right;
 		Node* left = std::get<BinOp>(node->value).left;
 
-		ValueType ltype = eval_expr(left);
+		eval_expr(left);
+		ValueType ltype = left->value_type;
 
 		if (ltype == ValueType::INT)
 		{
@@ -577,7 +569,9 @@ namespace Chronos
 			write(JE, sub_label(0));
 		}
 
-		ValueType rtype = eval_expr(right);
+		eval_expr(right);
+		ValueType rtype = right->value_type;
+
 		if (rtype == ValueType::INT)
 		{
 			zero_cmp_int();
@@ -599,17 +593,17 @@ namespace Chronos
 
 		offset_sub_label(2);
 
-		return ValueType::INT;
 	}
 
-	ValueType Compiler::eval_OR_binop(Node* node)
+	void Compiler::eval_OR_binop(Node* node)
 	{
 		ASSERT(node->type == NodeType::BINOP, "expected binop type");
 
 		Node* right = std::get<BinOp>(node->value).right;
 		Node* left = std::get<BinOp>(node->value).left;
 
-		ValueType ltype = eval_expr(left);
+		eval_expr(left);
+		ValueType ltype = left->value_type;
 
 		if (ltype == ValueType::INT)
 		{
@@ -622,7 +616,9 @@ namespace Chronos
 			write(JNE, sub_label(0));
 		}
 
-		ValueType rtype = eval_expr(right);
+		eval_expr(right);
+		ValueType rtype = right->value_type;
+
 		if (rtype == ValueType::INT)
 		{
 			zero_cmp_int();
@@ -643,20 +639,12 @@ namespace Chronos
 
 		write(sub_label(2));
 		write(PUSH, Reg::EAX);
-		//write(MOV, Reg::EAX, 1);
-		//write(JMP, sub_label(1));
-
-		//write(sub_label(0));
-		//write(MOV, Reg::EAX, 0);
-		//write(sub_label(1));
-		//write(PUSH, Reg::EAX);
 
 		offset_sub_label(3);
 
-		return ValueType::INT;
 	}
 
-	ValueType Compiler::eval_binop(Node* node)
+	void Compiler::eval_binop(Node* node)
 	{
 		ASSERT(node->type == NodeType::BINOP, "expected binop type");
 		BinOp& binop_val = std::get<BinOp>(node->value);
@@ -667,12 +655,14 @@ namespace Chronos
 		case TokenType::SUB:
 		case TokenType::MUL:
 		case TokenType::DIV:
-			return eval_arith_binop(node);
-
+			eval_arith_binop(node);
+			break;
 		case TokenType::KW_AND:
-			return eval_AND_binop(node);
+			eval_AND_binop(node);
+			break;
 		case TokenType::KW_OR:
-			return eval_OR_binop(node);
+			eval_OR_binop(node);
+			break;
 
 		default:
 			ASSERT(false, "type of binop not supported");
@@ -680,61 +670,121 @@ namespace Chronos
 		}
 	}
 
-	ValueType Compiler::eval_assing(NodeValues::AssignOp& op)
+	void Compiler::eval_SUB_unryop(Node* node)
 	{
-		ValueType type = eval_expr(op.expr);
+		ASSERT(node->type == NodeType::UNRYOP, "expected unryop type");
+		UnryOp& unryop_val = std::get<UnryOp>(node->value);
 
-		//TODO: check if already present and check type of present var
+		eval_expr(unryop_val.right);
+		ValueType type = node->value_type;
+
+		if (type == ValueType::INT)
+		{
+			write(POP, Reg::ECX);
+			write(NEG, Reg::ECX);
+			write(PUSH, Reg::ECX);
+		}
+		else if (type == ValueType::FLOAT)
+		{
+			write(MOVSS, Reg::XMM0, { Reg::ESP, 0, DWORD });
+			write(MOV, Reg::EAX, (int) 0x80000000);
+			write(MOVD, Reg::XMM1, Reg::EAX);
+			write(PXOR, Reg::XMM0, Reg::XMM1);
+			write(MOVSS, { Reg::ESP, 0, DWORD }, Reg::XMM0);
+		}
+
+
+		ASSERT(false, "unryop SUB not defined for this type");
+	}
+
+	void Compiler::eval_unryop(Node* node)
+	{
+		ASSERT(node->type == NodeType::UNRYOP, "expected unryop type");
+		UnryOp& unryop_val = std::get<UnryOp>(node->value);
+
+		switch (unryop_val.type)
+		{
+		case TokenType::SUB:
+			eval_SUB_unryop(node);
+			break;
+
+		default:
+			ASSERT(false, "type of unryop not supported");
+			exit(-1);
+		}
+
+	}
+
+	void Compiler::eval_assing(Node* node)
+	{
+		ASSERT(node->type == NodeType::ASSIGN, "expected unryop type");
+		AssignOp& op = std::get<AssignOp>(node->value);
+
+		eval_expr(op.expr);
+		ValueType type = node->value_type;
+
 		m_VarTable.insert({ op.var, StackVal { m_BPOffset, type } });
 		write(MOV, Reg::EAX, { Reg::ESP, 0, DWORD });
 		write(MOV, { Reg::EBP, -m_BPOffset, DWORD }, Reg::EAX);
 		m_BPOffset += 4;
 
-		return type;
 	}
 
-	ValueType Compiler::eval_access(std::string var)
+	void Compiler::eval_access(std::string var)
 	{
 		if (m_VarTable.find(var) != m_VarTable.end())
 		{
 			write(PUSH, { Reg::EBP, -m_VarTable.at(var).offset, DWORD });
-			return m_VarTable.at(var).type;
 		}
 
-		return ValueType::POINTER;
 	}
 
-	ValueType Compiler::eval_expr(Node* node)
+	void Compiler::eval_expr(Node* node)
 	{
-		if (!node) return ValueType::POINTER;
+		if (!node) return;
 
 		switch (node->type)
 		{
+		case NodeType::ROOT:
+			for (Node* n : std::get<Root>(node->value).nodes)
+			{
+				eval_expr(n);
+				print_value(n->value_type);
+			}
+			break;
+
 		case NodeType::NUM:
-			return eval_num(std::get<Token>(node->value));
-
+			eval_num(std::get<Token>(node->value));
+			break;
 		case NodeType::BINOP:
-			return eval_binop(node);
-
+			eval_binop(node);
+			break;
+		case NodeType::UNRYOP:
+			eval_unryop(node);
+			break;
 		case NodeType::ASSIGN:
-			return eval_assing(std::get<NodeValues::AssignOp>(node->value));
-
+			eval_assing(node);
+			break;
 		case NodeType::ACCESS:
-			return eval_access(std::get<std::string>(node->value));
+			eval_access(std::get<std::string>(node->value));
+			break;
 
 		default:
 			ASSERT(false, "not implemented yet");
-			return ValueType::POINTER;
+			break;
 		}
 	}
 
-	void Compiler::compile(const char* name, std::vector<Node*> nodes)
+	void Compiler::compile(const char* name, Node* root)
 	{
 		m_Name = name;
 
 		std::string file_name = name;
 		file_name += ".asm";
 		m_Output = std::ofstream(file_name.c_str());
+
+		TypeChecker checker;
+		checker.check_type(root);
 
 		set_label("");
 		write(GLOBAL, "main");
@@ -757,24 +807,18 @@ namespace Chronos
 		write(AND, Reg::ESP, -8);
 		write(PUSH, Reg::EBP);
 		write(MOV, Reg::EBP, Reg::ESP);
-		m_StackMemAllocAdr = m_Code.at(m_CurrentLabel).size();
+		write(SUB, Reg::ESP, (int) checker.get_alloc_size());
 
 		write(CALL, "alloc_heap");
 		write(MOV, { "heap_ptr", 0, DWORD }, Reg::EAX);
 
-		for (auto node : nodes)
-		{
-			ValueType val = eval_expr(node);
-			print_value(val);
-		}
+		eval_expr(root);
 
 		write(MOV, Reg::ESP, Reg::EBP);
 		write(POP, Reg::EBP);
 		write(MOV, Reg::EAX, 1);
 		write(MOV, Reg::EBX, 1);
 		write(INT, 0x80);
-
-		set_stack_mem();
 
 	}
 }

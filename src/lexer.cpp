@@ -77,6 +77,7 @@ namespace Chronos
 		case TokenType::GREATER: return "GREATER";
 		case TokenType::LESS_EQ: return "LESS_EQ";
 		case TokenType::GREATER_EQ: return "GREATER_EQ";
+		case TokenType::NOT: return "NOT";
 		case TokenType::LROUND: return "LROUND";
 		case TokenType::RROUND: return "RROUND";
 		case TokenType::ASSIGN: return "ASSIGN";
@@ -224,6 +225,9 @@ namespace Chronos
 			case '-':
 				m_Tokens.push_back(Token(TokenType::SUB, { 0 }, pos));
 				break;
+			case '!':
+				m_Tokens.push_back(Token(TokenType::NOT, { 0 }, pos));
+				break;
 			case '*':
 				m_Tokens.push_back(Token(TokenType::MUL, { 0 }, pos));
 				break;
@@ -316,7 +320,7 @@ namespace Chronos
 		std::string id = "";
 		Position start = { m_Index, m_Line, m_Column };
 
-		std::string allowed = LETTERS + "&|";
+		std::string allowed = LETTERS;
 
 		while (m_CharPtr && (allowed.find(*m_CharPtr) != std::string::npos))
 		{
