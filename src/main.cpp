@@ -36,7 +36,7 @@ int main()
 	Chronos::NodeValues::Root nodes;
 	Chronos::Node* root = new Chronos::Node({ Chronos::NodeType::ROOT,  nodes });
 
-	for (int i = 0; i < 3; i++)
+	for (int i = 0; i < 1; i++)
 	{
 		printf("chronos > ");
 		std::getline(std::cin, buffer);

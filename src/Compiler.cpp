@@ -14,37 +14,9 @@ namespace Chronos
 	{
 		switch (reg)
 		{
-		case Reg::EAX: return "EAX";
-		case Reg::ECX: return "ECX";
-		case Reg::EDX: return "EDX";
-		case Reg::EBX: return "EBX";
-		case Reg::ESP: return "ESP";
-		case Reg::EBP: return "EBP";
-		case Reg::ESI: return "ESI";
-		case Reg::EDI: return "EDI";
-		case Reg::AX: return  "AX";
-		case Reg::CX: return  "CX";
-		case Reg::DX: return  "DX";
-		case Reg::BX: return  "BX";
-		case Reg::SP: return  "SP";
-		case Reg::BP: return  "BP";
-		case Reg::SI: return  "SI";
-		case Reg::DI: return  "DI";
-		case Reg::AH: return  "AH";
-		case Reg::AL: return  "AL";
-		case Reg::CH: return  "CH";
-		case Reg::CL: return  "CL";
-		case Reg::DH: return  "DH";
-		case Reg::DL: return  "DL";
-		case Reg::BH: return  "BH";
-		case Reg::BL: return  "BL";
-
-		case Reg::ST1: return "ST1";
-		case Reg::ST0: return "ST0";
-		case Reg::XMM0: return "XMM0";
-		case Reg::XMM1: return "XMM1";
-		case Reg::XMM2: return "XMM2";
-		case Reg::XMM3: return "XMM3";
+		#define INST_TYPE(a)
+		#define REGISTER(a) case Reg::a: return #a;
+		#include "x86ASM.h"
 		}
 
 		ASSERT(false, "to_string for register not defined");
@@ -68,47 +40,9 @@ namespace Chronos
 	{
 		switch (type)
 		{
-		case INT: return "INT";
-		case AND: return "AND";
-		case MOV: return "MOV";
-		case NOP: return "NOP";
-		case PUSH: return "PUSH";
-		case POP: return "POP";
-		case CALL: return "CALL";
-		case ADD: return "ADD";
-		case FLD: return "FLD";
-		case FLID: return "FLID";
-		case FSTP: return "FSTP";
-		case FISTP: return "FISTP";
-		case FISTTP: return "FISTTP";
-		case FADD: return "FADD";
-		case FSUB: return "FSUB";
-		case FMUL: return "FMUL";
-		case FDIV: return "FDIV";
-		case MOVD: return "MOVD";
-		case MOVSS: return "MOVSS";
-		case ADDSS: return "ADDSS";
-		case SUBSS: return "SUBSS";
-		case MULSS: return "MULSS";
-		case DIVSS: return "DIVSS";
-		case CVTSI2SD: return "CVTSI2SD";
-		case CVTSI2SS: return "CVTSI2SS";
-		case CVTSS2SD: return "CVTSS2SD";
-		case SUB: return "SUB";
-		case MUL: return "MUL";
-		case DIV: return "DIV";
-		case NEG: return "NEG";
-		case CMP: return "CMP";
-		case JE: return "JE";
-		case JNE: return "JNE";
-		case JP: return "JP";
-		case UCOMISS: return "UCOMISS";
-		case PXOR: return "PXOR";
-		case TEST: return "TEST";
-		case JZ: return "JZ";
-		case JMP: return "JMP";
-		case GLOBAL: return "GLOBAL";
-		case EXTERN: return "EXTERN";
+		#define INST_TYPE(a) case a: return #a;
+		#define REGISTER(a)
+		#include "x86ASM.h"
 		}
 
 		ASSERT(false, "case for int_type not implemented!");
@@ -550,10 +484,11 @@ namespace Chronos
 
 	void Compiler::eval_AND_binop(Node* node)
 	{
-		ASSERT(node->type == NodeType::BINOP, "expected binop type");
+		BinOp& binop_val = std::get<BinOp>(node->value);
+		ASSERT(binop_val.type == TokenType::KW_AND, "expected binop type");
 
-		Node* right = std::get<BinOp>(node->value).right;
-		Node* left = std::get<BinOp>(node->value).left;
+		Node* right = binop_val.right;
+		Node* left = binop_val.left;
 
 		eval_expr(left);
 		ValueType ltype = left->value_type;
@@ -597,7 +532,8 @@ namespace Chronos
 
 	void Compiler::eval_OR_binop(Node* node)
 	{
-		ASSERT(node->type == NodeType::BINOP, "expected binop type");
+		BinOp& binop_val = std::get<BinOp>(node->value);
+		ASSERT(binop_val.type == TokenType::KW_OR, "expected binop type");
 
 		Node* right = std::get<BinOp>(node->value).right;
 		Node* left = std::get<BinOp>(node->value).left;
@@ -644,6 +580,80 @@ namespace Chronos
 
 	}
 
+	void float_float_CMP(TokenType type)
+	{
+
+	}
+
+	void Compiler::eval_CMP_binop(Node* node)
+	{
+		BinOp& binop_val = std::get<BinOp>(node->value);
+
+		Node* right = binop_val.right;
+		Node* left = binop_val.left;
+
+		eval_expr(left);
+		eval_expr(right);
+
+		ValueType ltype = left->value_type;
+		ValueType rtype = right->value_type;
+
+		if (ltype == ValueType::INT && rtype == ValueType::INT)
+		{
+			write(MOV, Reg::EAX, { Reg::ESP, 0, DWORD });
+			write(CMP, Reg::EAX, { Reg::ESP, 4, DWORD });
+		}
+		else if (ltype == ValueType::FLOAT && rtype == ValueType::INT)
+		{
+			write(MOVSS, Reg::XMM0, { Reg::ESP, 4, DWORD });
+			write(CVTSI2SS, Reg::XMM1, { Reg::ESP, 0, DWORD });
+			write(UCOMISS, Reg::XMM0, Reg::XMM1);
+		}
+		else if (ltype == ValueType::INT && rtype == ValueType::FLOAT)
+		{
+			write(CVTSI2SS, Reg::XMM0, { Reg::ESP, 4, DWORD });
+			write(MOVSS, Reg::XMM1, { Reg::ESP, 0, DWORD });
+			write(UCOMISS, Reg::XMM0, Reg::XMM1);
+		}
+		else if (ltype == ValueType::FLOAT && rtype == ValueType::FLOAT)
+		{
+			write(FLD, { Reg::ESP, 4, DWORD });
+			write(FLD, { Reg::ESP, 0, DWORD });
+			write(FCOMIP, Reg::ST0, Reg::ST1);
+			write(FSTP, Reg::ST0);
+			//write(MOVSS, Reg::XMM1, { Reg::ESP, 0, DWORD });
+			//write(MOVSS, Reg::XMM0, { Reg::ESP, 4, DWORD });
+			//write(UCOMISS, Reg::XMM0, Reg::XMM1);
+		}
+
+		switch (binop_val.type)
+		{
+		case TokenType::EQUAL:
+			write(SETE, Reg::AL);
+			break;
+		case TokenType::LESS:
+			write(SETL, Reg::AL);
+			break;
+		case TokenType::LESS_EQ:
+			write(SETLE, Reg::AL);
+			break;
+		case TokenType::GREATER:
+			write(SETG, Reg::AL);
+			break;
+		case TokenType::GREATER_EQ:
+			write(SETGE, Reg::AL);
+			break;
+		default:
+			ASSERT(false, "binop type not supported");
+			exit(-1);
+
+		}
+
+		write(MOVZX, Reg::EAX, Reg::AL);
+		write(ADD, Reg::ESP, 8);
+		write(PUSH, Reg::EAX);
+	}
+
 	void Compiler::eval_binop(Node* node)
 	{
 		ASSERT(node->type == NodeType::BINOP, "expected binop type");
@@ -662,6 +672,13 @@ namespace Chronos
 			break;
 		case TokenType::KW_OR:
 			eval_OR_binop(node);
+			break;
+		case TokenType::EQUAL:
+		case TokenType::LESS:
+		case TokenType::LESS_EQ:
+		case TokenType::GREATER:
+		case TokenType::GREATER_EQ:
+			eval_CMP_binop(node);
 			break;
 
 		default:
@@ -697,6 +714,30 @@ namespace Chronos
 		ASSERT(false, "unryop SUB not defined for this type");
 	}
 
+	void Compiler::eval_NOT_unryop(Node* node)
+	{
+		ASSERT(node->type == NodeType::UNRYOP, "expected unryop type");
+		UnryOp& unryop_val = std::get<UnryOp>(node->value);
+
+		eval_expr(unryop_val.right);
+		ValueType type = unryop_val.right->value_type;
+
+		if (type == ValueType::INT)
+		{
+			zero_cmp_int();
+			write(SETE, Reg::CL);
+			write(MOVZX, Reg::ECX, Reg::CL);
+			write(PUSH, Reg::ECX);
+		}
+		else if (type == ValueType::FLOAT)
+		{
+			zero_cmp_float();
+			write(SETE, Reg::CL);
+			write(MOVZX, Reg::ECX, Reg::CL);
+			write(PUSH, Reg::ECX);
+		}
+	}
+
 	void Compiler::eval_unryop(Node* node)
 	{
 		ASSERT(node->type == NodeType::UNRYOP, "expected unryop type");
@@ -706,6 +747,9 @@ namespace Chronos
 		{
 		case TokenType::SUB:
 			eval_SUB_unryop(node);
+			break;
+		case TokenType::NOT:
+			eval_NOT_unryop(node);
 			break;
 
 		default:

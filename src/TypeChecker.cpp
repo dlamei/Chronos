@@ -21,6 +21,9 @@ namespace Chronos
 
 	ValueType TypeChecker::check_type_logic_binop(BinOp& binop)
 	{
+		check_type(binop.left);
+		check_type(binop.right);
+
 		return ValueType::INT;
 	}
 
@@ -42,8 +45,12 @@ namespace Chronos
 		{
 		case TokenType::KW_AND:
 		case TokenType::KW_OR:
+		case TokenType::EQUAL:
+		case TokenType::LESS:
+		case TokenType::LESS_EQ:
+		case TokenType::GREATER:
+		case TokenType::GREATER_EQ:
 			return check_type_logic_binop(binop);
-
 		case TokenType::ADD:
 		case TokenType::SUB:
 		case TokenType::MUL:
@@ -86,11 +93,15 @@ namespace Chronos
 
 	ValueType TypeChecker::check_type_unryop(UnryOp& op)
 	{
+		check_type(op.right);
+		if (op.type == TokenType::NOT) return ValueType::INT;
 		return check_type(op.right);
 	}
 
 	ValueType TypeChecker::check_type(Node* node)
 	{
+		if (!node) return ValueType::NONE;
+
 		switch (node->type)
 		{
 		case NodeType::ROOT:

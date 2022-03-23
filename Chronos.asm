@@ -14,24 +14,24 @@ main:
 AND ESP, 0xfffffff8
 PUSH EBP
 MOV EBP, ESP
-SUB ESP, 0xc
+SUB ESP, 0x0
 CALL alloc_heap
 MOV DWORD [heap_ptr], EAX
-PUSH 0x2
-MOV EAX, DWORD [ESP]
-MOV DWORD [EBP-4], EAX
+
+PUSH __float32__(1.3)
+PUSH __float32__(1.4)
+
+fld dword [esp+4]
+fld dword [esp]
+fcomip st0, st1
+;fstp st0
+setge al
+movzx eax, al
+push eax
+
 PUSH int_format
 CALL printf
-PUSH 0x3
-MOV EAX, DWORD [ESP]
-MOV DWORD [EBP-8], EAX
-PUSH int_format
-CALL printf
-PUSH 0x4
-MOV EAX, DWORD [ESP]
-MOV DWORD [EBP-12], EAX
-PUSH int_format
-CALL printf
+
 MOV ESP, EBP
 POP EBP
 MOV EAX, 0x1

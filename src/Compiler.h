@@ -34,29 +34,16 @@ namespace Chronos
 
 		enum InstType : uint16_t
 		{
-			PUSH = 0, MOV, POP, NOP,
-			CALL,
-			ADD, SUB, MUL, DIV, NEG,
-			AND, OR, XOR,
-			CMP, TEST,
-			FLD, FLID, FSTP, FISTP, FISTTP,
-			FADD, FSUB, FMUL, FDIV,
-			MOVD, MOVSS, ADDSS, SUBSS, MULSS, DIVSS, UCOMISS, PXOR,
-			CVTSI2SD, CVTSI2SS, CVTSS2SD,
-			JE, JNE, JP, JZ, JMP,
-			INT,
-			GLOBAL, EXTERN,
-			NO_INST,
+			#define INST_TYPE(a) a,
+			#define REGISTER(a)
+			#include "x86ASM.h"
 		};
 
 		enum class Reg : uint8_t
 		{
-			EAX = 0, ECX, EDX, EBX, ESP, EBP, ESI, EDI,
-			AX, CX, DX, BX, SP, BP, SI, DI,
-			AH, AL, CH, CL, DH, DL, BH, BL,
-			ST1, ST0,
-			XMM0, XMM1, XMM2, XMM3,
-			NO_REG,
+			#define INST_TYPE(a)
+			#define REGISTER(a) a,
+			#include "x86ASM.h"
 		};
 
 		enum DerefSize : uint8_t
@@ -206,8 +193,11 @@ namespace Chronos
 		void eval_arith_binop(Node* node);
 		void eval_AND_binop(Node* node);
 		void eval_OR_binop(Node* node);
+		void float_float_CMP(TokenType type);
+		void eval_CMP_binop(Node* node);
 		void eval_binop(Node* node);
 		void eval_SUB_unryop(Node* node);
+		void eval_NOT_unryop(Node* node);
 		void eval_unryop(Node* node);
 		void eval_assing(Node* node);
 		void eval_expr(Node* node);

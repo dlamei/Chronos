@@ -14,28 +14,36 @@ namespace Chronos
 
 	enum class TokenType
 	{
+		#define TOKEN_TYPE(a) a,
+		#include "Token.h"
+		/*
 		INT = 0,
 		FLOAT,
 		ADD,
 		SUB,
 		MUL,
 		DIV,
+		NOT,
+		LROUND,
+		RROUND,
+		LCURLY,
+		RCURLY,
+		ASSIGN,
+		SEMICLN,
+		ID,
+		IF,
+		ELSE,
+
+		KW_AND,
+		KW_OR,
 		EQUAL,
 		LESS,
 		GREATER,
 		LESS_EQ,
 		GREATER_EQ,
-		NOT,
-		LROUND,
-		RROUND,
-		ASSIGN,
-		SEMICLN,
-		ID,
-
-		KW_AND,
-		KW_OR,
 
 		NONE,
+		*/
 	};
 
 	using TokenValue = std::variant<int, float, std::string>;
@@ -88,12 +96,16 @@ namespace Chronos
 
 
 			void advance();
+			Position get_current_pos();
 
 			void set_error(Error e);
 
 			std::optional<Error> expect_char(const char c);
 			Token make_number();
 			Token make_identifier();
+			Token make_equal();
+			Token make_less();
+			Token make_greater();
 			LexerResult make_and();
 			LexerResult make_or();
 

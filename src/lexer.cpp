@@ -66,26 +66,8 @@ namespace Chronos
 	{
 		switch (t)
 		{
-		case TokenType::INT: return "INT";
-		case TokenType::FLOAT: return "FLOAT";
-		case TokenType::ADD: return "ADD";
-		case TokenType::SUB: return "SUB";
-		case TokenType::MUL: return "MUL";
-		case TokenType::DIV: return "DIV";
-		case TokenType::EQUAL: return "EQUAL";
-		case TokenType::LESS: return "LESS";
-		case TokenType::GREATER: return "GREATER";
-		case TokenType::LESS_EQ: return "LESS_EQ";
-		case TokenType::GREATER_EQ: return "GREATER_EQ";
-		case TokenType::NOT: return "NOT";
-		case TokenType::LROUND: return "LROUND";
-		case TokenType::RROUND: return "RROUND";
-		case TokenType::ASSIGN: return "ASSIGN";
-		case TokenType::SEMICLN: return "SEMICLN";
-		case TokenType::ID: return "ID";
-
-		case TokenType::KW_AND: return "KW_AND";
-		case TokenType::KW_OR: return "KW_OR";
+			#define TOKEN_TYPE(a) case TokenType::a: return #a;
+			#include "Token.h"
 		default:
 			ASSERT(false, "to_string not defined for tokentype");
 			exit(-1);
@@ -162,6 +144,11 @@ namespace Chronos
 		}
 	}
 
+	Position Lexer::get_current_pos()
+	{
+		return Position({ m_Index, m_Line, m_Column });
+	}
+
 	void Lexer::set_error(Error e)
 	{
 		m_HasError = true;
@@ -201,7 +188,7 @@ namespace Chronos
 				continue;
 			}
 
-			Position pos = { m_Index, m_Line, m_Column };
+			Position pos = get_current_pos();
 
 			switch (c)
 			{
@@ -241,14 +228,19 @@ namespace Chronos
 				m_Tokens.push_back(Token(TokenType::RROUND, { 0 }, pos));
 				break;
 			case '=':
-				m_Tokens.push_back(Token(TokenType::ASSIGN, { 0 }, pos));
+				m_Tokens.push_back(make_equal());
 				break;
-
+			case '<':
+				m_Tokens.push_back(make_less());
+				break;
+			case '>':
+				m_Tokens.push_back(make_greater());
+				break;
 
 			default:
 				m_HasError = true;
 				advance();
-				Position current_pos = { m_Index, m_Line, m_Column };
+				Position current_pos = get_current_pos();
 				std::string details = "found char: ";
 				details.push_back(c);
 				m_Error = { ErrorType::ILLEGAL_CHAR, details, pos, current_pos};
@@ -263,7 +255,7 @@ namespace Chronos
 	{
 		if (*m_CharPtr != c)
 		{
-			Position start = { m_Index, m_Line, m_Column };
+			Position start = get_current_pos();
 
 			std::string details = "expected '";
 			details.push_back(c);
@@ -271,7 +263,7 @@ namespace Chronos
 			details.push_back(*m_CharPtr);
 			advance();
 
-			Position end = { m_Index, m_Line, m_Column };
+			Position end = get_current_pos();
 			return Error{ ErrorType::ILLEGAL_CHAR, details, start, end };
 		}
 
@@ -281,7 +273,7 @@ namespace Chronos
 	Token Lexer::make_number()
 	{
 		std::string num;
-		Position start = { m_Index, m_Line, m_Column };
+		Position start = get_current_pos();
 		bool has_dot = false;
 
 		while (m_CharPtr && (is_digit(*m_CharPtr) || *m_CharPtr == '.'))
@@ -299,7 +291,7 @@ namespace Chronos
 			advance();
 		}
 
-		Position end = { m_Index, m_Line, m_Column };
+		Position end = get_current_pos();
 
 		if (has_dot)
 		{
@@ -318,7 +310,7 @@ namespace Chronos
 	Token Lexer::make_identifier()
 	{
 		std::string id = "";
-		Position start = { m_Index, m_Line, m_Column };
+		Position start = get_current_pos();
 
 		std::string allowed = LETTERS;
 
@@ -329,7 +321,7 @@ namespace Chronos
 		}
 
 		TokenType type = get_tokentype(id.c_str());
-		Position end = { m_Index, m_Line, m_Column };
+		Position end = get_current_pos();
 
 		if (type != TokenType::NONE)
 		{
@@ -341,30 +333,81 @@ namespace Chronos
 		}
 	}
 
+	Token Lexer::make_equal()
+	{
+		Position start = get_current_pos();
+		TokenType type = TokenType::ASSIGN;
+		advance();
+
+		if (m_CharPtr && *m_CharPtr == '=')
+		{
+			advance();
+			type = TokenType::EQUAL;
+		}
+
+		Position end = get_current_pos();
+
+		return { type, 0, start, end };
+	}
+
+	Token Lexer::make_less()
+	{
+		Position start = get_current_pos();
+		TokenType type = TokenType::LESS;
+		advance();
+
+		if (m_CharPtr && *m_CharPtr == '=')
+		{
+			advance();
+			type = TokenType::LESS_EQ;
+		}
+
+		Position end = get_current_pos();
+
+		return { type, 0, start, end };
+	}
+
+	Token Lexer::make_greater()
+	{
+		Position start = get_current_pos();
+		TokenType type = TokenType::GREATER;
+		advance();
+
+		if (m_CharPtr && *m_CharPtr == '=')
+		{
+			advance();
+			type = TokenType::GREATER_EQ;
+		}
+
+		Position end = get_current_pos();
+
+		return { type, 0, start, end };
+	}
+
 	LexerResult Lexer::make_and()
 	{
-		Position start = { m_Index, m_Line, m_Column };
+		Position start = get_current_pos();
 
 		std::optional<Error> e;
 		if (e = expect_char('&')) return e.value();
 		advance();
 		if (e = expect_char('&')) return e.value();
 
-		Position end = { m_Index, m_Line, m_Column };
+		Position end = get_current_pos();
 
 		return Token(TokenType::KW_AND, 0, start, end);
 	}
 
 	LexerResult Lexer::make_or()
 	{
-		Position start = { m_Index, m_Line, m_Column };
+		Position start = get_current_pos();
 
 		std::optional<Error> e;
 		if (e = expect_char('|')) return e.value();
 		advance();
 		if (e = expect_char('|')) return e.value();
 
-		Position end = { m_Index, m_Line, m_Column };
+		Position end = get_current_pos();
 
 		return Token(TokenType::KW_OR, 0, start, end);
 	}
