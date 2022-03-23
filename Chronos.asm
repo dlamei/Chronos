@@ -17,21 +17,62 @@ MOV EBP, ESP
 SUB ESP, 0x0
 CALL alloc_heap
 MOV DWORD [heap_ptr], EAX
-
-PUSH __float32__(1.3)
-PUSH __float32__(1.4)
-
-fld dword [esp+4]
-fld dword [esp]
-fcomip st0, st1
-;fstp st0
-setge al
-movzx eax, al
-push eax
-
+PUSH 0x1
+PUSH 0x1
+MOV EAX, DWORD [ESP+4]
+CMP EAX, DWORD [ESP]
+SETE AL
+MOVZX EAX, AL
+ADD ESP, 0x8
+PUSH EAX
 PUSH int_format
 CALL printf
-
+PUSH __float32__(1.000000)
+PUSH __float32__(1.000000)
+FLD DWORD [ESP]
+FLD DWORD [ESP+4]
+FCOMIP ST0, ST1
+SETE AL
+MOVZX EAX, AL
+ADD ESP, 0x8
+PUSH EAX
+PUSH int_format
+CALL printf
+PUSH __float32__(1.000000)
+PUSH __float32__(2.000000)
+FLD DWORD [ESP]
+FLD DWORD [ESP+4]
+FCOMIP ST0, ST1
+SETE AL
+MOVZX EAX, AL
+ADD ESP, 0x8
+PUSH EAX
+PUSH int_format
+CALL printf
+PUSH __float32__(0.990000)
+PUSH 0x1
+CVTSI2SS XMM0, DWORD [ESP]
+MOVSS DWORD [ESP], XMM0
+FLD DWORD [ESP]
+FLD DWORD [ESP+4]
+FCOMIP ST0, ST1
+SETE AL
+MOVZX EAX, AL
+ADD ESP, 0x8
+PUSH EAX
+PUSH int_format
+CALL printf
+PUSH __float32__(0.990000)
+PUSH __float32__(0.990000)
+FLD DWORD [ESP]
+FLD DWORD [ESP+4]
+FCOMIP ST0, ST1
+SETE AL
+MOVZX EAX, AL
+ADD ESP, 0x8
+PUSH EAX
+PUSH int_format
+CALL printf
 MOV ESP, EBP
 POP EBP
 MOV EAX, 0x1

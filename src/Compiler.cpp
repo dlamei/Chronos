@@ -580,53 +580,57 @@ namespace Chronos
 
 	}
 
-	void float_float_CMP(TokenType type)
+	void Compiler::float_float_CMP(BinOp& op)
 	{
-
-	}
-
-	void Compiler::eval_CMP_binop(Node* node)
-	{
-		BinOp& binop_val = std::get<BinOp>(node->value);
-
-		Node* right = binop_val.right;
-		Node* left = binop_val.left;
-
-		eval_expr(left);
-		eval_expr(right);
-
-		ValueType ltype = left->value_type;
-		ValueType rtype = right->value_type;
-
-		if (ltype == ValueType::INT && rtype == ValueType::INT)
+		switch (op.type)
 		{
-			write(MOV, Reg::EAX, { Reg::ESP, 0, DWORD });
-			write(CMP, Reg::EAX, { Reg::ESP, 4, DWORD });
-		}
-		else if (ltype == ValueType::FLOAT && rtype == ValueType::INT)
-		{
-			write(MOVSS, Reg::XMM0, { Reg::ESP, 4, DWORD });
-			write(CVTSI2SS, Reg::XMM1, { Reg::ESP, 0, DWORD });
-			write(UCOMISS, Reg::XMM0, Reg::XMM1);
-		}
-		else if (ltype == ValueType::INT && rtype == ValueType::FLOAT)
-		{
-			write(CVTSI2SS, Reg::XMM0, { Reg::ESP, 4, DWORD });
-			write(MOVSS, Reg::XMM1, { Reg::ESP, 0, DWORD });
-			write(UCOMISS, Reg::XMM0, Reg::XMM1);
-		}
-		else if (ltype == ValueType::FLOAT && rtype == ValueType::FLOAT)
-		{
+		case TokenType::LESS:
 			write(FLD, { Reg::ESP, 4, DWORD });
 			write(FLD, { Reg::ESP, 0, DWORD });
 			write(FCOMIP, Reg::ST0, Reg::ST1);
-			write(FSTP, Reg::ST0);
-			//write(MOVSS, Reg::XMM1, { Reg::ESP, 0, DWORD });
-			//write(MOVSS, Reg::XMM0, { Reg::ESP, 4, DWORD });
-			//write(UCOMISS, Reg::XMM0, Reg::XMM1);
+			write(SETA, Reg::AL);
+			break;
+		case TokenType::LESS_EQ:
+			write(FLD, { Reg::ESP, 4, DWORD });
+			write(FLD, { Reg::ESP, 0, DWORD });
+			write(FCOMIP, Reg::ST0, Reg::ST1);
+			write(SETNB, Reg::AL);
+			break;
+		case TokenType::GREATER:
+			write(FLD, { Reg::ESP, 0, DWORD });
+			write(FLD, { Reg::ESP, 4, DWORD });
+			write(FCOMIP, Reg::ST0, Reg::ST1);
+			write(SETA, Reg::AL);
+			break;
+		case TokenType::GREATER_EQ:
+			write(FLD, { Reg::ESP, 0, DWORD });
+			write(FLD, { Reg::ESP, 4, DWORD });
+			write(FCOMIP, Reg::ST0, Reg::ST1);
+			write(SETNB, Reg::AL);
+			break;
+		case TokenType::EQUAL:
+			write(FLD, { Reg::ESP, 0, DWORD });
+			write(FLD, { Reg::ESP, 4, DWORD });
+			write(FCOMIP, Reg::ST0, Reg::ST1);
+			write(SETE, Reg::AL);
+			break;
+
+		default:
+			ASSERT(false, "binop type not supported");
 		}
 
-		switch (binop_val.type)
+		write(MOVZX, Reg::EAX, Reg::AL);
+		write(ADD, Reg::ESP, 8);
+
+		write(PUSH, Reg::EAX);
+	}
+
+	void Compiler::int_int_CMP(BinOp& op)
+	{
+		write(MOV, Reg::EAX, { Reg::ESP, 4, DWORD });
+		write(CMP, Reg::EAX, { Reg::ESP, 0, DWORD });
+
+		switch (op.type)
 		{
 		case TokenType::EQUAL:
 			write(SETE, Reg::AL);
@@ -646,12 +650,46 @@ namespace Chronos
 		default:
 			ASSERT(false, "binop type not supported");
 			exit(-1);
-
 		}
 
 		write(MOVZX, Reg::EAX, Reg::AL);
 		write(ADD, Reg::ESP, 8);
 		write(PUSH, Reg::EAX);
+	}
+
+	void Compiler::eval_CMP_binop(Node* node)
+	{
+		BinOp& binop_val = std::get<BinOp>(node->value);
+
+		Node* right = binop_val.right;
+		Node* left = binop_val.left;
+
+		eval_expr(left);
+		eval_expr(right);
+
+		ValueType ltype = left->value_type;
+		ValueType rtype = right->value_type;
+
+		if (ltype == ValueType::INT && rtype == ValueType::INT)
+		{
+			int_int_CMP(binop_val);
+		}
+		else if (ltype == ValueType::FLOAT && rtype == ValueType::INT)
+		{
+			write(CVTSI2SS, Reg::XMM0, { Reg::ESP, 0, DWORD });
+			write(MOVSS, { Reg::ESP, 0, DWORD }, Reg::XMM0);
+			float_float_CMP(binop_val);
+		}
+		else if (ltype == ValueType::INT && rtype == ValueType::FLOAT)
+		{
+			write(CVTSI2SS, Reg::XMM0, { Reg::ESP, 4, DWORD });
+			write(MOVSS, { Reg::ESP, 4, DWORD }, Reg::XMM0);
+			float_float_CMP(binop_val);
+		}
+		else if (ltype == ValueType::FLOAT && rtype == ValueType::FLOAT)
+		{
+			float_float_CMP(binop_val);
+		}
 	}
 
 	void Compiler::eval_binop(Node* node)

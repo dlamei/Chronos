@@ -18,7 +18,6 @@ namespace Chronos
 	namespace x86ASM
 	{
 		using Label = const char*;
-		//using SubLabel = std::string;
 		struct SubLabel
 		{
 			uint32_t count = 0;
@@ -193,7 +192,8 @@ namespace Chronos
 		void eval_arith_binop(Node* node);
 		void eval_AND_binop(Node* node);
 		void eval_OR_binop(Node* node);
-		void float_float_CMP(TokenType type);
+		void float_float_CMP(NodeValues::BinOp& op);
+		void int_int_CMP(NodeValues::BinOp& op);
 		void eval_CMP_binop(Node* node);
 		void eval_binop(Node* node);
 		void eval_SUB_unryop(Node* node);

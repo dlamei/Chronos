@@ -36,10 +36,12 @@ int main()
 	Chronos::NodeValues::Root nodes;
 	Chronos::Node* root = new Chronos::Node({ Chronos::NodeType::ROOT,  nodes });
 
-	for (int i = 0; i < 1; i++)
+	while (true)
 	{
 		printf("chronos > ");
 		std::getline(std::cin, buffer);
+
+		if (buffer == "exit") break;
 
 		fm.add_line(buffer, "<STDIN>");
 
