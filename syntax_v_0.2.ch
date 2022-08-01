@@ -1,24 +1,30 @@
 //function_desc:
-//() -> () undef. expression that returns undef. expression
-//() without the arrow the return type is also undef.
+//{...} this as type could be any expression
+//() -> {} no parameters and return nothing
+//() -> {...} no parameters and returns undef. expression
+//() without the arrow the return type is undef.
 //language is dynamically typed, but there is type annotation
 
 //TODO: how to cast, (based on variable names with downcasting), (check for specific expression id?)
+//TODO: look at const
+//TODO: add auto
+//TODO: combine expressions (maybe also iterate throuh all expressions in an expression)
+//TODO: default parameter value, set parameter by name
 
 {
 
-	e: () -> () = {
+	const e: () -> {} = { // returns nothing
 		print("Hello World");
 	};
 	e(); // "Hello World"
-			 // e() returns null?
+			// e() return null
 	
 	global_x: i32 = 3;
 	{
 		print(global_x);
 	}() //  3
 	
-	add_int: (i32, i32) -> i32 = (x: i32, y: i32) -> i32 {
+	add_int: auto = (x: i32, y: i32) -> i32 { //auto is in this case (i32, i32) -> i32
 		x + y
 	};
 	
@@ -27,7 +33,7 @@
 	
 	count = 0;
 	
-	expr: () -> () = {
+	expr: {...} = { //not same as outo because expr can still be changed to any other expression
 		count: i32 = ::count++; //:: global namespace
 		test: i32 = 0;
 	}
@@ -68,5 +74,11 @@
 	
 		return ref(this);
 	}
+
+	foo: auto = (x: i32, y: i32, expr: {...}) { // expr can be any expression and return any exression (because no arrow)
+		expr() //eval expr
+	}
+
+	foo(2, 3 {x + y}) //returns 5, because x and y get defined in foo
 
 }() //entire code is an expression an must be called
