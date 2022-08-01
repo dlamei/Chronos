@@ -7,14 +7,16 @@
 
 //use () as eval? 
 // eval an expression with () and bind some variables
-//f = (x: i32, (expr: Expr)){ // last arg is always an expression that gets called?
-//	print(x)
+//f = (x: i32, expr: Expr) -> i32 {
+//	print(x);
+//	4
 //}
 //f() // f undefined
 //f(y = 3); // deduce expression
 //eval
 //f(3);
 //or use function lambda as an expression
+//lambda: add : (i32, f32) -> i32
 
 eval({
 
@@ -72,6 +74,7 @@ eval({
 		eval(expr);
 		eval(func)
 	})
+
 	bind({x = 1; y = 1}, {func(x, y)})
 
 })
