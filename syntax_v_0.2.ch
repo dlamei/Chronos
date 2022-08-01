@@ -33,7 +33,7 @@
 	
 	count = 0;
 	
-	expr: {...} = { //not same as outo because expr can still be changed to any other expression
+	expr: {...} = { //not same as auto because expr can still be changed to any other expression
 		count: i32 = ::count++; //:: global namespace
 		test: i32 = 0;
 	}
@@ -57,7 +57,7 @@
 		add: (i32, i32) -> &Vector; //every vector has a add function
 	};
 
-	v1 = Vector();
+	(v1 = Vector)(); //first create a copy then eval it
 	
 	Vector::new() = (x: i32, y: i32) { //if defined like this the v1 Vector would not contain this function
 		(v = Vector)(); //copy of Vector expression then initialized
