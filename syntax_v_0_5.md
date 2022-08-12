@@ -5,7 +5,7 @@
 ## Idea
 
 very few and simple building blocks, that allows for complex systems to emerge, inspired by lisp
-no functions, no classes, only expressions, and primitives\
+no functions, no classes, only expressions, and primitives
 
 ## Primitives
 
@@ -14,11 +14,11 @@ every primitve acts like an expression
 
 ## Expressions
 
-expressions are made up of two things:\
+expressions are made up of two things:
 
 Hashmap:\
 The keys are the variable names, and the value is the value of the variable
-the hashmap of the expression can be updated outside of the expression\
+the hashmap of the expression can be updated outside of the expression
 
 expression body:\
 the body can be evaluated and can update the hashmap
