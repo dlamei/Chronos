@@ -1,4 +1,5 @@
-# Chronos Syntax
+# Chronos
+<sup> version 0.6 <sup>
 
 ---
 
@@ -27,22 +28,24 @@ the body is just a list of other expressions
 ## Builtin expressions:
 
 ```rust
-Ref(type) //(& keyword expands to Ref(...)) the type is passed just like any argument
-Null //nullpointer
-print(&expression)
-length(&expression) //returns the length of an expression body
-get_expr(&expression, indx) //returns an adress to the i-th expression in an expression
-insert_expr(&expression, indx) //insert an expression at indx (-1 for insert at end)
-combine_expr(&exprA, &exprB) //creates new expression from exprA and exprB
-remove_expr(&expression, indx) //removes the i-th expression from the expression body
+if(expr, expr, expr = {})
+loop(expr, expr, expr)
+print(&expr);
+length(&expr); //returns the length of an expression body
+get_expr(&expr, indx); //returns an adress to the i-th expression in an expression
+insert_expr(&expr, indx); //insert an expression at indx (-1 for insert at end)
+combine_expr(&exprA, &exprB); //creates new expression from exprA and exprB
+remove_expr(&expr, indx); //removes the i-th expression from the expression body
+Ref(type); //(& keyword expands to Ref(...)) the type is passed just like any argument
+Null; //nullpointer
 ```
 
 chronos is dynamically typed, but there is type anotation:
 
 ```rust
 i: i32 = 3;
-i = "Hello" //error
-s: auto = "Hello" // auto deduces type and acts the same as s: string in this case
+i = "Hello"; //error
+s: auto = "Hello"; // auto deduces type and acts the same as s: string in this case
 const val = 3; //value can't be changed
 ```
 
@@ -69,9 +72,9 @@ val: f32 = 4.3;
 e(); // prints: 4.3
 
 (e = { value: i32 })(); //this tells chronos that the integer "value" is defined;
-e.value //uninitialized error
+e.value; //uninitialized error
 e.value = 3;
-e.value // 3
+e.value; // 3
 //you can simulate static variables
 count = 0;
 e = { print(count++); };
@@ -129,23 +132,21 @@ if({...},
 }, {
 //evaluated if false
 //this expression is optional
-})
+});
 ```
 
-### for loop
+### loop
 
 just an expression with 3 expressions as param:\
 first expression gets called at the beginning, second loop is continued as long as it returns true, third is evaluated every loop\
-**TODO**: maybe some iterator\
-**TODO**: for loop not possible this way?
-
+**TODO**: iteratos
 ```rust
-for({i = 0}, {i++ < u32}, {
-print(i);
-}) ;
+loop({i = 0}, {i++ < u32}, {
+	print(i);
+});
 //maybe expressions be be deduced, no {} necessary:
-for(i = 0, i++ < u32,
-print(i);
+loop(i = 0, i++ < u32,
+	print(i);
 );
 ```
 
@@ -167,14 +168,14 @@ z: i32 = 0;
     		this.z += z;
 
     		this //return this
-    	}
+    	};
 
     //__add__ = add; (maybe some operator overloader)
     //__eval__ = delete //maybe some way to delete eval function
 
 }(); //evaluate so that the fields are initialized
 
-(v1 = Vec)() //first create a copy and then call the eval on v1 (in this case not really necessary)
+(v1 = Vec)(); //first create a copy and then call the eval on v1 (in this case not really necessary)
 //with this method the vector v1 and the type Vec are identical
 ```
 
@@ -188,17 +189,18 @@ creates a difference between type and variable
 // ⌄⌄ define
 Vec := {
 ...
-}
+};
 ```
 
-### casting:
+### Interfaces:
 
 expressions can be "donwcasted".
 hereby the variables with the same name get assigned to eachother
-this can be used to cast an expression, so you later know exactly what expressions are defined.
+this can be used to create an interface for other expresssions, 
+so you later know exactly what expressions are defined.
 
 ```rust
-(v1 = Vec)()
+(v1 = Vec)();
 coord: {x; y;} = v1; //copies v1.x to coord.x and v1.y to coord.y
 
 const Addable = {
@@ -207,14 +209,14 @@ add: (i32, i32) -> &Addable //this syntax tells chronos that the add expression 
 
 addable: Addable = v1; //v1 gets downcasted (if the add expression did not exist in v1 it would throw an error)
 addable.x; //undefined
-addable.add(3, 4) //defined, returns another addable
+addable.add(3, 4); //defined, returns another addable
 
 addable_ref: Ref(Addable) = &v1; //works with references
 
 foo = (&Addable: a, i32: x, i32: y) -> &Addable {
 a.add(x, y)
-}
-foo(&v1) // &v1 gets auto downcasted
+};
+foo(&v1); // &v1 gets auto downcasted
 ```
 
 ### Array implementations:
@@ -226,18 +228,18 @@ const arr = (type) {
 val: type,
 next: &arr,
 get = (n: u32) -> type;
-}()
+}();
 
 arr.get = (n: u32) -> arr.type {
 current = this;
 
     for ({i = 0}, {i++ < u32}) {
     		current = current.next; //maybe some way of error checking
-    }
+    };
 
     current.val
 
-}
+};
 ```
 
 **c-like array**
@@ -252,20 +254,19 @@ pop = (indx: u32) -> i32;
 
 }()
 
-length(&int_arr) // 3
-get_expr(&int_arr, 1) // in32(2)
+print(length(&int_arr)); // 6
+print(get_expr(&int_arr, 4)); // in32(2)
 
 int_arr.get = (indx: u32) -> Ref(i32) {
 	get_exr(this, indx + 3) //we don't want to return the get, push, and pop expressions
-}
+};
 
 int_arr.push_back = (val: i32) -> void {
 	this = combine_expr(this, val); //one more number gets added to the expression body
-}
+};
 
 int_arr.pop = (indx: u32) -> i32 {
 v: i32 = this.get(indx);
 	remove_expr(this, indx);
-v
-}
+};
 ```
