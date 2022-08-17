@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 
+mod error;
 mod lexer;
 mod parser;
-mod error;
 
 use crate::lexer::*;
 use std::{env, fs};
@@ -24,5 +24,9 @@ fn main() {
         .iter()
         .filter(|tok| matches!(tok.typ, TokenType::Error));
 
-    println!("n_errors: {}", errors.count());
+    // println!("n_errors: {}", errors.count());
+
+    for err in errors {
+        println!("{}", error::underline_code(&code, &err.range));
+    }
 }

@@ -2,19 +2,19 @@ use colored::Colorize;
 use logos::{Lexer, Logos};
 
 fn parse_string(lex: &mut Lexer<TokenType>) -> Option<String> {
-    let mut chars = lex.remainder().chars();
+    let chars = lex.remainder().chars();
 
     let mut str = String::new();
     let mut escape = false;
     let mut len = 0;
 
-    while let Some(c) = chars.next() {
+    for c in chars {
         len += 1;
 
         if escape {
             match c {
-                'n' => str.push_str("\n"),
-                't' => str.push_str("\t"),
+                'n' => str.push('\n'),
+                't' => str.push('\t'),
                 _ => str.push_str(&format!("\\{}", c).to_string()),
             }
 
@@ -35,7 +35,7 @@ fn parse_string(lex: &mut Lexer<TokenType>) -> Option<String> {
 
 #[derive(Logos, Debug, PartialEq, Clone)]
 pub enum TokenType {
-    EOF,
+    Eof,
 
     #[token("{")]
     LBrace,
@@ -136,7 +136,7 @@ pub fn lex_tokens(code: &str) -> Vec<Token> {
         .collect();
 
     tokens.push(Token {
-        typ: TokenType::EOF,
+        typ: TokenType::Eof,
         range: (code.len()..code.len()),
     });
     tokens
@@ -168,7 +168,7 @@ pub fn print_tokens(code: &str, tokens: &Vec<Token>) {
             Tab => "\t".clear(),
             Space => " ".clear(),
             Error => s.white().on_red(),
-            EOF => "".clear(),
+            Eof => "".clear(),
         };
 
         print!("{}", colored_s);

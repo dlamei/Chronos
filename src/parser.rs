@@ -33,7 +33,7 @@ where
 }
 
 pub fn parse_tokens(tokens: Vec<Token>) {
-    if tokens.len() == 0 {
+    if tokens.is_empty() {
         return;
     }
 
