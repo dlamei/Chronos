@@ -1,10 +1,9 @@
 #![allow(dead_code)]
 
+mod lexer;
 mod parser;
-mod tokens;
 
-use crate::parser::*;
-use crate::tokens::*;
+use crate::lexer::*;
 use std::{env, fs};
 fn print_type_of<T>(_: &T) {
     println!("{}", std::any::type_name::<T>())
@@ -21,7 +20,7 @@ fn main() {
 
     let n_erros = tokens
         .iter()
-        .filter(|(tok, _)| matches!(tok, TokenType::Error))
+        .filter(|tok| matches!(tok.typ, TokenType::Error))
         .count();
 
     println!("nErrors: {}", n_erros);

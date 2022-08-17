@@ -9,11 +9,11 @@
  
 //chronos is dynamically typed, but there is type anotation:
 i: i32 = 3;
-i = "Hello" //error
-s: auto = "Hello" // auto deducec type and acts the same as s: string in this case
+i = "Hello\nWorld" //error
+s: auto = "Hello\tWorld" // auto deducec type and acts the same as s: string in this case
 const val = 3; //value can't be changed
 
-e = { i: i32 = 3; print("Hello World") }; //e is an expression
+e = { i: i32 = 3; print("Hello\"World\d") }; //e is an expression
 																				 //nothing yet printed
 e.i;	//undefined
 e(); //evaluate expression, prints: Hello World
