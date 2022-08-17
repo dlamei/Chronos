@@ -2,9 +2,11 @@
 
 mod lexer;
 mod parser;
+mod error;
 
 use crate::lexer::*;
 use std::{env, fs};
+
 fn print_type_of<T>(_: &T) {
     println!("{}", std::any::type_name::<T>())
 }
@@ -18,10 +20,9 @@ fn main() {
 
     print_tokens(&code, &tokens);
 
-    let n_erros = tokens
+    let errors = tokens
         .iter()
-        .filter(|tok| matches!(tok.typ, TokenType::Error))
-        .count();
+        .filter(|tok| matches!(tok.typ, TokenType::Error));
 
-    println!("nErrors: {}", n_erros);
+    println!("n_errors: {}", errors.count());
 }

@@ -8,29 +8,35 @@ pub enum NodeType {
     Error(),
 }
 
-type Node = (NodeType, std::ops::Range<usize>);
+struct Node {
+    typ: NodeType,
+    range: Position,
+}
 
-fn atom<'a, I>(iter: &mut I) -> NodeType
+fn atom<I>(mut iter: I) -> Node
 where
-    I: DoubleEndedIterator<Item = &'a Token>,
+    I: DoubleEndedIterator<Item = Token>,
 {
     if let Some(tok) = iter.next() {
-        match &tok.typ {
-            TokenType::IntLiteral(val) => NodeType::IntLiteral(*val),
-            TokenType::FloatLiteral(val) => NodeType::FloatLiteral(*val),
-            TokenType::StringLiteral(val) => NodeType::StringLiteral(val.to_string()),
-            _ => todo!(),
+        Node {
+            typ: match tok.typ {
+                TokenType::IntLiteral(val) => NodeType::IntLiteral(val),
+                TokenType::FloatLiteral(val) => NodeType::FloatLiteral(val),
+                TokenType::StringLiteral(val) => NodeType::StringLiteral(val),
+                _ => todo!(),
+            },
+            range: tok.range,
         }
     } else {
         todo!()
     }
 }
 
-pub fn parse_tokens(tokens: &Vec<Token>) {
+pub fn parse_tokens(tokens: Vec<Token>) {
     if tokens.len() == 0 {
         return;
     }
 
-    let mut iter = tokens.iter();
-    atom(&mut iter);
+    let iter = tokens.into_iter();
+    atom(iter);
 }

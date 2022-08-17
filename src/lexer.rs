@@ -1,40 +1,6 @@
 use colored::Colorize;
 use logos::{Lexer, Logos};
 
-fn parse_number(lex: &mut Lexer<TokenType>) -> bool {
-    let start = lex.span().start;
-
-    if start == 0 {
-        return true;
-    }
-
-    let prev_char: Option<char> = lex.source().chars().nth(start);
-
-    if let Some(c) = prev_char {
-        if c.is_alphabetic() {
-            return false;
-        }
-    }
-
-    true
-}
-
-fn parse_int(lex: &mut Lexer<TokenType>) -> Option<i32> {
-    if parse_number(lex) {
-        lex.slice().parse().ok()
-    } else {
-        None
-    }
-}
-
-fn parse_float(lex: &mut Lexer<TokenType>) -> Option<f32> {
-    if parse_number(lex) {
-        lex.slice().parse().ok()
-    } else {
-        None
-    }
-}
-
 fn parse_string(lex: &mut Lexer<TokenType>) -> Option<String> {
     let mut chars = lex.remainder().chars();
 
@@ -93,9 +59,9 @@ pub enum TokenType {
     #[token("&")]
     Addr,
 
-    #[regex(r"[0-9]+", parse_int)]
+    #[regex(r"[0-9]+", |lex| lex.slice().parse())]
     IntLiteral(i32),
-    #[regex(r"([0-9]+)?(\.[0-9]+)", parse_float)]
+    #[regex(r"([0-9]+)?(\.[0-9]+)", |lex| lex.slice().parse())]
     FloatLiteral(f32),
     #[token("\"", parse_string)]
     StringLiteral(String),
@@ -125,8 +91,8 @@ pub enum TokenType {
     #[token("=")]
     Assign,
 
-    #[regex("[a-zA-Z_][a-zA-Z_0-9]*")]
-    Var,
+    #[regex("[_a-zA-Z][_0-9a-zA-Z]*", |lex| lex.slice().parse())]
+    Id(String),
 
     #[token("const")]
     Const,
@@ -147,14 +113,16 @@ pub enum TokenType {
     #[regex(r"\t")]
     Tab,
 
-    #[error]
+    #[error(|lex| lex.slice().parse())]
     Error,
 }
+
+pub type Position = std::ops::Range<usize>;
 
 #[derive(Debug, Clone)]
 pub struct Token {
     pub typ: TokenType,
-    pub range: std::ops::Range<usize>,
+    pub range: Position,
 }
 
 pub fn lex_tokens(code: &str) -> Vec<Token> {
@@ -193,7 +161,7 @@ pub fn print_tokens(code: &str, tokens: &Vec<Token>) {
             FloatLiteral(val) => val.to_string().green(),
             StringLiteral(val) => format!("\"{}\"", val).green(),
 
-            Var => s.cyan(),
+            Id(val) => val.to_string().cyan(),
 
             Comment => s.truecolor(90, 100, 110).italic(),
             NewLine => "\n".clear(),
