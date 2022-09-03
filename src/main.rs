@@ -1,5 +1,4 @@
 #![allow(dead_code)]
-
 mod error;
 mod lexer;
 mod parser;
@@ -7,16 +6,13 @@ mod parser;
 use crate::lexer::*;
 use std::{env, fs};
 
-fn print_type_of<T>(_: &T) {
-    println!("{}", std::any::type_name::<T>())
-}
-
 fn main() {
     env::set_var("RUST_BACKTRACE", "1");
 
-    let code = fs::read_to_string("syntax.ch").expect("Something went wrong reading the file");
+    // let code = fs::read_to_string("syntax.ch").expect("Something went wrong reading the file");
+    let code = "1 + 2 * 3".to_string();
 
-    let tokens = lex_tokens(&code);
+    let mut tokens = lex_tokens(&code);
 
     print_tokens(&code, &tokens);
 
@@ -29,4 +25,8 @@ fn main() {
     for err in errors {
         println!("{}", error::underline_code(&code, &err.range));
     }
+
+    tokens = filter_tokens(tokens);
+
+    parser::parse_tokens(tokens);
 }

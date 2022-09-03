@@ -1,5 +1,54 @@
 use colored::Colorize;
+use paste::paste;
 use logos::{Lexer, Logos};
+
+macro_rules! enum_or {
+
+    ($x:pat) => {
+        paste!(Self::$x)
+    };
+
+    ($x1:pat, $($x2:pat),*) => {
+        paste!(Self::$x1) | enum_or!($($x2),*)
+    };
+}
+
+macro_rules! enum_match {
+
+    ($self:ident, $default:expr, $n:expr,) => {$default};
+
+    ($self:ident, $default:expr, $n:expr, [$($x1:pat),*] $([$($x2:pat),*])*) => {
+
+        if let enum_or!($($x1),*) = $self {
+            $n
+        } else {
+                enum_match!($self, $default, $n+1, $([$($x2),*])*)
+            }
+    };
+}
+
+macro_rules! priority_func {
+
+    ($name:tt -> $typ:ty, $default:expr, $start: expr, $([$($x:pat),*])*) =>
+    {
+        pub fn $name(&self) -> $typ {
+            enum_match!(self, $default, $start, $([$($x),*])*)
+        }
+    };
+}
+
+macro_rules! assign_func {
+
+    ($name: tt -> $typ:ty, $default: expr, $([$val:expr; $($x2:pat),*])*) => {
+        pub fn $name(&self) -> $typ {
+            #[allow(unreachable_patterns)]
+            match self {
+                $($(paste!(Self::$x2))|* => $val,)*
+                    _ => $default,
+            }
+        }
+    };
+}
 
 fn parse_string(lex: &mut Lexer<TokenType>) -> Option<String> {
     let chars = lex.remainder().chars();
@@ -61,7 +110,7 @@ pub enum TokenType {
 
     #[regex(r"[0-9]+", |lex| lex.slice().parse())]
     IntLiteral(i32),
-    #[regex(r"([0-9]+)?(\.[0-9]+)", |lex| lex.slice().parse())]
+    #[regex(r"(([0-9]+)(\.[0-9]+))", |lex| lex.slice().parse())]
     FloatLiteral(f32),
     #[token("\"", parse_string)]
     StringLiteral(String),
@@ -117,6 +166,19 @@ pub enum TokenType {
     Error,
 }
 
+impl TokenType {
+
+    priority_func!(get_precedence -> u32, 0, 1,
+        [IntLiteral(_), FloatLiteral(_), StringLiteral(_)]
+        [Add, Min]
+        [Mul, Div]
+    );
+
+    assign_func!(is_op -> bool, false,
+        [true; Add, Min, Mul, Div]
+    );
+}
+
 pub type Position = std::ops::Range<usize>;
 
 #[derive(Debug, Clone)]
@@ -142,18 +204,30 @@ pub fn lex_tokens(code: &str) -> Vec<Token> {
     tokens
 }
 
+pub fn filter_tokens(tokens: Vec<Token>) -> Vec<Token> {
+    tokens
+        .into_iter()
+        .filter(|tok| match tok.typ {
+            TokenType::Tab | TokenType::Space | TokenType::Comment => false,
+            _ => true,
+        })
+        .collect()
+}
+
 pub fn print_tokens(code: &str, tokens: &Vec<Token>) {
+    let mut res = String::new();
+
     for tok in tokens {
         let s = &code[tok.range.clone()];
 
         use TokenType::*;
-        let colored_s = match &tok.typ {
+        let colored_str = match &tok.typ {
             LBrace | RBrace | LParen | RParen => s.white(),
 
             Const | Return | This | Any => s.magenta(),
 
             Add | AddAdd | Min | MinMin | Mul | Div | Equal | Greater | Less | GreaterEq
-            | LessEq | Assign => s.blue(),
+                | LessEq | Assign => s.blue(),
 
             Arrow | Dot | Comma | Semicln | Colon | Addr => s.yellow(),
 
@@ -171,6 +245,8 @@ pub fn print_tokens(code: &str, tokens: &Vec<Token>) {
             Eof => "".clear(),
         };
 
-        print!("{}", colored_s);
+        res.push_str(&colored_str.to_string());
     }
+
+    print!("{}\n", res);
 }
