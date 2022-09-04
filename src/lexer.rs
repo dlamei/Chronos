@@ -1,6 +1,6 @@
 use colored::Colorize;
-use paste::paste;
 use logos::{Lexer, Logos};
+use paste::paste;
 
 macro_rules! enum_or {
 
@@ -29,10 +29,10 @@ macro_rules! enum_match {
 
 macro_rules! priority_func {
 
-    ($name:tt -> $typ:ty, $default:expr, $start: expr, $([$($x:pat),*])*) =>
+    ($name:tt -> $typ:ty, $default:expr, $([$($x:pat),*])*) =>
     {
         pub fn $name(&self) -> $typ {
-            enum_match!(self, $default, $start, $([$($x),*])*)
+            enum_match!(self, $default, $default + 1, $([$($x),*])*)
         }
     };
 }
@@ -167,15 +167,15 @@ pub enum TokenType {
 }
 
 impl TokenType {
-
-    priority_func!(get_precedence -> u32, 0, 1,
+    priority_func!(precedence -> i32, 0,
         [IntLiteral(_), FloatLiteral(_), StringLiteral(_)]
+        [Equal, Greater, GreaterEq, Less, LessEq]
         [Add, Min]
         [Mul, Div]
     );
 
     assign_func!(is_op -> bool, false,
-        [true; Add, Min, Mul, Div]
+        [true; Add, Min, Mul, Div, Equal, Greater, GreaterEq, Less, LessEq]
     );
 }
 
@@ -227,7 +227,7 @@ pub fn print_tokens(code: &str, tokens: &Vec<Token>) {
             Const | Return | This | Any => s.magenta(),
 
             Add | AddAdd | Min | MinMin | Mul | Div | Equal | Greater | Less | GreaterEq
-                | LessEq | Assign => s.blue(),
+            | LessEq | Assign => s.blue(),
 
             Arrow | Dot | Comma | Semicln | Colon | Addr => s.yellow(),
 

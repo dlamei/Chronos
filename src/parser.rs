@@ -1,4 +1,6 @@
 use crate::lexer::*;
+use std::fmt;
+use paste::paste;
 
 pub trait PeekableIterator: std::iter::Iterator {
     fn peek(&mut self) -> Option<&Self::Item>;
@@ -16,30 +18,59 @@ pub enum NodeType {
     FloatLiteral(f32),
     StringLiteral(String),
 
-    Add(Box<NodeType>, Box<NodeType>),
-    Min(Box<NodeType>, Box<NodeType>),
-    Mul(Box<NodeType>, Box<NodeType>),
-    Div(Box<NodeType>, Box<NodeType>),
+    Add(Box<Node>, Box<Node>),
+    Min(Box<Node>, Box<Node>),
+    Mul(Box<Node>, Box<Node>),
+    Div(Box<Node>, Box<Node>),
+
+    Equal(Box<Node>, Box<Node>),
+    Greater(Box<Node>, Box<Node>),
+    GreaterEq(Box<Node>, Box<Node>),
+    Less(Box<Node>, Box<Node>),
+    LessEq(Box<Node>, Box<Node>),
 
     Error,
 }
 
+macro_rules! token_to_node {
+    ($tok:expr, $panic:expr, $($lhs:pat => $rhs:expr)*) => {
+        match $tok {
+            $(paste!(TokenType::$lhs) => paste!(NodeType::$rhs),)*
+            _ => $panic,
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct Node {
     pub typ: NodeType,
     pub range: Position,
 }
 
-fn apply_op(op: TokenType, lhs: Node, rhs: Node) -> Node {
-    Node {
-        typ: match op {
-            TokenType::Add => NodeType::Add(lhs.typ.into(), rhs.typ.into()),
-            TokenType::Min => NodeType::Min(lhs.typ.into(), rhs.typ.into()),
-            TokenType::Mul => NodeType::Mul(lhs.typ.into(), rhs.typ.into()),
-            TokenType::Div => NodeType::Div(lhs.typ.into(), rhs.typ.into()),
-            _ => todo!(),
-        },
+impl fmt::Debug for Node {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self.typ)
+    }
+}
 
-        range: (lhs.range.start..rhs.range.end),
+fn apply_op(op: TokenType, lhs: Node, rhs: Node) -> Node {
+    let start = lhs.range.start;
+    let end = lhs.range.end;
+
+    Node {
+        typ: token_to_node!(op, panic!("apply_op for {:?} not implemented", op),
+            Add => Add(lhs.into(), rhs.into())
+            Min => Min(lhs.into(), rhs.into())
+            Mul => Mul(lhs.into(), rhs.into())
+            Div => Div(lhs.into(), rhs.into())
+
+            Equal => Equal(lhs.into(), rhs.into())
+            Greater => Greater(lhs.into(), rhs.into())
+            GreaterEq => GreaterEq(lhs.into(), rhs.into())
+            Less => Less(lhs.into(), rhs.into())
+            LessEq => LessEq(lhs.into(), rhs.into())
+        ),
+        range: (start..end),
     }
 }
 
@@ -48,14 +79,20 @@ where
     I: PeekableIterator<Item = Token>,
 {
     if let Some(tok) = iter.next() {
+        if tok.typ == TokenType::LParen {
+            let lhs = atom(iter);
+            let node = parse_expression(iter, lhs, -1);
+            iter.next(); //TODO: error check
+            return node;
+        }
+
         Node {
-            typ: match tok.typ {
-                TokenType::IntLiteral(val) => NodeType::IntLiteral(val),
-                TokenType::FloatLiteral(val) => NodeType::FloatLiteral(val),
-                TokenType::StringLiteral(val) => NodeType::StringLiteral(val),
-                TokenType::Error => NodeType::Error,
-                _ => todo!(),
-            },
+            typ: token_to_node!(tok.typ, panic!("atom for {:?} not implemented", tok.typ),
+                IntLiteral(val) => IntLiteral(val)
+                FloatLiteral(val) => FloatLiteral(val)
+                StringLiteral(val) => StringLiteral(val)
+                Error => Error
+            ),
             range: tok.range,
         }
     } else {
@@ -63,7 +100,7 @@ where
     }
 }
 
-fn parse_expression<I>(iter: &mut I, mut lhs: Node, precedence: u32) -> Node
+fn parse_expression<I>(iter: &mut I, mut lhs: Node, precedence: i32) -> Node
 where
     I: PeekableIterator<Item = Token>, // I: Iterator<Item = Token>,
 {
@@ -72,37 +109,37 @@ where
     println!("lookahead: {:?}", lookahead);
 
     // TODO: check if operator
-    while lookahead.get_precedence() > precedence {
+    while lookahead.is_op() && lookahead.precedence() > precedence {
         let op = lookahead;
-        println!("op: {:?}", op);
+        println!("\top: {:?}", op);
 
         iter.next();
         let mut rhs = atom(iter);
-        println!("rhs: {:?}", rhs.typ);
+        println!("\trhs: {:?}", rhs);
         lookahead = iter.peek().unwrap().typ.clone();
-        println!("lookahead: {:?}", lookahead);
+        println!("\tlookahead: {:?}", lookahead);
 
-        while lookahead.get_precedence() > op.get_precedence() {
-            rhs = parse_expression(iter, rhs, op.get_precedence());
-            println!("rhs: {:?}", rhs.typ);
+        while lookahead.precedence() > op.precedence() {
+            rhs = parse_expression(iter, rhs, op.precedence());
+            println!("\t\trhs: {:?}", rhs.typ);
             lookahead = iter.peek().unwrap().typ.clone();
-            println!("lookahead: {:?}", lookahead);
+            println!("\t\tlookahead: {:?}", lookahead);
         }
 
         lhs = apply_op(op, lhs, rhs);
-        println!("lhs: {:?}", lhs.typ);
+        println!("\tlhs: {:?}", lhs.typ);
     }
 
-    return lhs;
+    lhs
 }
 
-pub fn parse_tokens(tokens: Vec<Token>) {
+pub fn parse_tokens(tokens: Vec<Token>) -> Option<Node> {
     if tokens.is_empty() {
-        return;
+        return None;
     }
 
     let mut iter = tokens.into_iter().peekable();
 
     let lhs = atom(&mut iter);
-    parse_expression(&mut iter, lhs, 0);
+    Some(parse_expression(&mut iter, lhs, -1))
 }
