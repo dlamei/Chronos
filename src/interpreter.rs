@@ -13,7 +13,7 @@ where
 pub fn visit_node(node: &Node) -> i32 {
     use NodeType::*;
     match &node.typ {
-        IntLiteral(val) => *val,
+        I32Lit(val) => *val,
         Add(lhs, rhs) => visit_bin_op(|v1: i32, v2: i32| v1 + v2, lhs, rhs),
         Min(lhs, rhs) => visit_bin_op(|v1: i32, v2: i32| v1 - v2, lhs, rhs),
         Mul(lhs, rhs) => visit_bin_op(|v1: i32, v2: i32| v1 * v2, lhs, rhs),

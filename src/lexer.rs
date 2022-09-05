@@ -109,11 +109,11 @@ pub enum TokenType {
     Addr,
 
     #[regex(r"[0-9]+", |lex| lex.slice().parse())]
-    IntLiteral(i32),
+    I32Lit(i32),
     #[regex(r"(([0-9]+)(\.[0-9]+))", |lex| lex.slice().parse())]
-    FloatLiteral(f32),
+    F32Lit(f32),
     #[token("\"", parse_string)]
-    StringLiteral(String),
+    StringLit(String),
 
     #[token("+")]
     Add,
@@ -168,7 +168,7 @@ pub enum TokenType {
 
 impl TokenType {
     priority_func!(precedence -> i32, 0,
-        [IntLiteral(_), FloatLiteral(_), StringLiteral(_)]
+        [I32Lit(_), F32Lit(_), StringLit(_)]
         [Equal, Greater, GreaterEq, Less, LessEq]
         [Add, Min]
         [Mul, Div]
@@ -187,40 +187,44 @@ pub struct Token {
     pub range: Position,
 }
 
-pub fn lex_tokens(code: &str) -> Vec<Token> {
+pub fn lex_tokens(code: &str) -> (Vec<Token>, bool) {
     let lex = TokenType::lexer(code);
+    let mut err_flag = false;
+
     let mut tokens: Vec<Token> = lex
         .spanned()
-        .map(|tok| Token {
-            typ: tok.0,
-            range: tok.1,
+        .map(|(typ, range)| {
+            if TokenType::Error == typ {
+                err_flag = true;
+            }
+            Token { typ, range }
         })
         .collect();
 
     tokens.push(Token {
         typ: TokenType::Eof,
-        range: (code.len()..code.len()),
+        range: (code.len()..code.len() + 1),
     });
-    tokens
+
+    (tokens, err_flag)
 }
 
-pub fn filter_tokens(tokens: Vec<Token>) -> Vec<Token> {
-    tokens
-        .into_iter()
-        .filter(|tok| match tok.typ {
-            TokenType::Tab | TokenType::Space | TokenType::Comment => false,
-            _ => true,
-        })
-        .collect()
+pub fn filter_tokens(tokens: &mut Vec<Token>) {
+    use TokenType::*;
+    tokens.retain(|tok| !matches!(tok.typ, Tab | Space | Comment));
 }
 
 pub fn print_tokens(code: &str, tokens: &Vec<Token>) {
     let mut res = String::new();
+    use TokenType::*;
 
     for tok in tokens {
+        if let TokenType::Eof = tok.typ {
+            continue;
+        }
+
         let s = &code[tok.range.clone()];
 
-        use TokenType::*;
         let colored_str = match &tok.typ {
             LBrace | RBrace | LParen | RParen => s.white(),
 
@@ -231,9 +235,9 @@ pub fn print_tokens(code: &str, tokens: &Vec<Token>) {
 
             Arrow | Dot | Comma | Semicln | Colon | Addr => s.yellow(),
 
-            IntLiteral(val) => val.to_string().green(),
-            FloatLiteral(val) => val.to_string().green(),
-            StringLiteral(val) => format!("\"{}\"", val).green(),
+            I32Lit(val) => val.to_string().green(),
+            F32Lit(val) => val.to_string().green(),
+            StringLit(val) => format!("\"{}\"", val).green(),
 
             Id(val) => val.to_string().cyan(),
 
@@ -248,5 +252,5 @@ pub fn print_tokens(code: &str, tokens: &Vec<Token>) {
         res.push_str(&colored_str.to_string());
     }
 
-    print!("{}\n", res);
+    println!("{}", res);
 }

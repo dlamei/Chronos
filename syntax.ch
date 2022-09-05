@@ -47,7 +47,7 @@ f = e;
 
 //expression signature:
 //expect some values when calling expression, and set the type that is returned:
-e = (~val1: f32, val2: f32 = 0) -> f32 { print(val1); val1 + val2 }; //same as in rust return keyword is not needed
+e = ($val1: f32, val2: f32 = 0) -> f32 { print(val1); val1 + val2 }; //same as in rust return keyword is not needed
 e() //val not set
 e(4.3)
 e(val1 = 4.3, 3) //set by name

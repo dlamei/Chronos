@@ -3,6 +3,9 @@
 
 ---
 
+a = (u) {...}
+a = (u + ...) {...}
+
 ## Idea
 
 very few and simple building blocks, that allows for complex systems to emerge, inspired by lisp
@@ -10,7 +13,7 @@ no functions, no classes, only expressions, and primitives
 
 ## Primitives
 
-u8, i8, i16, u16, i32, u32, i64, u64, i128, u128, string, char, bool
+u8, i8, i16, u16, i32, u32, i64, u64, i128, u128, f32, f64, string, char, bool
 every primitve acts like an expression
 
 ## Expressions
