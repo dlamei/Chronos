@@ -3,9 +3,6 @@
 
 ---
 
-a = (u) {...}
-a = (u + ...) {...}
-
 ## Idea
 
 very few and simple building blocks, that allows for complex systems to emerge, inspired by lisp
