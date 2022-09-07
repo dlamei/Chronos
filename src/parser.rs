@@ -3,6 +3,35 @@ use bitflags::bitflags;
 use paste::paste;
 use std::fmt;
 
+macro_rules! unwrap_ret {
+    ($e:expr) => {{
+        let n = $e;
+        if let Some(err) = n {
+            return err;
+        }
+    }};
+}
+
+macro_rules! prop_node {
+    ($e:expr $(,$func:ident)?) => {{
+        let n = $e;
+        if let NodeType::Error(_) = n.typ {
+            return n;
+        }
+        n
+    }};
+}
+
+// macro_rules! get_option {
+//     ($e:expr, $val: ident, $res:expr) => {{
+//         if let Some($val) = $e {
+//             Some($res)
+//         } else {
+//             None
+//         }
+//     }};
+// }
+
 pub trait PeekableIterator: std::iter::Iterator {
     fn peek(&mut self) -> Option<&Self::Item>;
 }
@@ -20,9 +49,12 @@ pub enum NodeType {
     StringLit(String),
 
     Add(Box<Node>, Box<Node>),
-    Min(Box<Node>, Box<Node>),
+    Sub(Box<Node>, Box<Node>),
     Mul(Box<Node>, Box<Node>),
     Div(Box<Node>, Box<Node>),
+
+    UnryAdd(Box<Node>),
+    UnryMin(Box<Node>),
 
     Equal(Box<Node>, Box<Node>),
     Greater(Box<Node>, Box<Node>),
@@ -88,9 +120,12 @@ impl fmt::Display for Node {
             StringLit(v) => write!(f, "{}", v),
 
             Add(lhs, rhs) => write!(f, "({} + {})", lhs, rhs),
-            Min(lhs, rhs) => write!(f, "({} - {})", lhs, rhs),
+            Sub(lhs, rhs) => write!(f, "({} - {})", lhs, rhs),
             Mul(lhs, rhs) => write!(f, "({} * {})", lhs, rhs),
             Div(lhs, rhs) => write!(f, "({} / {})", lhs, rhs),
+
+            UnryAdd(node) => write!(f, "(+ {})", node),
+            UnryMin(node) => write!(f, "(- {})", node),
 
             Equal(lhs, rhs) => write!(f, "({} == {})", lhs, rhs),
             Greater(lhs, rhs) => write!(f, "({} > {})", lhs, rhs),
@@ -112,7 +147,7 @@ fn apply_op(op: TokenType, lhs: Node, rhs: Node) -> Node {
     Node {
         typ: token_to_node!(op, panic!("apply_op for {:?} not implemented", op),
             Add => Add(lhs.into(), rhs.into())
-            Min => Min(lhs.into(), rhs.into())
+            Sub => Sub(lhs.into(), rhs.into())
             Mul => Mul(lhs.into(), rhs.into())
             Div => Div(lhs.into(), rhs.into())
 
@@ -127,61 +162,51 @@ fn apply_op(op: TokenType, lhs: Node, rhs: Node) -> Node {
     }
 }
 
-fn expect_tok<I>(iter: &mut I, typ: TokenType) -> Option<Node>
+fn expect_tok<I>(iter: &mut I, typs: Vec<TokenType>) -> Option<Node>
 where
     I: PeekableIterator<Item = Token>,
 {
     if let Some(tok) = iter.next() {
-        if tok.typ == typ {
-            None
-        } else {
-            Some(Node {
-                typ: NodeType::Error(format!(
-                    "Expected: {:?}, found {:?}",
-                    TokenType::RParen,
-                    tok.typ
-                )),
-                range: tok.range,
-                flags: NodeFlags::ERROR,
-            })
+        for typ in &typs {
+            if &tok.typ == typ {
+                return None;
+            }
         }
+
+        Some(Node {
+            typ: NodeType::Error(format!("Expected: {:?}, found {:?}", typs, tok.typ)),
+            range: tok.range,
+            flags: NodeFlags::ERROR,
+        })
+        // None
+        // if matches!(tok.typ, typ.clon) {
+        // if {
+        //     for typ in typs
+        // }
+        //     None
+        // } else {
+        //     Some(Node {
+        //         typ: NodeType::Error(format!("Expected: {:?}, found {:?}", typ, tok.typ)),
+        //         range: tok.range,
+        //         flags: NodeFlags::ERROR,
+        //     })
+        // }
     } else {
         panic!();
     }
 }
 
-macro_rules! unwrap_ret {
-    ($e:expr) => {{
-        let n = $e;
-        if let Some(err) = n {
-            return err;
-        }
-        n
-    }};
-}
-
-// macro_rules! prop_node {
-//     ($e:expr $(,$func:ident)?) => {{
-//         let n = $e;
-//         if let NodeType::Error(_) = n.typ {
-//             return n;
-//         }
-//         n
-//     }};
-// }
-
 fn parse_paren<I>(iter: &mut I) -> Node
 where
     I: PeekableIterator<Item = Token>,
 {
-    unwrap_ret!(expect_tok(iter, TokenType::LParen));
+    unwrap_ret!(expect_tok(iter, vec!(TokenType::LParen)));
 
-    let lhs = atom(iter);
-    println!("test");
-    let node = parse_expression(iter, lhs, -1);
-    println!("node: {}", node);
+    let node = prop_node!(parse_expression(iter));
+    // let lhs = atom(iter);
+    // let node = prop_node!(parse_sub_expression(iter, lhs, -1));
 
-    unwrap_ret!(expect_tok(iter, TokenType::RParen));
+    unwrap_ret!(expect_tok(iter, vec!(TokenType::RParen)));
     node
 }
 
@@ -201,6 +226,27 @@ where
     }
 }
 
+fn parse_unry<I>(iter: &mut I) -> Node
+where
+    I: PeekableIterator<Item = Token>,
+{
+    use TokenType::*;
+    let op = iter.peek().unwrap().clone();
+
+    unwrap_ret!(expect_tok(iter, vec!(TokenType::Add, TokenType::Sub)));
+    let node = parse_expression(iter);
+    let range = op.range.start..node.range.end;
+
+    Node::new(
+        match op.typ {
+            Add => NodeType::UnryAdd(node.into()),
+            Sub => NodeType::UnryMin(node.into()),
+            _ => panic!("expected Add or Sub, found: {:?}", op),
+        },
+        range,
+    )
+}
+
 fn atom<I>(iter: &mut I) -> Node
 where
     I: PeekableIterator<Item = Token>,
@@ -210,6 +256,7 @@ where
         match tok.typ {
             LParen => parse_paren(iter),
             I32Lit(_) | F32Lit(_) | StringLit(_) => parse_lit(iter),
+            Add | Sub => parse_unry(iter),
 
             Error => {
                 let tok = iter.next().unwrap();
@@ -217,76 +264,74 @@ where
             }
             _ => {
                 let tok = iter.next().unwrap();
-                Node::error(&format!("Expected expression, found [{:?}]", tok.typ), tok.range)
-                // println!("err_flag: {}", n.flags.contains(NodeFlags::ERROR));
-                // n
+                Node::error(
+                    &format!("Expected expression, found [{:?}]", tok.typ),
+                    tok.range,
+                )
             }
-            // _ => {
-            //     let tok = iter.next().unwrap();
-            //     Node {
-            //         typ: token_to_node!(tok.typ, NodeType::Error(format!("Expected expression, found: [{:?}]", tok.typ)),
-            //             I32Lit(val) => I32Lit(val)
-            //             F32Lit(val) => F32Lit(val)
-            //             StringLit(val) => StringLit(val)
-            //             Error => Error("Could net lex token".to_string())
-            //         ),
-            //         range: tok.range,
-            //         flags: NodeFlags::empty(),
-            //     }
-            // }
         }
     } else {
         todo!()
     }
 }
 
-fn parse_expression<I>(iter: &mut I, mut lhs: Node, precedence: i32) -> Node
+fn parse_sub_expression<I>(iter: &mut I, mut lhs: Node, precedence: i32) -> Node
 where
-    I: PeekableIterator<Item = Token>, // I: Iterator<Item = Token>,
+    I: PeekableIterator<Item = Token>,
 {
-    if iter.peek().is_none() {
-        return Node {
-            typ: NodeType::Error(format!("unexpected found NONE")),
-            range: lhs.range,
-            flags: NodeFlags::ERROR,
-        };
+    if iter.peek().is_none() || iter.peek().unwrap().typ == TokenType::Eof {
+        return lhs;
     }
 
+    if iter.peek().is_none() {
+        return lhs;
+    }
     let mut lookahead = iter.peek().unwrap().typ.clone();
-
-    // println!("lookahead: {:?}", lookahead);
+    println!("lookahead: {:?}", lookahead);
 
     while lookahead.is_op() && lookahead.precedence() > precedence {
         let op = lookahead;
-        // println!("\top: {:?}", op);
+        println!("\top: {:?}", op);
 
         iter.next();
         if iter.peek().is_none() {
             return lhs;
         }
-        // let mut rhs = prop_node!(atom(iter));
-        let mut rhs = atom(iter);
-        // println!("\trhs: {:?}", rhs);
 
+        let mut rhs = atom(iter);
+        println!("\tnext rhs: {:?}", rhs);
+
+        if iter.peek().is_none() {
+            lhs = apply_op(op, lhs, rhs);
+            break;
+        }
         lookahead = iter.peek().unwrap().typ.clone();
-        // println!("\tlookahead: {:?}", lookahead);
+        println!("\tlookahead: {:?}", lookahead);
 
         while lookahead.is_op() && lookahead.precedence() > op.precedence() {
-            rhs = parse_expression(iter, rhs, op.precedence());
-            // println!("\t\trhs: {:?}", rhs.typ);
+            rhs = parse_sub_expression(iter, rhs, op.precedence());
+            println!("\t\trhs: {:?}", rhs.typ);
 
             if iter.peek().is_none() {
                 break;
             }
             lookahead = iter.peek().unwrap().typ.clone();
-            // println!("\t\tlookahead: {:?}", lookahead);
+            println!("\t\tlookahead: {:?}", lookahead);
         }
 
         lhs = apply_op(op, lhs, rhs);
-        // println!("\tlhs: {:?}", lhs.typ);
+        println!("\tlhs: {:?}", lhs.typ);
     }
 
     lhs
+}
+
+fn parse_expression<I>(iter: &mut I) -> Node
+where
+    I: PeekableIterator<Item = Token>,
+{
+    let lhs = atom(iter);
+    parse_sub_expression(iter, lhs, -1)
 }
 
 pub fn parse_tokens(tokens: Vec<Token>) -> Node {
@@ -300,11 +345,12 @@ pub fn parse_tokens(tokens: Vec<Token>) -> Node {
 
     let mut iter = tokens.into_iter().peekable();
 
-    let lhs = atom(&mut iter);
-    parse_expression(&mut iter, lhs, -1)
+    parse_expression(&mut iter)
+    // let lhs = atom(&mut iter);
+    // parse_sub_expression(&mut iter, lhs, -1)
 }
 
-pub fn print_errors(n: &Node, code: &String) {
+pub fn print_errors(n: &Node, code: &str) {
     use NodeType::*;
     match &n.typ {
         I32Lit(_) | F32Lit(_) | StringLit(_) => {}
@@ -313,7 +359,7 @@ pub fn print_errors(n: &Node, code: &String) {
             print_errors(&lhs, code);
             print_errors(&rhs, code);
         }
-        Min(lhs, rhs) => {
+        Sub(lhs, rhs) => {
             print_errors(&lhs, code);
             print_errors(&rhs, code);
         }
@@ -325,11 +371,34 @@ pub fn print_errors(n: &Node, code: &String) {
             print_errors(&lhs, code);
             print_errors(&rhs, code);
         }
+
+        UnryAdd(node) => print_errors(&node, code),
+        UnryMin(node) => print_errors(&node, code),
+
+        Equal(lhs, rhs) => {
+            print_errors(&lhs, code);
+            print_errors(&rhs, code);
+        }
+        Greater(lhs, rhs) => {
+            print_errors(&lhs, code);
+            print_errors(&rhs, code);
+        }
+        GreaterEq(lhs, rhs) => {
+            print_errors(&lhs, code);
+            print_errors(&rhs, code);
+        }
+        Less(lhs, rhs) => {
+            print_errors(&lhs, code);
+            print_errors(&rhs, code);
+        }
+        LessEq(lhs, rhs) => {
+            print_errors(&lhs, code);
+            print_errors(&rhs, code);
+        }
+
         Error(msg) => {
             println!("Parser: {}", msg);
-            // println!("{:?}", n.range.clone());
             println!("{}", error::underline_code(code, &n.range));
-        }
-        _ => todo!(),
+        } // _ => panic!("print_errors for {:?} not implemented", n.typ),
     }
 }

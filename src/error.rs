@@ -1,7 +1,7 @@
 use crate::lexer::Position;
 use colored::Colorize;
 
-pub fn underline_code(code: &String, pos: &Position) -> String {
+pub fn underline_code(code: &str, pos: &Position) -> String {
     let mut beg_line = code[0..pos.start].rfind('\n').unwrap_or(0);
     if beg_line != 0 {
         beg_line += 1

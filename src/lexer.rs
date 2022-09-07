@@ -2,6 +2,7 @@ use colored::Colorize;
 use logos::{Lexer, Logos};
 use paste::paste;
 
+#[macro_export]
 macro_rules! enum_or {
 
     ($x:pat) => {
@@ -13,6 +14,7 @@ macro_rules! enum_or {
     };
 }
 
+#[macro_export]
 macro_rules! enum_match {
 
     ($self:ident, $default:expr, $n:expr,) => {$default};
@@ -27,6 +29,7 @@ macro_rules! enum_match {
     };
 }
 
+#[macro_export]
 macro_rules! priority_func {
 
     ($name:tt -> $typ:ty, $default:expr, $([$($x:pat),*])*) =>
@@ -37,6 +40,7 @@ macro_rules! priority_func {
     };
 }
 
+#[macro_export]
 macro_rules! assign_func {
 
     ($name: tt -> $typ:ty, $default: expr, $([$val:expr; $($x2:pat),*])*) => {
@@ -120,9 +124,9 @@ pub enum TokenType {
     #[token("++")]
     AddAdd,
     #[token("-")]
-    Min,
+    Sub,
     #[token("--")]
-    MinMin,
+    SubSub,
     #[token("*")]
     Mul,
     #[token("/")]
@@ -170,12 +174,12 @@ impl TokenType {
     priority_func!(precedence -> i32, 0,
         [I32Lit(_), F32Lit(_), StringLit(_)]
         [Equal, Greater, GreaterEq, Less, LessEq]
-        [Add, Min]
+        [Add, Sub]
         [Mul, Div]
     );
 
     assign_func!(is_op -> bool, false,
-        [true; Add, Min, Mul, Div, Equal, Greater, GreaterEq, Less, LessEq]
+        [true; Add, Sub, Mul, Div, Equal, Greater, GreaterEq, Less, LessEq]
     );
 }
 
@@ -187,19 +191,55 @@ pub struct Token {
     pub range: Position,
 }
 
+fn merge_errors<I>(mut tokens: I) -> Vec<Token>
+where
+    I: Iterator<Item = Token>,
+{
+    let mut vec = Vec::<Token>::new();
+    let mut err_range: Option<Position> = None;
+
+    while let Some(tok) = tokens.next() {
+        if tok.typ == TokenType::Error {
+            err_range = Some({
+                if err_range.is_none() {
+                    tok.range.start..tok.range.end
+                } else {
+                    err_range.unwrap().start..tok.range.end
+                }
+            });
+        } else {
+            if err_range.is_some() {
+                vec.push(Token {
+                    typ: TokenType::Error,
+                    range: err_range.unwrap(),
+                });
+
+                err_range = None;
+            }
+            vec.push(tok);
+        }
+    }
+
+    if err_range.is_some() {
+        vec.push(Token {
+            typ: TokenType::Error,
+            range: err_range.unwrap(),
+        });
+    }
+
+    vec
+}
+
 pub fn lex_tokens(code: &str) -> (Vec<Token>, bool) {
     let lex = TokenType::lexer(code);
     let mut err_flag = false;
 
-    let mut tokens: Vec<Token> = lex
-        .spanned()
-        .map(|(typ, range)| {
-            if TokenType::Error == typ {
-                err_flag = true;
-            }
-            Token { typ, range }
-        })
-        .collect();
+    let mut tokens: Vec<Token> = merge_errors(lex.spanned().map(|(typ, range)| {
+        if TokenType::Error == typ {
+            err_flag = true;
+        }
+        Token { typ, range }
+    }));
 
     tokens.push(Token {
         typ: TokenType::Eof,
@@ -219,6 +259,7 @@ pub fn print_tokens(code: &str, tokens: &Vec<Token>) {
     use TokenType::*;
 
     for tok in tokens {
+        // println!("{:?}", tok);
         if let TokenType::Eof = tok.typ {
             continue;
         }
@@ -230,7 +271,7 @@ pub fn print_tokens(code: &str, tokens: &Vec<Token>) {
 
             Const | Return | This | Any => s.magenta(),
 
-            Add | AddAdd | Min | MinMin | Mul | Div | Equal | Greater | Less | GreaterEq
+            Add | AddAdd | Sub | SubSub | Mul | Div | Equal | Greater | Less | GreaterEq
             | LessEq | Assign => s.blue(),
 
             Arrow | Dot | Comma | Semicln | Colon | Addr => s.yellow(),
