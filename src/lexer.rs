@@ -68,7 +68,7 @@ fn parse_string(lex: &mut Lexer<TokenType>) -> Option<String> {
             match c {
                 'n' => str.push('\n'),
                 't' => str.push('\t'),
-                _ => str.push_str(&format!("\\{}", c).to_string()),
+                _ => str.push_str(&format!("\\{}", c).to_owned()),
             }
 
             escape = false;
@@ -84,6 +84,14 @@ fn parse_string(lex: &mut Lexer<TokenType>) -> Option<String> {
 
     lex.bump(len);
     Some(str)
+}
+
+fn parse_bool(lex: &mut Lexer<TokenType>) -> bool {
+    match lex.slice() {
+        "false" => false,
+        "true" => true,
+        _ => panic!(),
+    }
 }
 
 #[derive(Logos, Debug, PartialEq, Clone)]
@@ -111,6 +119,10 @@ pub enum TokenType {
     Colon,
     #[token("&")]
     Addr,
+
+    #[token("false", parse_bool)]
+    #[token("true", parse_bool)]
+    BoolLit(bool),
 
     #[regex(r"[0-9]+", |lex| lex.slice().parse())]
     I32Lit(i32),
@@ -172,15 +184,18 @@ pub enum TokenType {
 
 impl TokenType {
     priority_func!(precedence -> i32, 0,
-        [I32Lit(_), F32Lit(_), StringLit(_)]
+        [Assign]
         [Equal, Greater, GreaterEq, Less, LessEq]
         [Add, Sub]
         [Mul, Div]
     );
 
-    assign_func!(is_op -> bool, false,
-        [true; Add, Sub, Mul, Div, Equal, Greater, GreaterEq, Less, LessEq]
-    );
+    pub fn is_op(&self) -> bool {
+        self.precedence() != 0
+    }
+    // assign_func!(is_op -> bool, false,
+    //     [true; Add, Sub, Mul, Div, Equal, Greater, GreaterEq, Less, LessEq, Assign]
+    // );
 }
 
 pub type Position = std::ops::Range<usize>;
@@ -276,8 +291,9 @@ pub fn print_tokens(code: &str, tokens: &Vec<Token>) {
 
             Arrow | Dot | Comma | Semicln | Colon | Addr => s.yellow(),
 
-            I32Lit(val) => val.to_string().green(),
-            F32Lit(val) => val.to_string().green(),
+            BoolLit(val) => val.to_string().red(),
+            I32Lit(val) => val.to_string().red(),
+            F32Lit(val) => val.to_string().red(),
             StringLit(val) => format!("\"{}\"", val).green(),
 
             Id(val) => val.to_string().cyan(),

@@ -9,11 +9,10 @@ use std::env;
 // use std::{env, fs};
 
 fn main() {
-    
     env::set_var("RUST_BACKTRACE", "1");
 
-    // let code = fs::read_to_string("syntax.ch").expect("Something went wrong reading the file");
-    let code = "1 + + (- 2) + 3";
+    // let code = &fs::read_to_string("syntax.ch").expect("Something went wrong reading the file");
+    let code = "{a = 1 + 2; a}";
 
     let (mut tokens, err_flag) = lexer::lex_tokens(&code);
 
@@ -28,7 +27,7 @@ fn main() {
             println!("Lexer: could not lex char:");
             println!("{}", error::underline_code(code, &err.range));
         }
-        // return;
+        return;
     }
 
     lexer::filter_tokens(&mut tokens);
@@ -40,7 +39,10 @@ fn main() {
         parser::print_errors(&ast, code);
     }
 
-    println!("{:?}", interpreter::visit_node(&ast));
+    match interpreter::interpret(&ast) {
+        Ok(e) => println!("{}", e),
+        Err(e) => interpreter::print_error(e, code),
+    };
 }
 
 #[test]
@@ -58,7 +60,7 @@ fn basic_math() {
         let (mut tokens, _) = lexer::lex_tokens(&c);
         lexer::filter_tokens(&mut tokens);
         let ast = parser::parse_tokens(tokens);
-        let val = interpreter::visit_node(&ast);
+        let val = interpreter::interpret(&ast);
         assert_eq!(val.unwrap(), v);
     }
 }

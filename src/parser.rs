@@ -22,16 +22,6 @@ macro_rules! prop_node {
     }};
 }
 
-// macro_rules! get_option {
-//     ($e:expr, $val: ident, $res:expr) => {{
-//         if let Some($val) = $e {
-//             Some($res)
-//         } else {
-//             None
-//         }
-//     }};
-// }
-
 pub trait PeekableIterator: std::iter::Iterator {
     fn peek(&mut self) -> Option<&Self::Item>;
 }
@@ -44,6 +34,7 @@ impl<I: std::iter::Iterator> PeekableIterator for std::iter::Peekable<I> {
 
 #[derive(Debug, Clone)]
 pub enum NodeType {
+    BoolLit(bool),
     I32Lit(i32),
     F32Lit(f32),
     StringLit(String),
@@ -62,7 +53,12 @@ pub enum NodeType {
     Less(Box<Node>, Box<Node>),
     LessEq(Box<Node>, Box<Node>),
 
+    Assign(Box<Node>, Box<Node>),
+    Id(String),
+
     Error(String),
+
+    Expresssion(Vec<Node>, bool), //return last
 }
 
 macro_rules! token_to_node {
@@ -98,7 +94,7 @@ impl Node {
 
     fn error(msg: &str, range: Position) -> Self {
         Self {
-            typ: NodeType::Error(msg.to_string()),
+            typ: NodeType::Error(msg.to_owned()),
             range,
             flags: NodeFlags::ERROR,
         }
@@ -115,6 +111,7 @@ impl fmt::Display for Node {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use NodeType::*;
         match &self.typ {
+            BoolLit(v) => write!(f, "{}", v),
             I32Lit(v) => write!(f, "{}", v),
             F32Lit(v) => write!(f, "{}", v),
             StringLit(v) => write!(f, "{}", v),
@@ -132,7 +129,25 @@ impl fmt::Display for Node {
             GreaterEq(lhs, rhs) => write!(f, "({} >= {})", lhs, rhs),
             Less(lhs, rhs) => write!(f, "({} < {})", lhs, rhs),
             LessEq(lhs, rhs) => write!(f, "({} <= {})", lhs, rhs),
+
+            Assign(lhs, rhs) => write!(f, "({} = {})", lhs, rhs),
+            Id(v) => write!(f, "{}", v),
+
             Error(msg) => write!(f, "Err: {}", msg),
+
+            Expresssion(expr, last_ret) => {
+                let mut res = String::new();
+                let mut it = expr.iter().peekable();
+
+                while let Some(e) = it.next() {
+                    if it.peek().is_some() || !last_ret {
+                        res.push_str(&format!("{};", e));
+                    } else {
+                        res.push_str(&format!("{}", e));
+                    }
+                }
+                write!(f, "{{{}}}", res)
+            }
         }
     }
 }
@@ -156,9 +171,36 @@ fn apply_op(op: TokenType, lhs: Node, rhs: Node) -> Node {
             GreaterEq => GreaterEq(lhs.into(), rhs.into())
             Less => Less(lhs.into(), rhs.into())
             LessEq => LessEq(lhs.into(), rhs.into())
+
+            Assign => Assign(lhs.into(), rhs.into())
         ),
         range: (start..end),
         flags: l_flags | r_flags,
+    }
+}
+
+fn expect_tok_peek<I>(iter: &mut I, typs: Vec<TokenType>) -> Option<Node>
+where
+    I: PeekableIterator<Item = Token>,
+{
+    if let Some(tok) = iter.peek() {
+        for typ in &typs {
+            if &tok.typ == typ {
+                return None;
+            }
+        }
+
+        Some(Node {
+            typ: NodeType::Error(format!("Expected: {:?}, found {:?}", typs, tok.typ)),
+            range: tok.range.clone(),
+            flags: NodeFlags::ERROR,
+        })
+    } else {
+        Some(Node {
+            typ: NodeType::Error(format!("Expected: {:?}, found NONE", typs)),
+            range: 0..0,
+            flags: NodeFlags::ERROR,
+        })
     }
 }
 
@@ -178,21 +220,12 @@ where
             range: tok.range,
             flags: NodeFlags::ERROR,
         })
-        // None
-        // if matches!(tok.typ, typ.clon) {
-        // if {
-        //     for typ in typs
-        // }
-        //     None
-        // } else {
-        //     Some(Node {
-        //         typ: NodeType::Error(format!("Expected: {:?}, found {:?}", typ, tok.typ)),
-        //         range: tok.range,
-        //         flags: NodeFlags::ERROR,
-        //     })
-        // }
     } else {
-        panic!();
+        Some(Node {
+            typ: NodeType::Error(format!("Expected: {:?}, found NONE", typs)),
+            range: 0..0,
+            flags: NodeFlags::ERROR,
+        })
     }
 }
 
@@ -203,23 +236,52 @@ where
     unwrap_ret!(expect_tok(iter, vec!(TokenType::LParen)));
 
     let node = prop_node!(parse_expression(iter));
-    // let lhs = atom(iter);
-    // let node = prop_node!(parse_sub_expression(iter, lhs, -1));
 
     unwrap_ret!(expect_tok(iter, vec!(TokenType::RParen)));
     node
 }
 
-fn parse_lit<I>(iter: &mut I) -> Node
+fn parse_expr<I>(iter: &mut I) -> Node
+where
+    I: PeekableIterator<Item = Token>,
+{
+    let start = iter.peek().unwrap().range.start;
+    unwrap_ret!(expect_tok(iter, vec!(TokenType::LBrace)));
+
+    let mut expr: Vec<Node> = Vec::new();
+    let mut ret_last = false;
+
+    while iter.peek().is_some() && iter.peek().unwrap().typ != TokenType::RBrace {
+        let node = parse_expression(iter);
+        expr.push(node);
+
+        if let Some(_) = expect_tok_peek(iter, vec![TokenType::Semicln]) {
+            ret_last = true;
+            break;
+        } else {
+            iter.next();
+        }
+    }
+
+    // let node = prop_node!(parse_expression(iter));
+    let end = iter.peek().unwrap().range.end;
+    unwrap_ret!(expect_tok(iter, vec!(TokenType::RBrace)));
+
+    Node::new(NodeType::Expresssion(expr, ret_last), start..end)
+}
+
+fn parse_tok<I>(iter: &mut I) -> Node
 where
     I: PeekableIterator<Item = Token>,
 {
     let tok = iter.next().unwrap();
     Node {
         typ: token_to_node!(tok.typ, panic!("expected literal, found: {:?}", tok.typ),
+            BoolLit(val) => BoolLit(val)
             I32Lit(val) => I32Lit(val)
             F32Lit(val) => F32Lit(val)
             StringLit(val) => StringLit(val)
+            Id(val) => Id(val)
         ),
         range: tok.range,
         flags: NodeFlags::empty(),
@@ -255,7 +317,8 @@ where
     if let Some(tok) = iter.peek() {
         match tok.typ {
             LParen => parse_paren(iter),
-            I32Lit(_) | F32Lit(_) | StringLit(_) => parse_lit(iter),
+            LBrace => parse_expr(iter),
+            BoolLit(_) | I32Lit(_) | F32Lit(_) | StringLit(_) | Id(_) => parse_tok(iter),
             Add | Sub => parse_unry(iter),
 
             Error => {
@@ -287,11 +350,11 @@ where
         return lhs;
     }
     let mut lookahead = iter.peek().unwrap().typ.clone();
-    println!("lookahead: {:?}", lookahead);
+    // println!("lookahead: {:?}", lookahead);
 
     while lookahead.is_op() && lookahead.precedence() > precedence {
         let op = lookahead;
-        println!("\top: {:?}", op);
+        // println!("\top: {:?}", op);
 
         iter.next();
         if iter.peek().is_none() {
@@ -299,28 +362,28 @@ where
         }
 
         let mut rhs = atom(iter);
-        println!("\tnext rhs: {:?}", rhs);
+        // println!("\tnext rhs: {:?}", rhs);
 
         if iter.peek().is_none() {
             lhs = apply_op(op, lhs, rhs);
             break;
         }
         lookahead = iter.peek().unwrap().typ.clone();
-        println!("\tlookahead: {:?}", lookahead);
+        // println!("\tlookahead: {:?}", lookahead);
 
         while lookahead.is_op() && lookahead.precedence() > op.precedence() {
             rhs = parse_sub_expression(iter, rhs, op.precedence());
-            println!("\t\trhs: {:?}", rhs.typ);
+            // println!("\t\trhs: {:?}", rhs.typ);
 
             if iter.peek().is_none() {
                 break;
             }
             lookahead = iter.peek().unwrap().typ.clone();
-            println!("\t\tlookahead: {:?}", lookahead);
+            // println!("\t\tlookahead: {:?}", lookahead);
         }
 
         lhs = apply_op(op, lhs, rhs);
-        println!("\tlhs: {:?}", lhs.typ);
+        // println!("\tlhs: {:?}", lhs.typ);
     }
 
     lhs
@@ -337,7 +400,7 @@ where
 pub fn parse_tokens(tokens: Vec<Token>) -> Node {
     if tokens.is_empty() {
         return Node {
-            typ: NodeType::Error("No Tokens found".to_string()),
+            typ: NodeType::Error("No Tokens found".to_owned()),
             range: (0..0),
             flags: NodeFlags::ERROR,
         };
@@ -346,15 +409,11 @@ pub fn parse_tokens(tokens: Vec<Token>) -> Node {
     let mut iter = tokens.into_iter().peekable();
 
     parse_expression(&mut iter)
-    // let lhs = atom(&mut iter);
-    // parse_sub_expression(&mut iter, lhs, -1)
 }
 
 pub fn print_errors(n: &Node, code: &str) {
     use NodeType::*;
     match &n.typ {
-        I32Lit(_) | F32Lit(_) | StringLit(_) => {}
-
         Add(lhs, rhs) => {
             print_errors(&lhs, code);
             print_errors(&rhs, code);
@@ -396,9 +455,16 @@ pub fn print_errors(n: &Node, code: &str) {
             print_errors(&rhs, code);
         }
 
+        Assign(lhs, rhs) => {
+            print_errors(&lhs, code);
+            print_errors(&rhs, code);
+        }
+
         Error(msg) => {
             println!("Parser: {}", msg);
             println!("{}", error::underline_code(code, &n.range));
         } // _ => panic!("print_errors for {:?} not implemented", n.typ),
+
+        _ => {}
     }
 }

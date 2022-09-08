@@ -1,50 +1,157 @@
-use crate::parser::*;
-use crate::chtype::ChType;
+use crate::{chtype::ChType, error, lexer::Position, parser::*};
 use core::result::Result;
+use std::{collections::HashMap, ops};
 
 #[derive(Debug, PartialEq)]
-pub enum RuntimeErr {
-    ZeroDivisionError,
+pub enum ErrType {
+    ZeroDivision,
     UnsupportedOperand(String),
+    UnAllowedAssign,
+    Undefinded(String),
 }
 
-pub type RuntimeRes = Result<ChType, RuntimeErr>;
+#[derive(Debug, PartialEq)]
+pub struct RuntimeErr {
+    typ: ErrType,
+    range: Position,
+}
 
-fn visit_bin_op<F>(op: F, lhs: &Node, rhs: &Node) -> RuntimeRes
+impl RuntimeErr {
+    fn new(typ: ErrType, range: Position) -> Self {
+        Self { typ, range }
+    }
+}
+
+type Scope = HashMap<String, ChType>;
+
+pub fn print_error(err: RuntimeErr, code: &str) {
+    println!("Interpreter: {:?}", err.typ);
+    println!("{}", error::underline_code(code, &err.range));
+}
+
+fn visit_bin_op<F>(op: F, lhs: &Node, rhs: &Node, scope: &mut Scope) -> Result<ChType, RuntimeErr>
 where
-    F: Fn(ChType, ChType) -> RuntimeRes,
+    F: Fn(ChType, ChType) -> Result<ChType, ErrType>,
 {
-    let left_val = visit_node(lhs)?;
-    let right_val = visit_node(rhs)?;
+    let range = lhs.range.start..rhs.range.end;
 
-    op(left_val, right_val)
+    let left_val = visit_node(lhs, scope)?;
+    let right_val = visit_node(rhs, scope)?;
+
+    match op(left_val, right_val) {
+        Err(e) => Err(RuntimeErr::new(e, range)),
+        Ok(e) => Ok(e),
+    }
 }
 
-fn visit_unry_op<F>(op: F, n: &Node) -> RuntimeRes
+fn visit_unry_op<F>(op: F, n: &Node, scope: &mut Scope) -> Result<ChType, RuntimeErr>
 where
-    F: Fn(ChType) -> RuntimeRes,
+    F: Fn(ChType) -> Result<ChType, ErrType>,
 {
-    let val = visit_node(n)?;
-    op(val)
+    let range = n.range.clone();
+    let val = visit_node(n, scope)?;
+
+    match op(val) {
+        Err(e) => Err(RuntimeErr::new(e, range)),
+        Ok(e) => Ok(e),
+    }
 }
 
-pub fn visit_node(node: &Node) ->  RuntimeRes {
+fn visit_assign(lhs: &Node, rhs: &Node, scope: &mut Scope) -> Result<ChType, RuntimeErr> {
+    let range = lhs.range.start..rhs.range.end;
+
+    let rhs_val = visit_node(rhs, scope)?;
+    let ret = rhs_val.clone();
+
+    match &lhs.typ {
+        NodeType::Id(name) => scope.insert(name.to_string(), rhs_val.clone()),
+        _ => return Err(RuntimeErr::new(ErrType::UnAllowedAssign, range)),
+    };
+
+    Ok(ret)
+}
+
+fn visit_access(n: &Node, scope: &mut Scope) -> Result<ChType, RuntimeErr> {
+
+    if let NodeType::Id(name) = &n.typ {
+        if let Some(val) = scope.get(name) {
+            Ok(val.clone())
+        }
+        else {
+            Err(RuntimeErr::new(ErrType::Undefinded(name.to_owned()), n.range.clone()))
+        }
+    } else {
+        panic!("access is only defined for Id, found: {:?}", n)
+    }
+}
+
+fn visit_expr(exprs: &Vec<Node>, ret_last: bool, scope: &mut Scope) -> Result<ChType, RuntimeErr> {
+    //TODO: empty expression, nonetype?
+
+    let mut it = exprs.into_iter();
+    let mut val = visit_node(it.next().unwrap(), scope);
+
+    while let Some(n) = it.next() {
+        val = visit_node(n, scope);
+    }
+
+    val
+}
+
+fn visit_node(node: &Node, scope: &mut Scope) -> Result<ChType, RuntimeErr> {
     use NodeType::*;
     match &node.typ {
+        BoolLit(val) => Ok(ChType::Bool(*val)),
         I32Lit(val) => Ok(ChType::I32(*val)),
-        Add(lhs, rhs) => visit_bin_op(|v1: ChType, v2: ChType| v1 + v2, lhs, rhs),
-        Sub(lhs, rhs) => visit_bin_op(|v1: ChType, v2: ChType| v1 - v2, lhs, rhs),
-        Mul(lhs, rhs) => visit_bin_op(|v1: ChType, v2: ChType| v1 * v2, lhs, rhs),
-        Div(lhs, rhs) => visit_bin_op(|v1: ChType, v2: ChType| v1 / v2, lhs, rhs),
+        F32Lit(val) => Ok(ChType::F32(*val)),
 
-        Equal(lhs, rhs) => visit_bin_op(|v1: ChType, v2: ChType| Ok(ChType::Bool(v1 == v2)), lhs, rhs),
-        Greater(lhs, rhs) => visit_bin_op(|v1: ChType, v2: ChType| Ok(ChType::Bool(v1 > v2)), lhs, rhs),
-        GreaterEq(lhs, rhs) => visit_bin_op(|v1: ChType, v2: ChType| Ok(ChType::Bool(v1 >= v2)), lhs, rhs),
-        Less(lhs, rhs) => visit_bin_op(|v1: ChType, v2: ChType| Ok(ChType::Bool(v1 < v2)), lhs, rhs),
-        LessEq(lhs, rhs) => visit_bin_op(|v1: ChType, v2: ChType| Ok(ChType::Bool(v1 <= v2)), lhs, rhs),
+        Add(lhs, rhs) => visit_bin_op(ops::Add::add, lhs, rhs, scope),
+        Sub(lhs, rhs) => visit_bin_op(ops::Sub::sub, lhs, rhs, scope),
+        Mul(lhs, rhs) => visit_bin_op(ops::Mul::mul, lhs, rhs, scope),
+        Div(lhs, rhs) => visit_bin_op(ops::Div::div, lhs, rhs, scope),
 
-        UnryAdd(n) => visit_unry_op(|v: ChType| Ok(v), n),
-        UnryMin(n) => visit_unry_op(|v: ChType| v * ChType::I8(-1), n),
-        _ => todo!(),
+        Equal(lhs, rhs) => visit_bin_op(
+            |v1: ChType, v2: ChType| Ok(ChType::Bool(v1 == v2)),
+            lhs,
+            rhs,
+            scope,
+        ),
+        Greater(lhs, rhs) => visit_bin_op(
+            |v1: ChType, v2: ChType| Ok(ChType::Bool(v1 > v2)),
+            lhs,
+            rhs,
+            scope,
+        ),
+        GreaterEq(lhs, rhs) => visit_bin_op(
+            |v1: ChType, v2: ChType| Ok(ChType::Bool(v1 >= v2)),
+            lhs,
+            rhs,
+            scope,
+        ),
+        Less(lhs, rhs) => visit_bin_op(
+            |v1: ChType, v2: ChType| Ok(ChType::Bool(v1 < v2)),
+            lhs,
+            rhs,
+            scope,
+        ),
+        LessEq(lhs, rhs) => visit_bin_op(
+            |v1: ChType, v2: ChType| Ok(ChType::Bool(v1 <= v2)),
+            lhs,
+            rhs,
+            scope,
+        ),
+
+        UnryAdd(n) => visit_unry_op(|v: ChType| Ok(v), n, scope),
+        UnryMin(n) => visit_unry_op(|v: ChType| v * ChType::I8(-1), n, scope),
+
+        Assign(id, n) => visit_assign(id, n, scope),
+        Id(_) => visit_access(node, scope),
+
+        Expresssion(exprs, ret_last) => visit_expr(exprs, *ret_last, scope),
+        _ => panic!("visit_node for {:?} not implemented", node.typ),
     }
+}
+
+pub fn interpret(root: &Node) -> Result<ChType, RuntimeErr> {
+    visit_node(root, &mut Scope::new())
 }
