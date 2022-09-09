@@ -46,8 +46,10 @@ pub enum NodeType {
 
     UnryAdd(Box<Node>),
     UnryMin(Box<Node>),
+    UnryNot(Box<Node>),
 
     Equal(Box<Node>, Box<Node>),
+    NotEqual(Box<Node>, Box<Node>),
     Greater(Box<Node>, Box<Node>),
     GreaterEq(Box<Node>, Box<Node>),
     Less(Box<Node>, Box<Node>),
@@ -123,8 +125,10 @@ impl fmt::Display for Node {
 
             UnryAdd(node) => write!(f, "(+ {})", node),
             UnryMin(node) => write!(f, "(- {})", node),
+            UnryNot(node) => write!(f, "(! {})", node),
 
             Equal(lhs, rhs) => write!(f, "({} == {})", lhs, rhs),
+            NotEqual(lhs, rhs) => write!(f, "({} != {})", lhs, rhs),
             Greater(lhs, rhs) => write!(f, "({} > {})", lhs, rhs),
             GreaterEq(lhs, rhs) => write!(f, "({} >= {})", lhs, rhs),
             Less(lhs, rhs) => write!(f, "({} < {})", lhs, rhs),
@@ -167,6 +171,7 @@ fn apply_op(op: TokenType, lhs: Node, rhs: Node) -> Node {
             Div => Div(lhs.into(), rhs.into())
 
             Equal => Equal(lhs.into(), rhs.into())
+            NotEqual => NotEqual(lhs.into(), rhs.into())
             Greater => Greater(lhs.into(), rhs.into())
             GreaterEq => GreaterEq(lhs.into(), rhs.into())
             Less => Less(lhs.into(), rhs.into())
@@ -295,7 +300,7 @@ where
     use TokenType::*;
     let op = iter.peek().unwrap().clone();
 
-    unwrap_ret!(expect_tok(iter, vec!(TokenType::Add, TokenType::Sub)));
+    unwrap_ret!(expect_tok(iter, vec!(TokenType::Add, TokenType::Sub, TokenType::Not)));
     let node = parse_expression(iter);
     let range = op.range.start..node.range.end;
 
@@ -303,6 +308,7 @@ where
         match op.typ {
             Add => NodeType::UnryAdd(node.into()),
             Sub => NodeType::UnryMin(node.into()),
+            Not => NodeType::UnryNot(node.into()),
             _ => panic!("expected Add or Sub, found: {:?}", op),
         },
         range,
@@ -319,7 +325,7 @@ where
             LParen => parse_paren(iter),
             LBrace => parse_expr(iter),
             BoolLit(_) | I32Lit(_) | F32Lit(_) | StringLit(_) | Id(_) => parse_tok(iter),
-            Add | Sub => parse_unry(iter),
+            Add | Sub | Not => parse_unry(iter),
 
             Error => {
                 let tok = iter.next().unwrap();
@@ -350,11 +356,8 @@ where
         return lhs;
     }
     let mut lookahead = iter.peek().unwrap().typ.clone();
-    // println!("lookahead: {:?}", lookahead);
-
     while lookahead.is_op() && lookahead.precedence() > precedence {
         let op = lookahead;
-        // println!("\top: {:?}", op);
 
         iter.next();
         if iter.peek().is_none() {
@@ -362,28 +365,22 @@ where
         }
 
         let mut rhs = atom(iter);
-        // println!("\tnext rhs: {:?}", rhs);
 
         if iter.peek().is_none() {
             lhs = apply_op(op, lhs, rhs);
             break;
         }
         lookahead = iter.peek().unwrap().typ.clone();
-        // println!("\tlookahead: {:?}", lookahead);
 
         while lookahead.is_op() && lookahead.precedence() > op.precedence() {
             rhs = parse_sub_expression(iter, rhs, op.precedence());
-            // println!("\t\trhs: {:?}", rhs.typ);
-
             if iter.peek().is_none() {
                 break;
             }
             lookahead = iter.peek().unwrap().typ.clone();
-            // println!("\t\tlookahead: {:?}", lookahead);
         }
 
         lhs = apply_op(op, lhs, rhs);
-        // println!("\tlhs: {:?}", lhs.typ);
     }
 
     lhs
@@ -414,6 +411,8 @@ pub fn parse_tokens(tokens: Vec<Token>) -> Node {
 pub fn print_errors(n: &Node, code: &str) {
     use NodeType::*;
     match &n.typ {
+        BoolLit(_) | I32Lit(_) | F32Lit(_) | StringLit(_) | Id(_) => {},
+
         Add(lhs, rhs) => {
             print_errors(&lhs, code);
             print_errors(&rhs, code);
@@ -433,8 +432,13 @@ pub fn print_errors(n: &Node, code: &str) {
 
         UnryAdd(node) => print_errors(&node, code),
         UnryMin(node) => print_errors(&node, code),
+        UnryNot(node) => print_errors(&node, code),
 
         Equal(lhs, rhs) => {
+            print_errors(&lhs, code);
+            print_errors(&rhs, code);
+        }
+        NotEqual(lhs, rhs) => {
             print_errors(&lhs, code);
             print_errors(&rhs, code);
         }
@@ -463,8 +467,13 @@ pub fn print_errors(n: &Node, code: &str) {
         Error(msg) => {
             println!("Parser: {}", msg);
             println!("{}", error::underline_code(code, &n.range));
-        } // _ => panic!("print_errors for {:?} not implemented", n.typ),
+        } 
 
-        _ => {}
+        Expresssion(vec, _) => {
+            for e in vec {
+                print_errors(e, code);
+            }
+        }
+        // _ => panic!("print_errors for {:?} not implemented", n.typ),
     }
 }

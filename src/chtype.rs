@@ -25,6 +25,8 @@ pub enum ChType {
 
     Char(char),
     String(String),
+
+    Void,
 }
 
 macro_rules! unwrap_chtype {
@@ -49,6 +51,7 @@ macro_rules! unwrap_chtype {
 
             ChType::Char($in) => $e,
             ChType::String($in) => $e,
+            _ => panic!("unwrap_chtype not implemented for {:?}", $chtype),
         }
     };
 }
@@ -56,7 +59,7 @@ macro_rules! unwrap_chtype {
 macro_rules! chnum_to_typ {
     ($typ: ty) => {
         paste! {
-            fn [<to_$typ>](self) -> $typ {
+            pub fn [<to_$typ>](self) -> $typ {
                 use ChType::*;
                 match self {
                     Bool(v) => v as u8 as $typ,
@@ -85,8 +88,8 @@ macro_rules! chnum_to_typ {
 }
 
 macro_rules! apply_num_op {
-    ($lhs:ident $op:tt $rhs:ident) => {{
-        let max = cmp::max($lhs.priority(), $rhs.priority());
+    ($lhs:ident $op:tt $rhs:ident, $rest:expr) => {{
+        let max = cmp::max($lhs.num_priority(), $rhs.num_priority());
 
         match max {
             1 => ChType::U8($lhs.to_u8() $op $rhs.to_u8()),
@@ -100,17 +103,18 @@ macro_rules! apply_num_op {
             9 => ChType::I128($lhs.to_i128() $op $rhs.to_i128()),
             10 => ChType::F32($lhs.to_f32() $op $rhs.to_f32()),
             11 => ChType::F64($lhs.to_f64() $op $rhs.to_f64()),
-            _ => panic!(
-                "Operator not defined for {:?} {} {:?}",
-                $lhs,
-                stringify!($op),
-                $rhs,
-            ),
+            _ => $rest,
+                // panic!(
+                // "Operator not defined for {:?} {} {:?}",
+                // $lhs,
+                // stringify!($op),
+                // $rhs,
+            // ),
         }
     }};
 
-    ($pat:pat, $lhs:ident $op:tt $rhs:ident) => {{
-        let max = cmp::max($lhs.priority(), $rhs.priority());
+    ($pat:pat, $lhs:ident $op:tt $rhs:ident, $rest:expr) => {{
+        let max = cmp::max($lhs.num_priority(), $rhs.num_priority());
 
         paste!(
         match max {
@@ -125,19 +129,20 @@ macro_rules! apply_num_op {
             9 => $pat($lhs.to_i128() $op $rhs.to_i128()),
             10 => $pat($lhs.to_f32() $op $rhs.to_f32()),
             11 => $pat($lhs.to_f64() $op $rhs.to_f64()),
-            _ => panic!(
-                "Operator not defined for {:?} {} {:?}",
-                $lhs,
-                stringify!($op),
-                $rhs,
-            ),
+            _ => $rest,
+                // panic!(
+                // "Operator not defined for {:?} {} {:?}",
+                // $lhs,
+                // stringify!($op),
+                // $rhs,
+            // ),
         })
     }};
 }
 
 impl ChType {
     #[cfg(target_pointer_width = "64")]
-    crate::assign_func!(priority -> u32, 0,
+    crate::assign_func!(num_priority -> u32, 0,
         [1; Bool(_)]
         [2; U8(_)]
         [3; I8(_)]
@@ -152,7 +157,7 @@ impl ChType {
     );
 
     #[cfg(target_pointer_width = "32")]
-    crate::assign_func!(priority -> u32, 0,
+    crate::assign_func!(num_priority -> u32, 0,
         [1; U8(_)]
         [2; I8(_)]
         [3; U32(_), Usize(_)]
@@ -165,12 +170,38 @@ impl ChType {
         [10; F64(_)]
     );
 
-    fn is_zero(&self) -> bool {
+    pub fn get_type(&self) -> String {
+        use ChType::*;
+
+        match self {
+            Bool(_) => "bool",
+            I8(_) => "i8",
+            I32(_) => "i32",
+            I64(_) => "i64",
+            ISize(_) => "isize",
+            I128(_) => "i128",
+            U8(_) => "u8",
+            U32(_) => "u32",
+            U64(_) => "u64",
+            USize(_) => "usize",
+            U128(_) => "u128",
+            F32(_) => "f32",
+            F64(_) => "f64",
+            Char(_) => "char",
+            String(_) => "string",
+            Void => "void",
+        }
+        .to_owned()
+    }
+
+    pub fn is_zero(&self) -> bool {
         use ChType::*;
 
         match self {
             Bool(false) | I8(0i8) | I32(0i32) | I64(0i64) | ISize(0isize) | I128(0i128)
-            | U8(0u8) | U32(0u32) | U64(0u64) | USize(0usize) | U128(0u128) | Char('\0') => true,
+            | U8(0u8) | U32(0u32) | U64(0u64) | USize(0usize) | U128(0u128) | Char('\0') | Void => {
+                true
+            }
 
             F32(v) => v == &0.0,
 
@@ -179,7 +210,11 @@ impl ChType {
         }
     }
 
-    fn to_bool(&self) -> bool {
+    pub fn is_num(&self) -> bool {
+        self.num_priority() != 0
+    }
+
+    pub fn to_bool(self) -> bool {
         !self.is_zero()
     }
 
@@ -201,7 +236,11 @@ impl ChType {
 
 impl fmt::Display for ChType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        unwrap_chtype!(self, e, write!(f, "{}", e.to_string()))
+        if let ChType::Void = self {
+            write!(f, "")
+        } else {
+            unwrap_chtype!(self, e, write!(f, "{}", e.to_string()))
+        }
     }
 }
 
@@ -209,36 +248,38 @@ impl ops::Add<ChType> for ChType {
     type Output = Result<ChType, ErrType>;
 
     fn add(self, rhs: ChType) -> Result<ChType, ErrType> {
-        if let ChType::String(val) = self {
-            return Ok(ChType::String(format!("{}{}", val, rhs)));
-        } else if let ChType::Char(_) = self {
-            return Err(ErrType::UnsupportedOperand(
-                "Operator [Add] not defined for Char".to_owned(),
-            ));
+        use ChType::*;
+
+        if let String(ref s1) = self {
+            if let String(s2) = rhs {
+                return Ok(String(format!("{}{}", s1, s2)));
+            }
         }
 
-        Ok(apply_num_op!(self + rhs))
+        let chtype = apply_num_op!(
+            self + rhs,
+            return Err(ErrType::UnsupportedOperand(format!(
+                "Operator [Add] not defined for {} + {}",
+                self.get_type(),
+                rhs.get_type()
+            )))
+        );
+        Ok(chtype)
     }
 }
 
 impl ops::Sub<ChType> for ChType {
     type Output = Result<ChType, ErrType>;
     fn sub(self, rhs: ChType) -> Result<ChType, ErrType> {
-        match self {
-            ChType::String(_) => {
-                return Err(UnsupportedOperand(
-                    "Operator [Sub] not defined for String".to_owned(),
-                ))
-            }
-            ChType::Char(_) => {
-                return Err(UnsupportedOperand(
-                    "Operator [Sub] not defined for Char".to_owned(),
-                ))
-            }
-            _ => (),
-        }
-
-        Ok(apply_num_op!(self - rhs))
+        let chtype = apply_num_op!(
+            self - rhs,
+            return Err(ErrType::UnsupportedOperand(format!(
+                "Operator [Sub] not defined for {} - {}",
+                self.get_type(),
+                rhs.get_type()
+            )))
+        );
+        Ok(chtype)
     }
 }
 
@@ -247,38 +288,51 @@ impl ops::Mul<ChType> for ChType {
     fn mul(self, rhs: ChType) -> Result<ChType, ErrType> {
         use ChType::*;
 
-        if let String(v) = self {
-            return Ok(String(v.repeat(rhs.to_usize())));
-        } else if let Char(v) = self {
-            return Ok(String(v.to_string().repeat(rhs.to_usize())));
+        if rhs.is_num() {
+            if let String(v) = self {
+                return Ok(String(v.repeat(rhs.to_usize())));
+            }
+            // else if let Char(v) = self {
+            //     return Ok(String(v.to_string().repeat(rhs.to_usize())));
+            // }
         }
 
-        Ok(apply_num_op!(self * rhs))
+        let chtype = apply_num_op!(
+            self * rhs,
+            return Err(ErrType::UnsupportedOperand(format!(
+                "Operator [Mul] not defined for {} * {}",
+                self.get_type(),
+                rhs.get_type()
+            )))
+        );
+        Ok(chtype)
     }
 }
 
 impl ops::Div<ChType> for ChType {
     type Output = Result<ChType, ErrType>;
     fn div(self, rhs: ChType) -> Result<ChType, ErrType> {
-        match self {
-            ChType::String(_) => {
-                return Err(UnsupportedOperand(
-                    "Operator [Div] not defined for String".to_owned(),
-                ))
-            }
-            ChType::Char(_) => {
-                return Err(UnsupportedOperand(
-                    "Operator [Div] not defined for Char".to_owned(),
-                ))
-            }
-            _ => (),
+        if let ChType::Void = rhs {
+            return Err(ErrType::UnsupportedOperand(format!(
+                "Operator [Div] not defined for {} / {}",
+                self.get_type(),
+                rhs.get_type()
+            )));
         }
 
         if rhs.is_zero() {
             return Err(ZeroDivision);
         }
 
-        Ok(apply_num_op!(self / rhs))
+        let chtype = apply_num_op!(
+            self / rhs,
+            return Err(ErrType::UnsupportedOperand(format!(
+                "Operator [Div] not defined for {} / {}",
+                self.get_type(),
+                rhs.get_type()
+            )))
+        );
+        Ok(chtype)
     }
 }
 
@@ -302,12 +356,19 @@ impl PartialEq for ChType {
                     return false;
                 }
             }
+            Void => {
+                if let Void = other {
+                    return true;
+                } else {
+                    return false;
+                }
+            }
             _ => (),
         }
 
         let lhs = self.clone();
         let rhs = other.clone();
-        let res = apply_num_op!(ChType::Bool, lhs == rhs);
+        let res = apply_num_op!(ChType::Bool, lhs == rhs, return false);
 
         if let ChType::Bool(v) = res {
             v
@@ -352,6 +413,10 @@ fn mul_chtype() {
     assert_eq!((I32(2) * U8(3)).unwrap(), I32(6));
     assert_eq!((U8(2) * U8(3)).unwrap(), U8(6));
     assert_eq!((I128(2) * F64(3.0)).unwrap(), F64(6.0));
+    assert_eq!(
+        (String("a".to_owned()) * I32(3)).unwrap(),
+        String("aaa".to_owned())
+    );
 }
 
 #[test]
@@ -380,4 +445,15 @@ fn eq_chtype() {
     assert_eq!(Char('c'), Char('c'));
     assert_ne!(Char('d'), Char('c'));
     assert_ne!(String("c".to_owned()), Char('c'));
+
+    assert_eq!(Void, Void);
+}
+
+#[test]
+fn chtype_to_bool() {
+    use ChType::*;
+    assert!(F32(2.0).to_bool());
+    assert!(!U8(0).to_bool());
+    assert!(!Void.to_bool());
+    assert!(String("".to_owned()).to_bool());
 }

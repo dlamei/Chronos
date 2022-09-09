@@ -86,16 +86,22 @@ fn visit_access(n: &Node, scope: &mut Scope) -> Result<ChType, RuntimeErr> {
 }
 
 fn visit_expr(exprs: &Vec<Node>, ret_last: bool, scope: &mut Scope) -> Result<ChType, RuntimeErr> {
-    //TODO: empty expression, nonetype?
-
-    let mut it = exprs.into_iter();
-    let mut val = visit_node(it.next().unwrap(), scope);
-
-    while let Some(n) = it.next() {
-        val = visit_node(n, scope);
+    if exprs.is_empty() {
+        return Ok(ChType::Void);
     }
 
-    val
+    let mut it = exprs.into_iter();
+    let mut val = visit_node(it.next().unwrap(), scope)?;
+
+    while let Some(n) = it.next() {
+        val = visit_node(n, scope)?;
+    }
+
+    if ret_last {
+        Ok(val)
+    } else {
+        Ok(ChType::Void)
+    }
 }
 
 fn visit_node(node: &Node, scope: &mut Scope) -> Result<ChType, RuntimeErr> {
@@ -112,6 +118,12 @@ fn visit_node(node: &Node, scope: &mut Scope) -> Result<ChType, RuntimeErr> {
 
         Equal(lhs, rhs) => visit_bin_op(
             |v1: ChType, v2: ChType| Ok(ChType::Bool(v1 == v2)),
+            lhs,
+            rhs,
+            scope,
+        ),
+        NotEqual(lhs, rhs) => visit_bin_op(
+            |v1: ChType, v2: ChType| Ok(ChType::Bool(v1 != v2)),
             lhs,
             rhs,
             scope,
@@ -143,6 +155,7 @@ fn visit_node(node: &Node, scope: &mut Scope) -> Result<ChType, RuntimeErr> {
 
         UnryAdd(n) => visit_unry_op(|v: ChType| Ok(v), n, scope),
         UnryMin(n) => visit_unry_op(|v: ChType| v * ChType::I8(-1), n, scope),
+        UnryNot(n) => visit_unry_op(|v: ChType| Ok(ChType::Bool(!v.to_bool())), n, scope),
 
         Assign(id, n) => visit_assign(id, n, scope),
         Id(_) => visit_access(node, scope),

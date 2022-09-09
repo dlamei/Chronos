@@ -143,8 +143,12 @@ pub enum TokenType {
     Mul,
     #[token("/")]
     Div,
+    #[token("!")]
+    Not,
     #[token("==")]
     Equal,
+    #[token("!=")]
+    NotEqual,
     #[token(">")]
     Greater,
     #[token("<")]
@@ -185,7 +189,7 @@ pub enum TokenType {
 impl TokenType {
     priority_func!(precedence -> i32, 0,
         [Assign]
-        [Equal, Greater, GreaterEq, Less, LessEq]
+        [Equal, NotEqual, Greater, GreaterEq, Less, LessEq]
         [Add, Sub]
         [Mul, Div]
     );
@@ -286,7 +290,7 @@ pub fn print_tokens(code: &str, tokens: &Vec<Token>) {
 
             Const | Return | This | Any => s.magenta(),
 
-            Add | AddAdd | Sub | SubSub | Mul | Div | Equal | Greater | Less | GreaterEq
+            Add | AddAdd | Sub | SubSub | Mul | Div | Equal | Not |NotEqual | Greater | Less | GreaterEq
             | LessEq | Assign => s.blue(),
 
             Arrow | Dot | Comma | Semicln | Colon | Addr => s.yellow(),
