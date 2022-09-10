@@ -1,7 +1,10 @@
-use crate::{error, lexer::*};
+use crate::{
+    error,
+    lexer::{Position, Token, TokenType},
+};
 use bitflags::bitflags;
 use paste::paste;
-use std::fmt;
+use std::{collections::LinkedList, fmt};
 
 macro_rules! unwrap_ret {
     ($e:expr) => {{
@@ -60,7 +63,7 @@ pub enum NodeType {
 
     Error(String),
 
-    Expresssion(Vec<Node>, bool), //return last
+    Expresssion(LinkedList<Node>, bool), //return last
 }
 
 macro_rules! token_to_node {
@@ -253,12 +256,17 @@ where
     let start = iter.peek().unwrap().range.start;
     unwrap_ret!(expect_tok(iter, vec!(TokenType::LBrace)));
 
-    let mut expr: Vec<Node> = Vec::new();
+    let mut expr: LinkedList<Node> = LinkedList::new();
     let mut ret_last = false;
 
     while iter.peek().is_some() && iter.peek().unwrap().typ != TokenType::RBrace {
+        if let TokenType::Semicln = iter.peek().unwrap().typ {
+            iter.next();
+            continue;
+        }
+
         let node = parse_expression(iter);
-        expr.push(node);
+        expr.push_back(node);
 
         if let Some(_) = expect_tok_peek(iter, vec![TokenType::Semicln]) {
             ret_last = true;
@@ -300,7 +308,10 @@ where
     use TokenType::*;
     let op = iter.peek().unwrap().clone();
 
-    unwrap_ret!(expect_tok(iter, vec!(TokenType::Add, TokenType::Sub, TokenType::Not)));
+    unwrap_ret!(expect_tok(
+        iter,
+        vec!(TokenType::Add, TokenType::Sub, TokenType::Not)
+    ));
     let node = parse_expression(iter);
     let range = op.range.start..node.range.end;
 
@@ -411,7 +422,7 @@ pub fn parse_tokens(tokens: Vec<Token>) -> Node {
 pub fn print_errors(n: &Node, code: &str) {
     use NodeType::*;
     match &n.typ {
-        BoolLit(_) | I32Lit(_) | F32Lit(_) | StringLit(_) | Id(_) => {},
+        BoolLit(_) | I32Lit(_) | F32Lit(_) | StringLit(_) | Id(_) => {}
 
         Add(lhs, rhs) => {
             print_errors(&lhs, code);
@@ -467,13 +478,12 @@ pub fn print_errors(n: &Node, code: &str) {
         Error(msg) => {
             println!("Parser: {}", msg);
             println!("{}", error::underline_code(code, &n.range));
-        } 
+        }
 
         Expresssion(vec, _) => {
             for e in vec {
                 print_errors(e, code);
             }
         }
-        // _ => panic!("print_errors for {:?} not implemented", n.typ),
     }
 }

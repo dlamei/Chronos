@@ -290,8 +290,8 @@ pub fn print_tokens(code: &str, tokens: &Vec<Token>) {
 
             Const | Return | This | Any => s.magenta(),
 
-            Add | AddAdd | Sub | SubSub | Mul | Div | Equal | Not |NotEqual | Greater | Less | GreaterEq
-            | LessEq | Assign => s.blue(),
+            Add | AddAdd | Sub | SubSub | Mul | Div | Equal | Not | NotEqual | Greater | Less
+            | GreaterEq | LessEq | Assign => s.blue(),
 
             Arrow | Dot | Comma | Semicln | Colon | Addr => s.yellow(),
 

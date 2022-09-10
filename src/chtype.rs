@@ -1,20 +1,22 @@
 use paste::paste;
+// use crate::parser::{Node, NodeType};
 use std::{cmp, fmt, ops};
 
 use crate::interpreter::ErrType::{self, *};
 
-//TODO: custom PartialEq
-#[derive(Debug, Clone, PartialOrd)]
+#[derive(Debug, Clone)]
 pub enum ChType {
     Bool(bool),
 
     I8(i8),
+    I16(i16),
     I32(i32),
     I64(i64),
     ISize(isize),
     I128(i128),
 
     U8(u8),
+    U16(u16),
     U32(u32),
     U64(u64),
     USize(usize),
@@ -26,6 +28,7 @@ pub enum ChType {
     Char(char),
     String(String),
 
+    // Expression(LinkedList<Node>),
     Void,
 }
 
@@ -35,12 +38,14 @@ macro_rules! unwrap_chtype {
             ChType::Bool($in) => $e,
 
             ChType::I8($in) => $e,
+            ChType::I16($in) => $e,
             ChType::I32($in) => $e,
             ChType::I64($in) => $e,
             ChType::ISize($in) => $e,
             ChType::I128($in) => $e,
 
             ChType::U8($in) => $e,
+            ChType::U16($in) => $e,
             ChType::U32($in) => $e,
             ChType::U64($in) => $e,
             ChType::USize($in) => $e,
@@ -56,30 +61,32 @@ macro_rules! unwrap_chtype {
     };
 }
 
-macro_rules! chnum_to_typ {
+macro_rules! chnum_as_typ {
     ($typ: ty) => {
         paste! {
-            pub fn [<to_$typ>](self) -> $typ {
+            pub fn [<as_$typ>](&self) -> $typ {
                 use ChType::*;
                 match self {
-                    Bool(v) => v as u8 as $typ,
+                    Bool(v) => *v as u8 as $typ,
 
-                    I8(v) => v as $typ,
-                    I32(v) => v as $typ,
-                    I64(v) => v as $typ,
-                    ISize(v) => v as $typ,
-                    I128(v) => v as $typ,
+                    I8(v) => *v as $typ,
+                    I16(v) => *v as $typ,
+                    I32(v) => *v as $typ,
+                    I64(v) => *v as $typ,
+                    ISize(v) => *v as $typ,
+                    I128(v) => *v as $typ,
 
-                    U8(v) => v as $typ,
-                    U32(v) => v as $typ,
-                    U64(v) => v as $typ,
-                    USize(v) => v as $typ,
-                    U128(v) => v as $typ,
+                    U8(v) => *v as $typ,
+                    U16(v) => *v as $typ,
+                    U32(v) => *v as $typ,
+                    U64(v) => *v as $typ,
+                    USize(v) => *v as $typ,
+                    U128(v) => *v as $typ,
 
-                    F32(v) => v as $typ,
-                    F64(v) => v as $typ,
+                    F32(v) => *v as $typ,
+                    F64(v) => *v as $typ,
 
-                    Char(v) => v as u8 as $typ,
+                    Char(v) => *v as u8 as $typ,
                     _ => panic!("to_{} not defined for {:?}", stringify!($typ), self),
                 }
             }
@@ -87,87 +94,220 @@ macro_rules! chnum_to_typ {
     };
 }
 
-macro_rules! apply_num_op {
-    ($lhs:ident $op:tt $rhs:ident, $rest:expr) => {{
-        let max = cmp::max($lhs.num_priority(), $rhs.num_priority());
+macro_rules! apply_op {
+    ($lhs:expr; $op:tt $rhs:expr; $checked:ident) => {
+        match ($lhs, $rhs) {
+            (ChType::Bool(v1), ChType::Bool(v2)) => ChType::U8(*v1 as u8 $op *v2 as u8),
+            (ChType::Char(v1), ChType::Char(v2)) => {
+                if let Some(v) = (*v1 as u8).$checked(*v2 as u8) {
+                    ChType::Char(v as char)
+                } else {
+                    ChType::U16(*v1 as u16 $op *v2 as u16)
+                }
+            }
+            (ChType::U8(v1), ChType::U8(v2)) => {
+                if let Some(v) = v1.$checked(*v2) {
+                    ChType::U8(v)
+                } else {
+                    ChType::U16(*v1 as u16 $op *v2 as u16)
+                }
+            }
+            (ChType::U16(v1), ChType::U16(v2)) => {
+                if let Some(v) = v1.$checked(*v2) {
+                    ChType::U16(v)
+                } else {
+                    ChType::U32(*v1 as u32 $op *v2 as u32)
+                }
+            }
+            (ChType::U32(v1), ChType::U32(v2)) => {
+                if let Some(v) = v1.$checked(*v2) {
+                    ChType::U32(v)
+                } else {
+                    ChType::U64(*v1 as u64 $op *v2 as u64)
+                }
+            }
+            (ChType::U64(v1), ChType::U64(v2)) => {
+                if let Some(v) = v1.$checked(*v2) {
+                    ChType::U64(v)
+                } else {
+                    ChType::U128(*v1 as u128 $op *v2 as u128)
+                }
+            }
+            (ChType::U128(v1), ChType::U128(v2)) => {
+                if let Some(v) = v1.$checked(*v2) {
+                    ChType::U128(v)
+                } else {
+                    todo!()
+                }
+            }
+            (ChType::I8(v1), ChType::I8(v2)) => {
+                if let Some(v) = v1.$checked(*v2) {
+                    ChType::I8(v)
+                } else {
+                    ChType::I16(*v1 as i16 $op *v2 as i16)
+                }
+            }
+            (ChType::I16(v1), ChType::I16(v2)) => {
+                if let Some(v) = v1.$checked(*v2) {
+                    ChType::I16(v)
+                } else {
+                    ChType::I32(*v1 as i32 $op *v2 as i32)
+                }
+            }
+            (ChType::I32(v1), ChType::I32(v2)) => {
+                if let Some(v) = v1.$checked(*v2) {
+                    ChType::I32(v)
+                } else {
+                    ChType::I64(*v1 as i64 $op *v2 as i64)
+                }
+            }
+            (ChType::I64(v1), ChType::I64(v2)) => {
+                if let Some(v) = v1.$checked(*v2) {
+                    ChType::I64(v)
+                } else {
+                    ChType::I128(*v1 as i128 $op *v2 as i128)
+                }
+            }
+            (ChType::I128(v1), ChType::I128(v2)) => {
+                if let Some(v) = v1.$checked(*v2) {
+                    ChType::I128(v)
+                } else {
+                    todo!()
+                }
+            }
 
-        match max {
-            1 => ChType::U8($lhs.to_u8() $op $rhs.to_u8()),
-            2 => ChType::U8($lhs.to_u8() $op $rhs.to_u8()),
-            3 => ChType::I8($lhs.to_i8() $op $rhs.to_i8()),
-            4 => ChType::U32($lhs.to_u32() $op $rhs.to_u32()),
-            5 => ChType::I32($lhs.to_i32() $op $rhs.to_i32()),
-            6 => ChType::U64($lhs.to_u64() $op $rhs.to_u64()),
-            7 => ChType::I64($lhs.to_i64() $op $rhs.to_i64()),
-            8 => ChType::U128($lhs.to_u128() $op $rhs.to_u128()),
-            9 => ChType::I128($lhs.to_i128() $op $rhs.to_i128()),
-            10 => ChType::F32($lhs.to_f32() $op $rhs.to_f32()),
-            11 => ChType::F64($lhs.to_f64() $op $rhs.to_f64()),
+            (ChType::F32(v1), ChType::F32(v2)) => ChType::F32(*v1 $op *v2),
+            (ChType::F64(v1), ChType::F64(v2)) => ChType::F64(*v1 $op *v2),
+            _ => panic!(
+                "can't operate on type {} with type {}",
+                $lhs.get_type(),
+                $rhs.get_type()
+            ),
+        }
+    };
+
+    ($lhs:expr; $op:tt $rhs:expr; => $rest:expr) => {
+        match ($lhs, $rhs) {
+            (ChType::Bool(v1), ChType::Bool(v2)) => *v1 as u8 $op *v2 as u8,
+            (ChType::U8(v1), ChType::U8(v2)) => *v1 $op *v2,
+            (ChType::U16(v1), ChType::U16(v2)) => *v1 $op *v2,
+            (ChType::U32(v1), ChType::U32(v2)) => *v1 $op *v2,
+            (ChType::U64(v1), ChType::U64(v2)) => *v1 $op *v2,
+            (ChType::U128(v1), ChType::U128(v2)) => *v1 $op *v2,
+            (ChType::I8(v1), ChType::I8(v2)) => *v1 $op *v2,
+            (ChType::I16(v1), ChType::I16(v2)) => *v1 $op *v2,
+            (ChType::I32(v1), ChType::I32(v2)) => *v1 $op *v2,
+            (ChType::I64(v1), ChType::I64(v2)) => *v1 $op *v2,
+            (ChType::I128(v1), ChType::I128(v2)) => *v1 $op *v2,
+
+            (ChType::F32(v1), ChType::F32(v2)) => *v1 $op *v2,
+            (ChType::F64(v1), ChType::F64(v2)) => *v1 $op *v2,
+            (ChType::Char(v1), ChType::Char(v2)) => *v1 $op *v2,
             _ => $rest,
-                // panic!(
-                // "Operator not defined for {:?} {} {:?}",
-                // $lhs,
-                // stringify!($op),
-                // $rhs,
+            // _ => panic!(
+            //     "can't operate on type {} with type {}",
+            //     $lhs.get_type(),
+            //     $rhs.get_type()
             // ),
         }
-    }};
+    };
+}
 
-    ($pat:pat, $lhs:ident $op:tt $rhs:ident, $rest:expr) => {{
-        let max = cmp::max($lhs.num_priority(), $rhs.num_priority());
+fn from_bit_size(size: u32, signed: bool, float: bool) -> Option<ChType> {
+    use ChType::*;
+    if !float {
+        if signed {
+            match size {
+                8 => Some(I8(0)),
+                16 => Some(I16(0)),
+                32 => Some(I32(0)),
+                64 => Some(I64(0)),
+                128 => Some(I128(0)),
+                _ => None,
+            }
+        } else {
+            match size {
+                8 => Some(U8(0)),
+                16 => Some(U16(0)),
+                32 => Some(U32(0)),
+                64 => Some(U64(0)),
+                128 => Some(U128(0)),
+                _ => None,
+            }
+        }
+    } else {
+        match size {
+            32 => Some(F32(0.0)),
+            64 => Some(F64(0.0)),
+            _ => panic!("no unsigned int chtype with size: {}", size),
+        }
+    }
+}
 
-        paste!(
-        match max {
-            1 => $pat($lhs.to_u8() $op $rhs.to_u8()),
-            2 => $pat($lhs.to_u8() $op $rhs.to_u8()),
-            3 => $pat($lhs.to_i8() $op $rhs.to_i8()),
-            4 => $pat($lhs.to_u32() $op $rhs.to_u32()),
-            5 => $pat($lhs.to_i32() $op $rhs.to_i32()),
-            6 => $pat($lhs.to_u64() $op $rhs.to_u64()),
-            7 => $pat($lhs.to_i64() $op $rhs.to_i64()),
-            8 => $pat($lhs.to_u128() $op $rhs.to_u128()),
-            9 => $pat($lhs.to_i128() $op $rhs.to_i128()),
-            10 => $pat($lhs.to_f32() $op $rhs.to_f32()),
-            11 => $pat($lhs.to_f64() $op $rhs.to_f64()),
-            _ => $rest,
-                // panic!(
-                // "Operator not defined for {:?} {} {:?}",
-                // $lhs,
-                // stringify!($op),
-                // $rhs,
-            // ),
-        })
-    }};
+fn get_op_numtype(lhs: &ChType, rhs: &ChType) -> Option<ChType> {
+    use ChType::*;
+
+    if !lhs.is_num() || !rhs.is_num() {
+        return None;
+    }
+
+    if lhs.is_float() && rhs.is_float() {
+        return from_bit_size(cmp::max(lhs.get_bit_size(), rhs.get_bit_size()), true, true);
+    } else if lhs.is_float() {
+        if rhs.get_bit_size() <= 32 {
+            return Some(F32(0.0));
+        } else {
+            return Some(F64(0.0));
+        }
+    } else if rhs.is_float() {
+        if lhs.get_bit_size() <= 32 {
+            return Some(F32(0.0));
+        } else {
+            return Some(F64(0.0));
+        }
+    }
+
+    if lhs.get_bit_size() > rhs.get_bit_size() {
+        from_bit_size(lhs.get_bit_size(), lhs.is_signed(), false)
+    } else if lhs.get_bit_size() < rhs.get_bit_size() {
+        from_bit_size(rhs.get_bit_size(), rhs.is_signed(), false)
+    } else if lhs.get_bit_size() == rhs.get_bit_size() && lhs.is_signed() == rhs.is_signed() {
+        from_bit_size(lhs.get_bit_size(), lhs.is_signed(), false)
+    } else {
+        from_bit_size(lhs.get_bit_size() * 2, true, false)
+    }
 }
 
 impl ChType {
     #[cfg(target_pointer_width = "64")]
-    crate::assign_func!(num_priority -> u32, 0,
-        [1; Bool(_)]
-        [2; U8(_)]
-        [3; I8(_)]
-        [4; U32(_)]
-        [5; I32(_)]
-        [6; U64(_), USize(_)]
-        [7; I64(_), ISize(_)]
-        [8; U128(_)]
-        [9; I128(_)]
-        [10; F32(_)]
-        [11; F64(_)]
+    crate::assign_func!(get_bit_size -> u32, 0,
+        [8; Bool(_), Char(_), U8(_), I8(_)]
+        [32; U32(_), I32(_), F32(_)]
+        [64; U64(_), USize(_), I64(_), ISize(_), F64(_)]
+        [128; U128(_), I128(_)]
     );
 
     #[cfg(target_pointer_width = "32")]
-    crate::assign_func!(num_priority -> u32, 0,
-        [1; U8(_)]
-        [2; I8(_)]
-        [3; U32(_), Usize(_)]
-        [4; I32(_), Isize(_)]
-        [5; U64(_)]
-        [6; I64(_)]
-        [7; U128(_)]
-        [8; I128(_)]
-        [9; F32(_)]
-        [10; F64(_)]
+    crate::assign_func!(get_bit_size -> u32, 0,
+        [8; Bool(_), U8(_), I8(_)]
+        [32; U32(_), I32(_), F32(_)]
+        [64; U64(_), USize(_), I64(_), ISize(_), F64(_)]
+        [128; U128(_), I128(_)]
+    );
+
+    crate::assign_func!(is_signed -> bool, true,
+        [false; U8(_), U32(_), U64(_), USize(_), U128(_)]
+    );
+
+    crate::assign_func!(is_float -> bool, false,
+        [true; F32(_), F64(_)]
+    );
+
+    crate::assign_func!(is_num -> bool, false,
+        [true; Bool(_), Char(_), U8(_), I8(_)]
+        [true; U32(_), I32(_), F32(_)]
+        [true; U64(_), USize(_), I64(_), ISize(_), F64(_)]
+        [true; U128(_), I128(_)]
     );
 
     pub fn get_type(&self) -> String {
@@ -176,11 +316,13 @@ impl ChType {
         match self {
             Bool(_) => "bool",
             I8(_) => "i8",
+            I16(_) => "i16",
             I32(_) => "i32",
             I64(_) => "i64",
             ISize(_) => "isize",
             I128(_) => "i128",
             U8(_) => "u8",
+            U16(_) => "u16",
             U32(_) => "u32",
             U64(_) => "u64",
             USize(_) => "usize",
@@ -202,36 +344,55 @@ impl ChType {
             | U8(0u8) | U32(0u32) | U64(0u64) | USize(0usize) | U128(0u128) | Char('\0') | Void => {
                 true
             }
-
             F32(v) => v == &0.0,
-
             F64(v) => v == &0.0,
             _ => false,
         }
     }
 
-    pub fn is_num(&self) -> bool {
-        self.num_priority() != 0
-    }
-
-    pub fn to_bool(self) -> bool {
+    pub fn as_bool(&self) -> bool {
         !self.is_zero()
     }
 
-    chnum_to_typ!(i8);
-    chnum_to_typ!(i32);
-    chnum_to_typ!(i64);
-    chnum_to_typ!(isize);
-    chnum_to_typ!(i128);
+    pub fn as_transformed_num(&self, typ: &ChType) -> ChType {
+        use ChType::*;
+        match typ {
+            Bool(_) => Bool(self.as_bool()),
+            I8(_) => I8(self.as_i8()),
+            I16(_) => I16(self.as_i16()),
+            I32(_) => I32(self.as_i32()),
+            I64(_) => I64(self.as_i64()),
+            ISize(_) => ISize(self.as_isize()),
+            I128(_) => I128(self.as_i128()),
+            U8(_) => U8(self.as_u8()),
+            U16(_) => U16(self.as_u16()),
+            U32(_) => U32(self.as_u32()),
+            U64(_) => U64(self.as_u64()),
+            USize(_) => USize(self.as_usize()),
+            U128(_) => U128(self.as_u128()),
+            F32(_) => F32(self.as_f32()),
+            F64(_) => F64(self.as_f64()),
 
-    chnum_to_typ!(u8);
-    chnum_to_typ!(u32);
-    chnum_to_typ!(u64);
-    chnum_to_typ!(usize);
-    chnum_to_typ!(u128);
+            _ => panic!("can't transorm {} to type: {}", self, typ.get_type()),
+        }
+    }
 
-    chnum_to_typ!(f32);
-    chnum_to_typ!(f64);
+    chnum_as_typ!(i8);
+    chnum_as_typ!(i16);
+    chnum_as_typ!(i32);
+    chnum_as_typ!(i64);
+    chnum_as_typ!(isize);
+    chnum_as_typ!(i128);
+
+    chnum_as_typ!(u8);
+    chnum_as_typ!(u16);
+    chnum_as_typ!(u32);
+    chnum_as_typ!(u64);
+    chnum_as_typ!(usize);
+    chnum_as_typ!(u128);
+
+    chnum_as_typ!(f32);
+    chnum_as_typ!(f64);
 }
 
 impl fmt::Display for ChType {
@@ -256,30 +417,37 @@ impl ops::Add<ChType> for ChType {
             }
         }
 
-        let chtype = apply_num_op!(
-            self + rhs,
-            return Err(ErrType::UnsupportedOperand(format!(
+        //TODO: id system
+        if let Some(typ) = get_op_numtype(&self, &rhs) {
+            let lhs = self.as_transformed_num(&typ);
+            let rhs = rhs.as_transformed_num(&typ);
+
+            Ok(apply_op!(&lhs; + &rhs; checked_add))
+        } else {
+            Err(ErrType::UnsupportedOperand(format!(
                 "Operator [Add] not defined for {} + {}",
                 self.get_type(),
                 rhs.get_type()
             )))
-        );
-        Ok(chtype)
+        }
     }
 }
 
 impl ops::Sub<ChType> for ChType {
     type Output = Result<ChType, ErrType>;
     fn sub(self, rhs: ChType) -> Result<ChType, ErrType> {
-        let chtype = apply_num_op!(
-            self - rhs,
-            return Err(ErrType::UnsupportedOperand(format!(
+        if let Some(typ) = get_op_numtype(&self, &rhs) {
+            let lhs = self.as_transformed_num(&typ);
+            let rhs = rhs.as_transformed_num(&typ);
+
+            Ok(apply_op!(&lhs; - &rhs; checked_sub))
+        } else {
+            Err(ErrType::UnsupportedOperand(format!(
                 "Operator [Sub] not defined for {} - {}",
                 self.get_type(),
                 rhs.get_type()
             )))
-        );
-        Ok(chtype)
+        }
     }
 }
 
@@ -290,22 +458,26 @@ impl ops::Mul<ChType> for ChType {
 
         if rhs.is_num() {
             if let String(v) = self {
-                return Ok(String(v.repeat(rhs.to_usize())));
+                return Ok(String(v.repeat(rhs.as_usize())));
             }
             // else if let Char(v) = self {
             //     return Ok(String(v.to_string().repeat(rhs.to_usize())));
             // }
         }
 
-        let chtype = apply_num_op!(
-            self * rhs,
-            return Err(ErrType::UnsupportedOperand(format!(
+        if let Some(typ) = get_op_numtype(&self, &rhs) {
+            let lhs = self.as_transformed_num(&typ);
+            let rhs = rhs.as_transformed_num(&typ);
+
+            let res = apply_op!(&lhs; * &rhs; checked_mul);
+            Ok(res)
+        } else {
+            Err(ErrType::UnsupportedOperand(format!(
                 "Operator [Mul] not defined for {} * {}",
                 self.get_type(),
                 rhs.get_type()
             )))
-        );
-        Ok(chtype)
+        }
     }
 }
 
@@ -324,15 +496,18 @@ impl ops::Div<ChType> for ChType {
             return Err(ZeroDivision);
         }
 
-        let chtype = apply_num_op!(
-            self / rhs,
-            return Err(ErrType::UnsupportedOperand(format!(
+        if let Some(typ) = get_op_numtype(&self, &rhs) {
+            let lhs = self.as_transformed_num(&typ);
+            let rhs = rhs.as_transformed_num(&typ);
+
+            Ok(apply_op!(&lhs; / &rhs; checked_div))
+        } else {
+            Err(ErrType::UnsupportedOperand(format!(
                 "Operator [Div] not defined for {} / {}",
                 self.get_type(),
                 rhs.get_type()
             )))
-        );
-        Ok(chtype)
+        }
     }
 }
 
@@ -366,14 +541,35 @@ impl PartialEq for ChType {
             _ => (),
         }
 
-        let lhs = self.clone();
-        let rhs = other.clone();
-        let res = apply_num_op!(ChType::Bool, lhs == rhs, return false);
+        if let Some(typ) = get_op_numtype(&self, &other) {
+            let lhs = self.as_transformed_num(&typ);
+            let rhs = other.as_transformed_num(&typ);
 
-        if let ChType::Bool(v) = res {
-            v
+            apply_op!(&lhs; == &rhs; => false)
         } else {
-            panic!()
+            false
+        }
+    }
+}
+
+impl PartialOrd for ChType {
+    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
+        let res: bool;
+
+        if let Some(typ) = get_op_numtype(&self, &other) {
+            let lhs = self.as_transformed_num(&typ);
+            let rhs = other.as_transformed_num(&typ);
+
+            res = apply_op!(&lhs; > &rhs; => false);
+        } else {
+            res = false;
+        }
+
+        // let res = apply_op!(&self; > &other;);
+        if res {
+            Some(cmp::Ordering::Greater)
+        } else {
+            Some(cmp::Ordering::Less)
         }
     }
 }
@@ -382,6 +578,7 @@ impl PartialEq for ChType {
 fn add_chtype() {
     use ChType::*;
     assert_eq!((I32(2) + Bool(false)).unwrap(), I32(2));
+    assert_eq!((I32(2) + Char(std::char::from_u32(10).unwrap())), Ok(I32(12)));
     assert_eq!((I32(2) + I32(3)).unwrap(), I32(5));
     assert_eq!((U8(2) + I32(3)).unwrap(), I32(5));
     assert_eq!((U8(2) + U128(3)).unwrap(), U128(5));
@@ -452,8 +649,16 @@ fn eq_chtype() {
 #[test]
 fn chtype_to_bool() {
     use ChType::*;
-    assert!(F32(2.0).to_bool());
-    assert!(!U8(0).to_bool());
-    assert!(!Void.to_bool());
-    assert!(String("".to_owned()).to_bool());
+    assert!(F32(2.0).as_bool());
+    assert!(!U8(0).as_bool());
+    assert!(!Void.as_bool());
+    assert!(String("".to_owned()).as_bool());
+}
+
+#[test]
+fn chtype_overflow() {
+    use ChType::*;
+    assert_eq!(I32(i32::MAX) + I32(1), Ok(I64(i32::MAX as i64 + 1)));
+    assert_eq!(I32(i32::MAX) + F32(1.0), Ok(F32(i32::MAX as f32 + 1.0)));
+    assert_eq!(Bool(false) + Bool(false), Ok(I8(0)));
 }

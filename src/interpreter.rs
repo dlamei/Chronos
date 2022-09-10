@@ -1,6 +1,14 @@
-use crate::{chtype::ChType, error, lexer::Position, parser::*};
+use crate::{
+    chtype::ChType,
+    error,
+    lexer::Position,
+    parser::{Node, NodeType},
+};
 use core::result::Result;
-use std::{collections::HashMap, ops};
+use std::{
+    collections::{HashMap, LinkedList},
+    ops,
+};
 
 #[derive(Debug, PartialEq)]
 pub enum ErrType {
@@ -72,20 +80,25 @@ fn visit_assign(lhs: &Node, rhs: &Node, scope: &mut Scope) -> Result<ChType, Run
 }
 
 fn visit_access(n: &Node, scope: &mut Scope) -> Result<ChType, RuntimeErr> {
-
     if let NodeType::Id(name) = &n.typ {
         if let Some(val) = scope.get(name) {
             Ok(val.clone())
-        }
-        else {
-            Err(RuntimeErr::new(ErrType::Undefinded(name.to_owned()), n.range.clone()))
+        } else {
+            Err(RuntimeErr::new(
+                ErrType::Undefinded(name.to_owned()),
+                n.range.clone(),
+            ))
         }
     } else {
         panic!("access is only defined for Id, found: {:?}", n)
     }
 }
 
-fn visit_expr(exprs: &Vec<Node>, ret_last: bool, scope: &mut Scope) -> Result<ChType, RuntimeErr> {
+fn visit_expr(
+    exprs: &LinkedList<Node>,
+    ret_last: bool,
+    scope: &mut Scope,
+) -> Result<ChType, RuntimeErr> {
     if exprs.is_empty() {
         return Ok(ChType::Void);
     }
@@ -155,7 +168,7 @@ fn visit_node(node: &Node, scope: &mut Scope) -> Result<ChType, RuntimeErr> {
 
         UnryAdd(n) => visit_unry_op(|v: ChType| Ok(v), n, scope),
         UnryMin(n) => visit_unry_op(|v: ChType| v * ChType::I8(-1), n, scope),
-        UnryNot(n) => visit_unry_op(|v: ChType| Ok(ChType::Bool(!v.to_bool())), n, scope),
+        UnryNot(n) => visit_unry_op(|v: ChType| Ok(ChType::Bool(!v.as_bool())), n, scope),
 
         Assign(id, n) => visit_assign(id, n, scope),
         Id(_) => visit_access(node, scope),
