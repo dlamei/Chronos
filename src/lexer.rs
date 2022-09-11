@@ -318,5 +318,5 @@ pub fn print_tokens(code: &str, tokens: &Vec<Token>) {
         res.push_str(&colored_str.to_string());
     }
 
-    println!("{}", res);
+    println!("lexer: {}", res);
 }

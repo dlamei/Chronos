@@ -72,7 +72,7 @@ fn visit_assign(lhs: &Node, rhs: &Node, scope: &Rc<RefCell<Scope>>) -> Result<Ch
     let ret = rhs_val.clone();
 
     match &lhs.typ {
-        NodeType::Id(name) => scope.borrow_mut().insert(name.to_string(), rhs_val.clone()),
+        NodeType::Id(name) => scope.borrow_mut().insert(name.to_string(), rhs_val),
         _ => return Err(RuntimeErr::new(ErrType::UnAllowedAssign, range)),
     };
 
@@ -94,27 +94,16 @@ fn visit_access(n: &Node, scope: &Rc<RefCell<Scope>>) -> Result<ChValue, Runtime
     }
 }
 
-fn eval_expr(expr: &chvalue::ExpressionData) -> Result<ChValue, RuntimeErr> {
-    let mut it = expr.nodes.iter();
-    let mut val = visit_node(it.next().unwrap(), &expr.scope)?;
-
-    while let Some(n) = it.next() {
-        val = visit_node(n, &expr.scope)?;
-    }
-
-    if expr.ret_last {
-        Ok(val)
-    } else {
-        Ok(ChValue::Void)
-    }
-}
-
 fn visit_eval(node: &Node, scope: &Rc<RefCell<Scope>>) -> Result<ChValue, RuntimeErr> {
     let range = node.range.clone();
 
     let val = visit_node(node, scope)?;
 
     if let ChValue::Expression(expr) = val {
+        if expr.nodes.len() == 0 {
+            return Ok(ChValue::Void);
+        }
+
         let mut it = expr.nodes.iter();
         let mut val = visit_node(it.next().unwrap(), &expr.scope)?;
 

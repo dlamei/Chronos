@@ -5,50 +5,93 @@ mod interpreter;
 mod lexer;
 mod parser;
 
-
-use std::env;
+use std::{io, env};
 // use std::{env, fs};
 
 fn main() {
     env::set_var("RUST_BACKTRACE", "1");
+    let args: Vec<String> = env::args().collect();
+
 
     // let code = &fs::read_to_string("syntax.ch").expect("Something went wrong reading the file");
     // use chvalue::ChValue::*;
     // println!("{:?}", String("a".to_owned()).ge(Char('a')));
     // return;
+    println!("{:?}", args);
 
-    let code = "{exp = {b = 2; b = b + 1; b}; exp()}()";
+    if args.len() >= 2 && args[1] == "repl" {
 
-    let (mut tokens, err_flag) = lexer::lex_tokens(&code);
+        loop {
+            let mut code = String::new();
+            io::stdin().read_line(&mut code).unwrap();
 
-    lexer::print_tokens(&code, &tokens);
+            let (mut tokens, err_flag) = lexer::lex_tokens(&code);
 
-    if err_flag {
-        let errors = tokens
-            .iter()
-            .filter(|tok| matches!(tok.typ, lexer::TokenType::Error));
+            lexer::print_tokens(&code, &tokens);
 
-        for err in errors {
-            println!("Lexer: could not lex char:");
-            println!("{}", error::underline_code(code, &err.range));
+            if err_flag {
+                let errors = tokens
+                    .iter()
+                    .filter(|tok| matches!(tok.typ, lexer::TokenType::Error));
+
+                for err in errors {
+                    println!("Lexer: could not lex char:");
+                    println!("{}", error::underline_code(&code, &err.range));
+                }
+                return;
+            }
+
+            lexer::filter_tokens(&mut tokens);
+
+            let ast = parser::parse_tokens(tokens);
+            println!("parser: {}", ast);
+
+            if ast.flags.contains(parser::NodeFlags::ERROR) {
+                parser::print_errors(&ast, &code);
+                return;
+            }
+
+            match interpreter::interpret(&ast) {
+                Ok(e) => println!("{}", e),
+                Err(e) => interpreter::print_error(e, &code),
+            };
         }
-        return;
+    } else {
+
+            let code = "{1 + 2.3}()";
+
+            let (mut tokens, err_flag) = lexer::lex_tokens(&code);
+
+            lexer::print_tokens(&code, &tokens);
+
+            if err_flag {
+                let errors = tokens
+                    .iter()
+                    .filter(|tok| matches!(tok.typ, lexer::TokenType::Error));
+
+                for err in errors {
+                    println!("Lexer: could not lex char:");
+                    println!("{}", error::underline_code(code, &err.range));
+                }
+                return;
+            }
+
+            lexer::filter_tokens(&mut tokens);
+
+            let ast = parser::parse_tokens(tokens);
+            println!("parser: {}", ast);
+
+            if ast.flags.contains(parser::NodeFlags::ERROR) {
+                parser::print_errors(&ast, code);
+                return;
+            }
+
+            match interpreter::interpret(&ast) {
+                Ok(e) => println!("{}", e),
+                Err(e) => interpreter::print_error(e, code),
+            };
+
     }
-
-    lexer::filter_tokens(&mut tokens);
-
-    let ast = parser::parse_tokens(tokens);
-    println!("{}", ast);
-
-    if ast.flags.contains(parser::NodeFlags::ERROR) {
-        parser::print_errors(&ast, code);
-        return;
-    }
-
-    match interpreter::interpret(&ast) {
-        Ok(e) => println!("{}", e),
-        Err(e) => interpreter::print_error(e, code),
-    };
 }
 
 fn run_code(c: &str) -> Result<chvalue::ChValue, interpreter::RuntimeErr> {
@@ -72,5 +115,14 @@ fn basic_code() {
     assert_eq!(run_code("1.1 <= 1").unwrap(), Bool(false));
     assert_eq!(run_code("!(false)").unwrap(), Bool(true));
     assert_eq!(run_code("(!false) * 3.4").unwrap(), F32(3.4));
-    assert_eq!(run_code("{a = (3 == 2) + 2 * -1.52;;; a}()").unwrap(), F32(-3.04));
+    assert_eq!(
+        run_code("{a = (3 == 2) + 2 * -1.52;;; a}()").unwrap(),
+        F32(-3.04)
+    );
+}
+
+#[test]
+fn unry_test() {
+    use chvalue::ChValue::*;
+    assert_eq!(run_code("1 + - - - !false").unwrap(), I32(0));
 }

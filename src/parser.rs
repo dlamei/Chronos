@@ -79,6 +79,7 @@ macro_rules! token_to_node {
 bitflags! {
     pub struct NodeFlags: u32 {
         const ERROR = 0b00000001;
+        const RETURN = 0b00000010;
     }
 }
 
@@ -157,7 +158,7 @@ impl fmt::Display for Node {
                 }
                 write!(f, "{{{}}}", res)
             }
-            Eval(expr) => write!(f, "{:?}()", expr),
+            Eval(expr) => write!(f, "{}()", expr),
         }
     }
 }
@@ -309,12 +310,13 @@ where
     I: PeekableIterator<Item = Token>,
 {
     use TokenType::*;
-    let op = iter.peek().unwrap().clone();
 
-    unwrap_ret!(expect_tok(
+    unwrap_ret!(expect_tok_peek(
         iter,
         vec!(TokenType::Add, TokenType::Sub, TokenType::Not)
     ));
+    let op = iter.next().unwrap().clone();
+
     let node = parse_expression(iter);
     let range = op.range.start..node.range.end;
 
@@ -329,18 +331,28 @@ where
     )
 }
 
-fn eval<I>(iter: &mut I, node: Node) -> Node
+fn parse_eval<I>(iter: &mut I, node: Node) -> Node
 where
     I: PeekableIterator<Item = Token>,
 {
-    let start = node.range.start;
+    if expect_tok_peek(iter, vec![TokenType::LParen]).is_none() {
+        iter.next();
+        let start = node.range.start;
+        let flags = node.flags;
 
-    unwrap_ret!(expect_tok(iter, vec!(TokenType::LParen)));
-    unwrap_ret!(expect_tok_peek(iter, vec!(TokenType::RParen)));
+        unwrap_ret!(expect_tok_peek(iter, vec!(TokenType::RParen)));
 
-    let end = iter.next().unwrap().range.end;
+        let end = iter.next().unwrap().range.end;
+        let n = Node {
+            typ: NodeType::Eval(node.into()),
+            range: start..end,
+            flags,
+        };
 
-    Node::new(NodeType::Eval(node.into()), start..end)
+        parse_eval(iter, n)
+    } else {
+        node
+    }
 }
 
 fn atom<I>(iter: &mut I) -> Node
@@ -367,12 +379,7 @@ where
                 )
             }
         };
-
-        if expect_tok_peek(iter, vec![LParen]).is_none() {
-            eval(iter, node)
-        } else {
-            node
-        }
+        parse_eval(iter, node)
     } else {
         panic!()
     }
@@ -390,8 +397,10 @@ where
         return lhs;
     }
     let mut lookahead = iter.peek().unwrap().typ.clone();
+
     while lookahead.is_op() && lookahead.precedence() > precedence {
         let op = lookahead;
+        // println!("op: {:?}", op);
 
         iter.next();
         if iter.peek().is_none() {
@@ -399,22 +408,27 @@ where
         }
 
         let mut rhs = atom(iter);
+        // println!("rhs: {:?}", rhs);
 
         if iter.peek().is_none() {
             lhs = apply_op(op, lhs, rhs);
             break;
         }
         lookahead = iter.peek().unwrap().typ.clone();
+        // println!("lookahead: {:?}", lookahead);
 
         while lookahead.is_op() && lookahead.precedence() > op.precedence() {
             rhs = parse_sub_expression(iter, rhs, op.precedence());
+            // println!("\nrhs: {:?}", rhs);
             if iter.peek().is_none() {
                 break;
             }
             lookahead = iter.peek().unwrap().typ.clone();
+            // println!("\nlookahead: {:?}", lookahead);
         }
 
         lhs = apply_op(op, lhs, rhs);
+        // println!("lhs: {:?}", lhs);
     }
 
     lhs
