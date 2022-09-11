@@ -125,6 +125,7 @@ pub enum TokenType {
     BoolLit(bool),
 
     #[regex(r"[0-9]+", |lex| lex.slice().parse())]
+    #[regex(r"[0-9]+i32", |lex| lex.slice().parse())]
     I32Lit(i32),
     #[regex(r"(([0-9]+)(\.[0-9]+))", |lex| lex.slice().parse())]
     F32Lit(f32),
@@ -171,6 +172,9 @@ pub enum TokenType {
     This,
     #[token("...")]
     Any,
+    #[token("void")]
+    Void,
+
 
     #[regex("//.*")]
     Comment,
@@ -298,6 +302,7 @@ pub fn print_tokens(code: &str, tokens: &Vec<Token>) {
             BoolLit(val) => val.to_string().red(),
             I32Lit(val) => val.to_string().red(),
             F32Lit(val) => val.to_string().red(),
+            Void => "void".to_owned().red(),
             StringLit(val) => format!("\"{}\"", val).green(),
 
             Id(val) => val.to_string().cyan(),

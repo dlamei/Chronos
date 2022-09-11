@@ -1,14 +1,11 @@
 use crate::{
-    chtype::ChType,
+    chvalue::{self, ChValue, Scope},
     error,
     lexer::Position,
     parser::{Node, NodeType},
 };
 use core::result::Result;
-use std::{
-    collections::{HashMap, LinkedList},
-    ops,
-};
+use std::{cell::RefCell, collections::LinkedList, ops, rc::Rc};
 
 #[derive(Debug, PartialEq)]
 pub enum ErrType {
@@ -30,16 +27,19 @@ impl RuntimeErr {
     }
 }
 
-type Scope = HashMap<String, ChType>;
-
 pub fn print_error(err: RuntimeErr, code: &str) {
     println!("Interpreter: {:?}", err.typ);
     println!("{}", error::underline_code(code, &err.range));
 }
 
-fn visit_bin_op<F>(op: F, lhs: &Node, rhs: &Node, scope: &mut Scope) -> Result<ChType, RuntimeErr>
+fn visit_bin_op<F>(
+    op: F,
+    lhs: &Node,
+    rhs: &Node,
+    scope: &Rc<RefCell<Scope>>,
+) -> Result<ChValue, RuntimeErr>
 where
-    F: Fn(ChType, ChType) -> Result<ChType, ErrType>,
+    F: Fn(ChValue, ChValue) -> Result<ChValue, ErrType>,
 {
     let range = lhs.range.start..rhs.range.end;
 
@@ -52,9 +52,9 @@ where
     }
 }
 
-fn visit_unry_op<F>(op: F, n: &Node, scope: &mut Scope) -> Result<ChType, RuntimeErr>
+fn visit_unry_op<F>(op: F, n: &Node, scope: &Rc<RefCell<Scope>>) -> Result<ChValue, RuntimeErr>
 where
-    F: Fn(ChType) -> Result<ChType, ErrType>,
+    F: Fn(ChValue) -> Result<ChValue, ErrType>,
 {
     let range = n.range.clone();
     let val = visit_node(n, scope)?;
@@ -65,23 +65,23 @@ where
     }
 }
 
-fn visit_assign(lhs: &Node, rhs: &Node, scope: &mut Scope) -> Result<ChType, RuntimeErr> {
+fn visit_assign(lhs: &Node, rhs: &Node, scope: &Rc<RefCell<Scope>>) -> Result<ChValue, RuntimeErr> {
     let range = lhs.range.start..rhs.range.end;
 
     let rhs_val = visit_node(rhs, scope)?;
     let ret = rhs_val.clone();
 
     match &lhs.typ {
-        NodeType::Id(name) => scope.insert(name.to_string(), rhs_val.clone()),
+        NodeType::Id(name) => scope.borrow_mut().insert(name.to_string(), rhs_val.clone()),
         _ => return Err(RuntimeErr::new(ErrType::UnAllowedAssign, range)),
     };
 
     Ok(ret)
 }
 
-fn visit_access(n: &Node, scope: &mut Scope) -> Result<ChType, RuntimeErr> {
+fn visit_access(n: &Node, scope: &Rc<RefCell<Scope>>) -> Result<ChValue, RuntimeErr> {
     if let NodeType::Id(name) = &n.typ {
-        if let Some(val) = scope.get(name) {
+        if let Some(val) = scope.borrow().get(name) {
             Ok(val.clone())
         } else {
             Err(RuntimeErr::new(
@@ -94,35 +94,67 @@ fn visit_access(n: &Node, scope: &mut Scope) -> Result<ChType, RuntimeErr> {
     }
 }
 
-fn visit_expr(
-    exprs: &LinkedList<Node>,
-    ret_last: bool,
-    scope: &mut Scope,
-) -> Result<ChType, RuntimeErr> {
-    if exprs.is_empty() {
-        return Ok(ChType::Void);
-    }
-
-    let mut it = exprs.into_iter();
-    let mut val = visit_node(it.next().unwrap(), scope)?;
+fn eval_expr(expr: &chvalue::ExpressionData) -> Result<ChValue, RuntimeErr> {
+    let mut it = expr.nodes.iter();
+    let mut val = visit_node(it.next().unwrap(), &expr.scope)?;
 
     while let Some(n) = it.next() {
-        val = visit_node(n, scope)?;
+        val = visit_node(n, &expr.scope)?;
     }
 
-    if ret_last {
+    if expr.ret_last {
         Ok(val)
     } else {
-        Ok(ChType::Void)
+        Ok(ChValue::Void)
     }
 }
 
-fn visit_node(node: &Node, scope: &mut Scope) -> Result<ChType, RuntimeErr> {
+fn visit_eval(node: &Node, scope: &Rc<RefCell<Scope>>) -> Result<ChValue, RuntimeErr> {
+    let range = node.range.clone();
+
+    let val = visit_node(node, scope)?;
+
+    if let ChValue::Expression(expr) = val {
+        let mut it = expr.nodes.iter();
+        let mut val = visit_node(it.next().unwrap(), &expr.scope)?;
+
+        while let Some(n) = it.next() {
+            val = visit_node(n, &expr.scope)?;
+        }
+
+        if expr.ret_last {
+            Ok(val)
+        } else {
+            Ok(ChValue::Void)
+        }
+    } else {
+        Err(RuntimeErr::new(
+            ErrType::UnsupportedOperand(format!("Can't evaluate type: {:?}", val.get_type())),
+            range,
+        ))
+    }
+}
+
+fn visit_expr(
+    nodes: &LinkedList<Node>,
+    ret_last: bool,
+    scope: &Rc<RefCell<Scope>>,
+) -> Result<ChValue, RuntimeErr> {
+    let expr = chvalue::ExpressionData {
+        nodes: nodes.clone(),
+        ret_last,
+        scope: Rc::new(RefCell::new(Scope::new())),
+        parent: scope.clone(),
+    };
+    Ok(ChValue::Expression(expr))
+}
+
+fn visit_node(node: &Node, scope: &Rc<RefCell<Scope>>) -> Result<ChValue, RuntimeErr> {
     use NodeType::*;
     match &node.typ {
-        BoolLit(val) => Ok(ChType::Bool(*val)),
-        I32Lit(val) => Ok(ChType::I32(*val)),
-        F32Lit(val) => Ok(ChType::F32(*val)),
+        BoolLit(val) => Ok(ChValue::Bool(*val)),
+        I32Lit(val) => Ok(ChValue::I32(*val)),
+        F32Lit(val) => Ok(ChValue::F32(*val)),
 
         Add(lhs, rhs) => visit_bin_op(ops::Add::add, lhs, rhs, scope),
         Sub(lhs, rhs) => visit_bin_op(ops::Sub::sub, lhs, rhs, scope),
@@ -130,54 +162,56 @@ fn visit_node(node: &Node, scope: &mut Scope) -> Result<ChType, RuntimeErr> {
         Div(lhs, rhs) => visit_bin_op(ops::Div::div, lhs, rhs, scope),
 
         Equal(lhs, rhs) => visit_bin_op(
-            |v1: ChType, v2: ChType| Ok(ChType::Bool(v1 == v2)),
+            |v1: ChValue, v2: ChValue| Ok(ChValue::Bool(v1 == v2)),
             lhs,
             rhs,
             scope,
         ),
         NotEqual(lhs, rhs) => visit_bin_op(
-            |v1: ChType, v2: ChType| Ok(ChType::Bool(v1 != v2)),
+            |v1: ChValue, v2: ChValue| Ok(ChValue::Bool(v1 != v2)),
             lhs,
             rhs,
             scope,
         ),
         Greater(lhs, rhs) => visit_bin_op(
-            |v1: ChType, v2: ChType| Ok(ChType::Bool(v1 > v2)),
+            |v1: ChValue, v2: ChValue| Ok(ChValue::Bool(v1 > v2)),
             lhs,
             rhs,
             scope,
         ),
         GreaterEq(lhs, rhs) => visit_bin_op(
-            |v1: ChType, v2: ChType| Ok(ChType::Bool(v1 >= v2)),
+            |v1: ChValue, v2: ChValue| Ok(ChValue::Bool(v1 >= v2)),
             lhs,
             rhs,
             scope,
         ),
         Less(lhs, rhs) => visit_bin_op(
-            |v1: ChType, v2: ChType| Ok(ChType::Bool(v1 < v2)),
+            |v1: ChValue, v2: ChValue| Ok(ChValue::Bool(v1 < v2)),
             lhs,
             rhs,
             scope,
         ),
         LessEq(lhs, rhs) => visit_bin_op(
-            |v1: ChType, v2: ChType| Ok(ChType::Bool(v1 <= v2)),
+            |v1: ChValue, v2: ChValue| Ok(ChValue::Bool(v1 <= v2)),
             lhs,
             rhs,
             scope,
         ),
 
-        UnryAdd(n) => visit_unry_op(|v: ChType| Ok(v), n, scope),
-        UnryMin(n) => visit_unry_op(|v: ChType| v * ChType::I8(-1), n, scope),
-        UnryNot(n) => visit_unry_op(|v: ChType| Ok(ChType::Bool(!v.as_bool())), n, scope),
+        UnryAdd(n) => visit_unry_op(|v: ChValue| Ok(v), n, scope),
+        UnryMin(n) => visit_unry_op(|v: ChValue| v * ChValue::I8(-1), n, scope),
+        UnryNot(n) => visit_unry_op(|v: ChValue| Ok(ChValue::Bool(!v.as_bool())), n, scope),
 
         Assign(id, n) => visit_assign(id, n, scope),
         Id(_) => visit_access(node, scope),
 
         Expresssion(exprs, ret_last) => visit_expr(exprs, *ret_last, scope),
+        Eval(expr) => visit_eval(&expr, scope),
         _ => panic!("visit_node for {:?} not implemented", node.typ),
     }
 }
 
-pub fn interpret(root: &Node) -> Result<ChType, RuntimeErr> {
-    visit_node(root, &mut Scope::new())
+pub fn interpret(root: &Node) -> Result<ChValue, RuntimeErr> {
+    // visit_node(root, &mut Scope::new())
+    visit_node(root, &Rc::new(RefCell::new(Scope::new())))
 }

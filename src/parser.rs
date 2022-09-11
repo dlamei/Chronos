@@ -64,6 +64,7 @@ pub enum NodeType {
     Error(String),
 
     Expresssion(LinkedList<Node>, bool), //return last
+    Eval(Box<Node>),
 }
 
 macro_rules! token_to_node {
@@ -108,7 +109,8 @@ impl Node {
 
 impl fmt::Debug for Node {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "[{:?}, {:?}]{:?}", self.range, self.flags, self.typ)
+        // write!(f, "[{:?}, {:?}]{:?}", self.range, self.flags, self.typ)
+        write!(f, "[{:?}]{:?}", self.range, self.typ)
     }
 }
 
@@ -155,6 +157,7 @@ impl fmt::Display for Node {
                 }
                 write!(f, "{{{}}}", res)
             }
+            Eval(expr) => write!(f, "{:?}()", expr),
         }
     }
 }
@@ -326,13 +329,27 @@ where
     )
 }
 
+fn eval<I>(iter: &mut I, node: Node) -> Node
+where
+    I: PeekableIterator<Item = Token>,
+{
+    let start = node.range.start;
+
+    unwrap_ret!(expect_tok(iter, vec!(TokenType::LParen)));
+    unwrap_ret!(expect_tok_peek(iter, vec!(TokenType::RParen)));
+
+    let end = iter.next().unwrap().range.end;
+
+    Node::new(NodeType::Eval(node.into()), start..end)
+}
+
 fn atom<I>(iter: &mut I) -> Node
 where
     I: PeekableIterator<Item = Token>,
 {
     use TokenType::*;
     if let Some(tok) = iter.peek() {
-        match tok.typ {
+        let node = match tok.typ {
             LParen => parse_paren(iter),
             LBrace => parse_expr(iter),
             BoolLit(_) | I32Lit(_) | F32Lit(_) | StringLit(_) | Id(_) => parse_tok(iter),
@@ -349,9 +366,15 @@ where
                     tok.range,
                 )
             }
+        };
+
+        if expect_tok_peek(iter, vec![LParen]).is_none() {
+            eval(iter, node)
+        } else {
+            node
         }
     } else {
-        todo!()
+        panic!()
     }
 }
 
@@ -480,10 +503,13 @@ pub fn print_errors(n: &Node, code: &str) {
             println!("{}", error::underline_code(code, &n.range));
         }
 
-        Expresssion(vec, _) => {
-            for e in vec {
+        Expresssion(list, _) => {
+            for e in list.iter() {
                 print_errors(e, code);
             }
+        }
+        Eval(expr) => {
+            print_errors(expr, code);
         }
     }
 }
