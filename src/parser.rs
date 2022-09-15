@@ -38,8 +38,28 @@ impl<I: std::iter::Iterator> PeekableIterator for std::iter::Peekable<I> {
 #[derive(Debug, Clone)]
 pub enum NodeType {
     BoolLit(bool),
+
+    I8Lit(i8),
+    U8Lit(u8),
+
+    I16Lit(i16),
+    U16Lit(u16),
+
     I32Lit(i32),
+    U32Lit(u32),
+
+    I64Lit(i64),
+    U64Lit(u64),
+
+    ISizeLit(isize),
+    USizeLit(usize),
+
+    I128Lit(i128),
+    U128Lit(u128),
+
     F32Lit(f32),
+    F64Lit(f64),
+
     StringLit(String),
 
     Add(Box<Node>, Box<Node>),
@@ -79,7 +99,6 @@ macro_rules! token_to_node {
 bitflags! {
     pub struct NodeFlags: u32 {
         const ERROR = 0b00000001;
-        const RETURN = 0b00000010;
     }
 }
 
@@ -120,8 +139,28 @@ impl fmt::Display for Node {
         use NodeType::*;
         match &self.typ {
             BoolLit(v) => write!(f, "{}", v),
+
+            I8Lit(v) => write!(f, "{}", v),
+            U8Lit(v) => write!(f, "{}", v),
+
+            I16Lit(v) => write!(f, "{}", v),
+            U16Lit(v) => write!(f, "{}", v),
+
             I32Lit(v) => write!(f, "{}", v),
+            U32Lit(v) => write!(f, "{}", v),
+
+            I64Lit(v) => write!(f, "{}", v),
+            U64Lit(v) => write!(f, "{}", v),
+
+            ISizeLit(v) => write!(f, "{}", v),
+            USizeLit(v) => write!(f, "{}", v),
+
+            I128Lit(v) => write!(f, "{}", v),
+            U128Lit(v) => write!(f, "{}", v),
+
             F32Lit(v) => write!(f, "{}", v),
+            F64Lit(v) => write!(f, "{}", v),
+
             StringLit(v) => write!(f, "{}", v),
 
             Add(lhs, rhs) => write!(f, "({} + {})", lhs, rhs),
@@ -172,6 +211,8 @@ fn apply_op(op: TokenType, lhs: Node, rhs: Node) -> Node {
     let l_flags = lhs.flags;
     let r_flags = rhs.flags;
 
+    let res_flags = (l_flags & NodeFlags::ERROR) | (r_flags & NodeFlags::ERROR);
+
     Node {
         typ: token_to_node!(op, panic!("apply_op for {:?} not implemented", op),
             Add => Add(lhs.into(), rhs.into())
@@ -189,7 +230,7 @@ fn apply_op(op: TokenType, lhs: Node, rhs: Node) -> Node {
             Assign => Assign(lhs.into(), rhs.into())
         ),
         range: (start..end),
-        flags: l_flags | r_flags,
+        flags: res_flags,
     }
 }
 
@@ -297,8 +338,28 @@ where
     Node {
         typ: token_to_node!(tok.typ, panic!("expected literal, found: {:?}", tok.typ),
             BoolLit(val) => BoolLit(val)
+
+            I8Lit(val) => I8Lit(val)
+            U8Lit(val) => U8Lit(val)
+
+            I16Lit(val) => I16Lit(val)
+            U16Lit(val) => U16Lit(val)
+
             I32Lit(val) => I32Lit(val)
+            U32Lit(val) => U32Lit(val)
+
+            I64Lit(val) => I64Lit(val)
+            U64Lit(val) => U64Lit(val)
+
+            ISizeLit(val) => ISizeLit(val)
+            USizeLit(val) => USizeLit(val)
+
+            I128Lit(val) => I128Lit(val)
+            U128Lit(val) => U128Lit(val)
+
             F32Lit(val) => F32Lit(val)
+            F64Lit(val) => F64Lit(val)
+
             StringLit(val) => StringLit(val)
             Id(val) => Id(val)
         ),
@@ -366,7 +427,28 @@ where
         let node = match tok.typ {
             LParen => parse_paren(iter),
             LBrace => parse_expr(iter),
-            BoolLit(_) | I32Lit(_) | F32Lit(_) | StringLit(_) | Id(_) => parse_tok(iter),
+            BoolLit(_) 
+            | I8Lit(_) 
+            | U8Lit(_) 
+
+            | I16Lit(_) 
+            | U16Lit(_) 
+
+            | I32Lit(_) 
+            | U32Lit(_) 
+
+            | I64Lit(_) 
+            | U64Lit(_) 
+
+            | ISizeLit(_) 
+            | USizeLit(_) 
+
+            | I128Lit(_) 
+            | U128Lit(_) 
+
+            | F32Lit(_) 
+            | F64Lit(_) 
+            | StringLit(_) | Id(_) => parse_tok(iter),
             Add | Sub | Not => parse_unry(iter),
 
             Error => {
@@ -461,7 +543,9 @@ pub fn parse_tokens(tokens: Vec<Token>) -> Node {
 pub fn print_errors(n: &Node, code: &str) {
     use NodeType::*;
     match &n.typ {
-        BoolLit(_) | I32Lit(_) | F32Lit(_) | StringLit(_) | Id(_) => {}
+        I8Lit(_) | U8Lit(_) | I16Lit(_) | U16Lit(_) | I32Lit(_) | U32Lit(_) | I64Lit(_)
+        | U64Lit(_) | ISizeLit(_) | USizeLit(_) | I128Lit(_) | U128Lit(_) | BoolLit(_)
+        | F32Lit(_) | F64Lit(_) | StringLit(_) | Id(_) => {}
 
         Add(lhs, rhs) => {
             print_errors(lhs, code);

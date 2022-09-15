@@ -53,7 +53,7 @@ fn main() {
         }
     } else {
 
-            let code = "{1 + 2.3}()";
+            let code = "2i32";
 
             let (mut tokens, err_flag) = lexer::lex_tokens(code);
 
@@ -120,4 +120,34 @@ fn basic_code() {
 fn unry_test() {
     use chvalue::ChValue::*;
     assert_eq!(run_code("1 + - - - !false").unwrap(), I32(0));
+}
+
+#[test]
+fn eval_lit() {
+    use chvalue::ChValue::*;
+
+    assert_eq!(run_code("41").unwrap(), I32(41));
+    assert_eq!(run_code("41.0").unwrap(), F32(41.0));
+
+    assert_eq!(run_code("12i8").unwrap(), I8(12));
+    assert_eq!(run_code("12u8").unwrap(), U8(12));
+
+    assert_eq!(run_code("123i16").unwrap(), I16(123));
+    assert_eq!(run_code("123u16").unwrap(), U16(123));
+
+    assert_eq!(run_code("1234i32").unwrap(), I32(1234));
+    assert_eq!(run_code("1234u32").unwrap(), U32(1234));
+
+    assert_eq!(run_code("1234i64").unwrap(), I64(1234));
+    assert_eq!(run_code("1234u64").unwrap(), U64(1234));
+
+    assert_eq!(run_code("1234isize").unwrap(), ISize(1234));
+    assert_eq!(run_code("1234usize").unwrap(), USize(1234));
+
+    assert_eq!(run_code("12345i128").unwrap(), I128(12345));
+    assert_eq!(run_code("12345u128").unwrap(), U128(12345));
+
+    assert_eq!(run_code("3.141f32").unwrap(), F32(3.141));
+    assert_eq!(run_code("3.141f64").unwrap(), F64(3.141));
+
 }

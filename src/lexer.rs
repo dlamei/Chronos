@@ -94,6 +94,24 @@ fn parse_bool(lex: &mut Lexer<TokenType>) -> bool {
     }
 }
 
+fn parse_lit<T>(lex: &mut Lexer<TokenType>, lit: &str) -> Option<T>
+where
+    T: std::str::FromStr,
+{
+    let mut num = lex.slice();
+
+    if let Some(end) = num.find(lit) {
+        num = &num[..end];
+        if let Ok(res) = num.parse() {
+            Some(res)
+        } else {
+            None
+        }
+    } else {
+        None
+    }
+}
+
 #[derive(Logos, Debug, PartialEq, Clone)]
 pub enum TokenType {
     Eof,
@@ -124,11 +142,44 @@ pub enum TokenType {
     #[token("true", parse_bool)]
     BoolLit(bool),
 
+    #[regex(r"[0-9]+i8", |lex| parse_lit::<i8>(lex, "i8"))]
+    I8Lit(i8),
+    #[regex(r"[0-9]+u8", |lex| parse_lit::<u8>(lex, "u8"))]
+    U8Lit(u8),
+
+    #[regex(r"[0-9]+i16", |lex| parse_lit::<i16>(lex, "i16"))]
+    I16Lit(i16),
+    #[regex(r"[0-9]+u16", |lex| parse_lit::<u16>(lex, "u16"))]
+    U16Lit(u16),
+
     #[regex(r"[0-9]+", |lex| lex.slice().parse())]
-    #[regex(r"[0-9]+i32", |lex| lex.slice().parse())]
+    #[regex(r"[0-9]+i32", |lex| parse_lit::<i32>(lex, "i32"))]
     I32Lit(i32),
+    #[regex(r"[0-9]+u32", |lex| parse_lit::<u32>(lex, "u32"))]
+    U32Lit(u32),
+
+    #[regex(r"[0-9]+i64", |lex| parse_lit::<i64>(lex, "i64"))]
+    I64Lit(i64),
+    #[regex(r"[0-9]+u64", |lex| parse_lit::<u64>(lex, "u64"))]
+    U64Lit(u64),
+
+    #[regex(r"[0-9]+isize", |lex| parse_lit::<isize>(lex, "isize"))]
+    ISizeLit(isize),
+    #[regex(r"[0-9]+usize", |lex| parse_lit::<usize>(lex, "usize"))]
+    USizeLit(usize),
+
+    #[regex(r"[0-9]+i128", |lex| parse_lit::<i128>(lex, "i128"))]
+    I128Lit(i128),
+    #[regex(r"[0-9]+u128", |lex| parse_lit::<u128>(lex, "u128"))]
+    U128Lit(u128),
+
     #[regex(r"(([0-9]+)(\.[0-9]+))", |lex| lex.slice().parse())]
+    #[regex(r"(([0-9]+)(\.[0-9]+))f32", |lex| parse_lit::<f32>(lex, "f32"))]
     F32Lit(f32),
+
+    #[regex(r"(([0-9]+)(\.[0-9]+))f64", |lex| parse_lit::<f64>(lex, "f64"))]
+    F64Lit(f64),
+
     #[token("\"", parse_string)]
     StringLit(String),
 
@@ -174,7 +225,6 @@ pub enum TokenType {
     Any,
     #[token("void")]
     Void,
-
 
     #[regex("//.*")]
     Comment,
@@ -229,11 +279,6 @@ where
                 } else {
                     tok.range.start..tok.range.end
                 }
-                // if err_range.is_none() {
-                //     tok.range.start..tok.range.end
-                // } else {
-                //     err_range.unwrap().start..tok.range.end
-                // }
             });
         } else {
             if err_range.is_some() {
@@ -251,7 +296,7 @@ where
     if let Some(range) = err_range {
         vec.push(Token {
             typ: TokenType::Error,
-            range
+            range,
         });
     }
 
@@ -305,10 +350,26 @@ pub fn print_tokens(code: &str, tokens: &Vec<Token>) {
             Arrow | Dot | Comma | Semicln | Colon | Addr => s.yellow(),
 
             BoolLit(val) => val.to_string().red(),
+
+            I8Lit(val) => val.to_string().red(),
+            I16Lit(val) => val.to_string().red(),
             I32Lit(val) => val.to_string().red(),
+            I64Lit(val) => val.to_string().red(),
+            ISizeLit(val) => val.to_string().red(),
+            I128Lit(val) => val.to_string().red(),
+            U8Lit(val) => val.to_string().red(),
+            U16Lit(val) => val.to_string().red(),
+            U32Lit(val) => val.to_string().red(),
+            U64Lit(val) => val.to_string().red(),
+            USizeLit(val) => val.to_string().red(),
+            U128Lit(val) => val.to_string().red(),
+
             F32Lit(val) => val.to_string().red(),
-            Void => "void".to_owned().red(),
+            F64Lit(val) => val.to_string().red(),
+
             StringLit(val) => format!("\"{}\"", val).green(),
+
+            Void => "void".to_owned().red(),
 
             Id(val) => val.to_string().cyan(),
 
@@ -324,4 +385,23 @@ pub fn print_tokens(code: &str, tokens: &Vec<Token>) {
     }
 
     println!("lexer: {}", res);
+}
+
+#[test]
+fn lex_lit() {
+    use TokenType::*;
+    assert_eq!(lex_tokens("23i8").0[0].typ, I8Lit(23));
+    assert_eq!(lex_tokens("2i16").0[0].typ, I16Lit(2));
+    assert_eq!(lex_tokens("123i32").0[0].typ, I32Lit(123));
+    assert_eq!(lex_tokens("321i64").0[0].typ, I64Lit(321));
+    assert_eq!(lex_tokens("321isize").0[0].typ, ISizeLit(321));
+    assert_eq!(lex_tokens("128i128").0[0].typ, I128Lit(128));
+
+    assert_eq!(lex_tokens("23i8").0[0].typ, I8Lit(23));
+    assert_eq!(lex_tokens("2i16").0[0].typ, I16Lit(2));
+    assert_eq!(lex_tokens("123i32").0[0].typ, I32Lit(123));
+    assert_eq!(lex_tokens("321i64").0[0].typ, I64Lit(321));
+    assert_eq!(lex_tokens("321isize").0[0].typ, ISizeLit(321));
+    assert_eq!(lex_tokens("128i128").0[0].typ, I128Lit(128));
+    // assert_eq!(lex_tokens("234234i8").0[0].typ, I8Lit(123));
 }

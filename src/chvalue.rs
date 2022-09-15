@@ -79,32 +79,33 @@ pub enum ChValue {
 }
 
 macro_rules! unwrap_chvalue {
-    ($chvalue:ident, $in:ident, $e:expr) => {
+    ($chvalue:ident, $in:ident, $e:expr) => {{
+        use ChValue::*;
         match $chvalue {
-            ChValue::Bool($in) => $e,
+            Bool($in) => $e,
 
-            ChValue::I8($in) => $e,
-            ChValue::I16($in) => $e,
-            ChValue::I32($in) => $e,
-            ChValue::I64($in) => $e,
-            ChValue::ISize($in) => $e,
-            ChValue::I128($in) => $e,
+            I8($in) => $e,
+            I16($in) => $e,
+            I32($in) => $e,
+            I64($in) => $e,
+            ISize($in) => $e,
+            I128($in) => $e,
 
-            ChValue::U8($in) => $e,
-            ChValue::U16($in) => $e,
-            ChValue::U32($in) => $e,
-            ChValue::U64($in) => $e,
-            ChValue::USize($in) => $e,
-            ChValue::U128($in) => $e,
+            U8($in) => $e,
+            U16($in) => $e,
+            U32($in) => $e,
+            U64($in) => $e,
+            USize($in) => $e,
+            U128($in) => $e,
 
-            ChValue::F32($in) => $e,
-            ChValue::F64($in) => $e,
+            F32($in) => $e,
+            F64($in) => $e,
 
-            ChValue::Char($in) => $e,
-            ChValue::String($in) => $e,
+            Char($in) => $e,
+            String($in) => $e,
             _ => panic!("unwrap_chvalue not implemented for {:?}", $chvalue),
         }
-    };
+    }};
 }
 
 macro_rules! chnum_as_typ {

@@ -130,7 +130,7 @@ fn visit_expr(
     scope: &Rc<RefCell<Scope>>,
 ) -> Result<ChValue, RuntimeErr> {
     let expr = chvalue::ExpressionData {
-        nodes: nodes.clone(),
+        nodes: nodes.clone(), //TODO: move nodes clone
         ret_last,
         scope: Rc::new(RefCell::new(Scope::new())),
         parent: scope.clone(),
@@ -142,8 +142,27 @@ fn visit_node(node: &Node, scope: &Rc<RefCell<Scope>>) -> Result<ChValue, Runtim
     use NodeType::*;
     match &node.typ {
         BoolLit(val) => Ok(ChValue::Bool(*val)),
+
+        I8Lit(val) => Ok(ChValue::I8(*val)),
+        U8Lit(val) => Ok(ChValue::U8(*val)),
+
+        I16Lit(val) => Ok(ChValue::I16(*val)),
+        U16Lit(val) => Ok(ChValue::U16(*val)),
+
         I32Lit(val) => Ok(ChValue::I32(*val)),
+        U32Lit(val) => Ok(ChValue::U32(*val)),
+
+        I64Lit(val) => Ok(ChValue::I64(*val)),
+        U64Lit(val) => Ok(ChValue::U64(*val)),
+
+        ISizeLit(val) => Ok(ChValue::ISize(*val)),
+        USizeLit(val) => Ok(ChValue::USize(*val)),
+
+        I128Lit(val) => Ok(ChValue::I128(*val)),
+        U128Lit(val) => Ok(ChValue::U128(*val)),
+
         F32Lit(val) => Ok(ChValue::F32(*val)),
+        F64Lit(val) => Ok(ChValue::F64(*val)),
 
         Add(lhs, rhs) => visit_bin_op(ops::Add::add, lhs, rhs, scope),
         Sub(lhs, rhs) => visit_bin_op(ops::Sub::sub, lhs, rhs, scope),
