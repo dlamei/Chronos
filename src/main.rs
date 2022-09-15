@@ -12,11 +12,6 @@ fn main() {
     env::set_var("RUST_BACKTRACE", "1");
     let args: Vec<String> = env::args().collect();
 
-
-    // let code = &fs::read_to_string("syntax.ch").expect("Something went wrong reading the file");
-    // use chvalue::ChValue::*;
-    // println!("{:?}", String("a".to_owned()).ge(Char('a')));
-    // return;
     println!("{:?}", args);
 
     if args.len() >= 2 && args[1] == "repl" {
@@ -60,9 +55,9 @@ fn main() {
 
             let code = "{1 + 2.3}()";
 
-            let (mut tokens, err_flag) = lexer::lex_tokens(&code);
+            let (mut tokens, err_flag) = lexer::lex_tokens(code);
 
-            lexer::print_tokens(&code, &tokens);
+            lexer::print_tokens(code, &tokens);
 
             if err_flag {
                 let errors = tokens
@@ -95,7 +90,7 @@ fn main() {
 }
 
 fn run_code(c: &str) -> Result<chvalue::ChValue, interpreter::RuntimeErr> {
-    let (mut tokens, _) = lexer::lex_tokens(&c);
+    let (mut tokens, _) = lexer::lex_tokens(c);
     lexer::filter_tokens(&mut tokens);
     let ast = parser::parse_tokens(tokens);
     interpreter::interpret(&ast)

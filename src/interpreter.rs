@@ -100,14 +100,14 @@ fn visit_eval(node: &Node, scope: &Rc<RefCell<Scope>>) -> Result<ChValue, Runtim
     let val = visit_node(node, scope)?;
 
     if let ChValue::Expression(expr) = val {
-        if expr.nodes.len() == 0 {
+        if expr.nodes.is_empty() {
             return Ok(ChValue::Void);
         }
 
         let mut it = expr.nodes.iter();
         let mut val = visit_node(it.next().unwrap(), &expr.scope)?;
 
-        while let Some(n) = it.next() {
+        for n in it {
             val = visit_node(n, &expr.scope)?;
         }
 
@@ -187,7 +187,7 @@ fn visit_node(node: &Node, scope: &Rc<RefCell<Scope>>) -> Result<ChValue, Runtim
             scope,
         ),
 
-        UnryAdd(n) => visit_unry_op(|v: ChValue| Ok(v), n, scope),
+        UnryAdd(n) => visit_unry_op(Ok, n, scope),
         UnryMin(n) => visit_unry_op(|v: ChValue| v * ChValue::I8(-1), n, scope),
         UnryNot(n) => visit_unry_op(|v: ChValue| Ok(ChValue::Bool(!v.as_bool())), n, scope),
 
@@ -195,7 +195,7 @@ fn visit_node(node: &Node, scope: &Rc<RefCell<Scope>>) -> Result<ChValue, Runtim
         Id(_) => visit_access(node, scope),
 
         Expresssion(exprs, ret_last) => visit_expr(exprs, *ret_last, scope),
-        Eval(expr) => visit_eval(&expr, scope),
+        Eval(expr) => visit_eval(expr, scope),
         _ => panic!("visit_node for {:?} not implemented", node.typ),
     }
 }

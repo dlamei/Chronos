@@ -146,14 +146,16 @@ impl fmt::Display for Node {
             Error(msg) => write!(f, "Err: {}", msg),
 
             Expresssion(expr, last_ret) => {
+                use std::fmt::Write;
+
                 let mut res = String::new();
                 let mut it = expr.iter().peekable();
 
                 while let Some(e) = it.next() {
                     if it.peek().is_some() || !last_ret {
-                        res.push_str(&format!("{};", e));
+                        write!(res, "{};", e).unwrap();
                     } else {
-                        res.push_str(&format!("{}", e));
+                        write!(res, "{}", e).unwrap();
                     }
                 }
                 write!(f, "{{{}}}", res)
@@ -272,7 +274,7 @@ where
         let node = parse_expression(iter);
         expr.push_back(node);
 
-        if let Some(_) = expect_tok_peek(iter, vec![TokenType::Semicln]) {
+        if expect_tok_peek(iter, vec![TokenType::Semicln]).is_some() {
             ret_last = true;
             break;
         } else {
@@ -315,7 +317,7 @@ where
         iter,
         vec!(TokenType::Add, TokenType::Sub, TokenType::Not)
     ));
-    let op = iter.next().unwrap().clone();
+    let op = iter.next().unwrap();
 
     let node = parse_expression(iter);
     let range = op.range.start..node.range.end;
@@ -462,54 +464,54 @@ pub fn print_errors(n: &Node, code: &str) {
         BoolLit(_) | I32Lit(_) | F32Lit(_) | StringLit(_) | Id(_) => {}
 
         Add(lhs, rhs) => {
-            print_errors(&lhs, code);
-            print_errors(&rhs, code);
+            print_errors(lhs, code);
+            print_errors(rhs, code);
         }
         Sub(lhs, rhs) => {
-            print_errors(&lhs, code);
-            print_errors(&rhs, code);
+            print_errors(lhs, code);
+            print_errors(rhs, code);
         }
         Mul(lhs, rhs) => {
-            print_errors(&lhs, code);
-            print_errors(&rhs, code);
+            print_errors(lhs, code);
+            print_errors(rhs, code);
         }
         Div(lhs, rhs) => {
-            print_errors(&lhs, code);
-            print_errors(&rhs, code);
+            print_errors(lhs, code);
+            print_errors(rhs, code);
         }
 
-        UnryAdd(node) => print_errors(&node, code),
-        UnryMin(node) => print_errors(&node, code),
-        UnryNot(node) => print_errors(&node, code),
+        UnryAdd(node) => print_errors(node, code),
+        UnryMin(node) => print_errors(node, code),
+        UnryNot(node) => print_errors(node, code),
 
         Equal(lhs, rhs) => {
-            print_errors(&lhs, code);
-            print_errors(&rhs, code);
+            print_errors(lhs, code);
+            print_errors(rhs, code);
         }
         NotEqual(lhs, rhs) => {
-            print_errors(&lhs, code);
-            print_errors(&rhs, code);
+            print_errors(lhs, code);
+            print_errors(rhs, code);
         }
         Greater(lhs, rhs) => {
-            print_errors(&lhs, code);
-            print_errors(&rhs, code);
+            print_errors(lhs, code);
+            print_errors(rhs, code);
         }
         GreaterEq(lhs, rhs) => {
-            print_errors(&lhs, code);
-            print_errors(&rhs, code);
+            print_errors(lhs, code);
+            print_errors(rhs, code);
         }
         Less(lhs, rhs) => {
-            print_errors(&lhs, code);
-            print_errors(&rhs, code);
+            print_errors(lhs, code);
+            print_errors(rhs, code);
         }
         LessEq(lhs, rhs) => {
-            print_errors(&lhs, code);
-            print_errors(&rhs, code);
+            print_errors(lhs, code);
+            print_errors(rhs, code);
         }
 
         Assign(lhs, rhs) => {
-            print_errors(&lhs, code);
-            print_errors(&rhs, code);
+            print_errors(lhs, code);
+            print_errors(rhs, code);
         }
 
         Error(msg) => {

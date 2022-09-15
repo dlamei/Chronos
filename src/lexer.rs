@@ -214,21 +214,26 @@ pub struct Token {
     pub range: Position,
 }
 
-fn merge_errors<I>(mut tokens: I) -> Vec<Token>
+fn merge_errors<I>(tokens: I) -> Vec<Token>
 where
     I: Iterator<Item = Token>,
 {
     let mut vec = Vec::<Token>::new();
     let mut err_range: Option<Position> = None;
 
-    while let Some(tok) = tokens.next() {
+    for tok in tokens {
         if tok.typ == TokenType::Error {
             err_range = Some({
-                if err_range.is_none() {
-                    tok.range.start..tok.range.end
+                if let Some(range) = err_range {
+                    range.start..tok.range.end
                 } else {
-                    err_range.unwrap().start..tok.range.end
+                    tok.range.start..tok.range.end
                 }
+                // if err_range.is_none() {
+                //     tok.range.start..tok.range.end
+                // } else {
+                //     err_range.unwrap().start..tok.range.end
+                // }
             });
         } else {
             if err_range.is_some() {
@@ -243,10 +248,10 @@ where
         }
     }
 
-    if err_range.is_some() {
+    if let Some(range) = err_range {
         vec.push(Token {
             typ: TokenType::Error,
-            range: err_range.unwrap(),
+            range
         });
     }
 
