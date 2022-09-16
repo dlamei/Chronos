@@ -10,14 +10,36 @@ use std::{
 
 use crate::interpreter::ErrType::{self, *};
 
-pub type Scope = HashMap<String, ChValue>;
+// pub type Scope = HashMap<String, ChValue>;
+
+#[derive(Debug, Clone)]
+pub struct Scope {
+    pub map: HashMap<String, ChValue>,
+    pub parent: Option<Rc<RefCell<Scope>>>,
+}
+
+impl Scope {
+    pub fn new() -> Self {
+        Scope {
+            map: HashMap::new(),
+            parent: None,
+        }
+    }
+
+    pub fn from(parent: Rc<RefCell<Scope>>) -> Self {
+        Scope {
+            map: HashMap::new(),
+            parent: Some(parent),
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct ExpressionData {
     pub nodes: LinkedList<Node>,
     pub ret_last: bool,
     pub scope: Rc<RefCell<Scope>>,
-    pub parent: Rc<RefCell<Scope>>,
+    // pub parent: Rc<RefCell<Scope>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

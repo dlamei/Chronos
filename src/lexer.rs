@@ -197,6 +197,16 @@ pub enum TokenType {
     Div,
     #[token("!")]
     Not,
+
+    #[token("+=")]
+    AddEq,
+    #[token("-=")]
+    SubEq,
+    #[token("*=")]
+    MulEq,
+    #[token("/=")]
+    DivEq,
+
     #[token("==")]
     Equal,
     #[token("!=")]
@@ -242,7 +252,7 @@ pub enum TokenType {
 
 impl TokenType {
     priority_func!(precedence -> i32, 0,
-        [Assign]
+        [Assign, AddEq, SubEq, MulEq, DivEq]
         [Equal, NotEqual, Greater, GreaterEq, Less, LessEq]
         [Add, Sub]
         [Mul, Div]
@@ -344,7 +354,9 @@ pub fn print_tokens(code: &str, tokens: &Vec<Token>) {
 
             Const | Return | This | Any => s.magenta(),
 
-            Add | AddAdd | Sub | SubSub | Mul | Div | Equal | Not | NotEqual | Greater | Less
+            Add | AddAdd | Sub | SubSub | Mul | Div 
+                | AddEq | SubEq | MulEq | DivEq 
+                | Equal | Not | NotEqual | Greater | Less
             | GreaterEq | LessEq | Assign => s.blue(),
 
             Arrow | Dot | Comma | Semicln | Colon | Addr => s.yellow(),
@@ -397,11 +409,11 @@ fn lex_lit() {
     assert_eq!(lex_tokens("321isize").0[0].typ, ISizeLit(321));
     assert_eq!(lex_tokens("128i128").0[0].typ, I128Lit(128));
 
-    assert_eq!(lex_tokens("23i8").0[0].typ, I8Lit(23));
-    assert_eq!(lex_tokens("2i16").0[0].typ, I16Lit(2));
-    assert_eq!(lex_tokens("123i32").0[0].typ, I32Lit(123));
-    assert_eq!(lex_tokens("321i64").0[0].typ, I64Lit(321));
-    assert_eq!(lex_tokens("321isize").0[0].typ, ISizeLit(321));
-    assert_eq!(lex_tokens("128i128").0[0].typ, I128Lit(128));
+    assert_eq!(lex_tokens("23u8").0[0].typ, U8Lit(23));
+    assert_eq!(lex_tokens("2u16").0[0].typ, U16Lit(2));
+    assert_eq!(lex_tokens("123u32").0[0].typ, U32Lit(123));
+    assert_eq!(lex_tokens("321u64").0[0].typ, U64Lit(321));
+    assert_eq!(lex_tokens("321usize").0[0].typ, USizeLit(321));
+    assert_eq!(lex_tokens("128u128").0[0].typ, U128Lit(128));
     // assert_eq!(lex_tokens("234234i8").0[0].typ, I8Lit(123));
 }

@@ -5,7 +5,7 @@ mod interpreter;
 mod lexer;
 mod parser;
 
-use std::{io, env};
+use std::{env, io};
 // use std::{env, fs};
 
 fn main() {
@@ -15,7 +15,6 @@ fn main() {
     println!("{:?}", args);
 
     if args.len() >= 2 && args[1] == "repl" {
-
         loop {
             let mut code = String::new();
             io::stdin().read_line(&mut code).unwrap();
@@ -52,40 +51,39 @@ fn main() {
             };
         }
     } else {
+        // let code = "{a = 3; a = a / 2.0; a}()";
+        let code = "{a = 3; a /= 1.5}()";
 
-            let code = "2i32";
+        let (mut tokens, err_flag) = lexer::lex_tokens(code);
 
-            let (mut tokens, err_flag) = lexer::lex_tokens(code);
+        lexer::print_tokens(code, &tokens);
 
-            lexer::print_tokens(code, &tokens);
+        if err_flag {
+            let errors = tokens
+                .iter()
+                .filter(|tok| matches!(tok.typ, lexer::TokenType::Error));
 
-            if err_flag {
-                let errors = tokens
-                    .iter()
-                    .filter(|tok| matches!(tok.typ, lexer::TokenType::Error));
-
-                for err in errors {
-                    println!("Lexer: could not lex char:");
-                    println!("{}", error::underline_code(code, &err.range));
-                }
-                return;
+            for err in errors {
+                println!("Lexer: could not lex char:");
+                println!("{}", error::underline_code(code, &err.range));
             }
+            return;
+        }
 
-            lexer::filter_tokens(&mut tokens);
+        lexer::filter_tokens(&mut tokens);
 
-            let ast = parser::parse_tokens(tokens);
-            println!("parser: {}", ast);
+        let ast = parser::parse_tokens(tokens);
+        println!("parser: {}", ast);
 
-            if ast.flags.contains(parser::NodeFlags::ERROR) {
-                parser::print_errors(&ast, code);
-                return;
-            }
+        if ast.flags.contains(parser::NodeFlags::ERROR) {
+            parser::print_errors(&ast, code);
+            return;
+        }
 
-            match interpreter::interpret(&ast) {
-                Ok(e) => println!("{}", e),
-                Err(e) => interpreter::print_error(e, code),
-            };
-
+        match interpreter::interpret(&ast) {
+            Ok(e) => println!("{:?}", e),
+            Err(e) => interpreter::print_error(e, code),
+        };
     }
 }
 
@@ -104,6 +102,7 @@ fn basic_code() {
     assert_eq!(run_code("1 + 2 * (3 + 2) == 10").unwrap(), Bool(false));
     assert_eq!(run_code("1 + 2 * (3 + 2) != 10").unwrap(), Bool(true));
     assert_eq!(run_code("1 + - 2 * ((3 + 2) == 5)").unwrap(), I32(-1));
+
     assert_eq!(run_code("1 >= 3").unwrap(), Bool(false));
     assert_eq!(run_code("1 > 1").unwrap(), Bool(false));
     assert_eq!(run_code("1.1 >= 1").unwrap(), Bool(true));
@@ -114,6 +113,14 @@ fn basic_code() {
         run_code("{a = (3 == 2) + 2 * -1.52;;; a}()").unwrap(),
         F32(-3.04)
     );
+    assert_eq!(run_code("{a = {2i8 + 3u8}; return a;}()()").unwrap(), I8(5));
+    assert_eq!(run_code("{a = 3; {a = a + 2.3}(); a}()").unwrap(), F32(5.3));
+
+    assert_eq!(run_code("{a = 3; a += 2; a}()").unwrap(), I32(5));
+    assert_eq!(run_code("{a = 3; a -= 2; a}()").unwrap(), I32(1));
+    assert_eq!(run_code("{a = 3; a *= 2; a}()").unwrap(), I32(6));
+    assert_eq!(run_code("{a = 3; a /= 2; a}()").unwrap(), I32(1));
+    assert_eq!(run_code("{a = 3; a /= 2.0; a}()").unwrap(), F32(1.5));
 }
 
 #[test]
@@ -149,5 +156,4 @@ fn eval_lit() {
 
     assert_eq!(run_code("3.141f32").unwrap(), F32(3.141));
     assert_eq!(run_code("3.141f64").unwrap(), F64(3.141));
-
 }

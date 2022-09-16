@@ -52,6 +52,32 @@ where
     }
 }
 
+fn visit_assign_bin_op<F>(
+    op: F,
+    lhs: &Node,
+    rhs: &Node,
+    scope: &Rc<RefCell<Scope>>,
+) -> Result<ChValue, RuntimeErr>
+where
+    F: Fn(ChValue, ChValue) -> Result<ChValue, ErrType>,
+{
+    let range = lhs.range.start..rhs.range.end;
+
+    let left_val = visit_node(lhs, scope)?;
+    let right_val = visit_node(rhs, scope)?;
+
+    match op(left_val, right_val) {
+        Err(e) => Err(RuntimeErr::new(e, range)),
+        Ok(e) => {
+            if let NodeType::Id(name) = &lhs.typ {
+                assign_chvalue(name.to_owned(), scope, e)
+            } else {
+                Err(RuntimeErr::new(ErrType::UnAllowedAssign, range))
+            }
+        },
+    }
+}
+
 fn visit_unry_op<F>(op: F, n: &Node, scope: &Rc<RefCell<Scope>>) -> Result<ChValue, RuntimeErr>
 where
     F: Fn(ChValue) -> Result<ChValue, ErrType>,
@@ -65,24 +91,46 @@ where
     }
 }
 
+fn assign_chvalue(name: String, scope: &Rc<RefCell<Scope>>, val: ChValue) -> Result<ChValue, RuntimeErr> {
+    // let rhs_val = visit_node(rhs, scope)?;
+    let ret = val.clone();
+
+    if scope.borrow().map.contains_key(&name) {
+        scope.borrow_mut().map.insert(name, val);
+        return Ok(ret);
+    }
+
+    let mut scp = scope.clone();
+
+    while let Some(parent) = &scp.clone().borrow().parent {
+        if parent.borrow().map.contains_key(&name) {
+            parent.borrow_mut().map.insert(name, val);
+            return Ok(ret);
+        }
+        scp = parent.clone();
+    }
+
+    scope.borrow_mut().map.insert(name, val);
+    Ok(ret)
+}
+
 fn visit_assign(lhs: &Node, rhs: &Node, scope: &Rc<RefCell<Scope>>) -> Result<ChValue, RuntimeErr> {
     let range = lhs.range.start..rhs.range.end;
 
-    let rhs_val = visit_node(rhs, scope)?;
-    let ret = rhs_val.clone();
-
     match &lhs.typ {
-        NodeType::Id(name) => scope.borrow_mut().insert(name.to_string(), rhs_val),
-        _ => return Err(RuntimeErr::new(ErrType::UnAllowedAssign, range)),
-    };
-
-    Ok(ret)
+        NodeType::Id(name) => {
+            assign_chvalue(name.to_owned(), scope, visit_node(rhs, scope)?)
+        }
+        _ => Err(RuntimeErr::new(ErrType::UnAllowedAssign, range)),
+    }
 }
 
 fn visit_access(n: &Node, scope: &Rc<RefCell<Scope>>) -> Result<ChValue, RuntimeErr> {
     if let NodeType::Id(name) = &n.typ {
-        if let Some(val) = scope.borrow().get(name) {
+        if let Some(val) = scope.borrow().map.get(name) {
             Ok(val.clone())
+        } else if let Some(parent) = &scope.borrow().parent {
+            visit_access(n, &parent)
         } else {
             Err(RuntimeErr::new(
                 ErrType::Undefinded(name.to_owned()),
@@ -100,15 +148,35 @@ fn visit_eval(node: &Node, scope: &Rc<RefCell<Scope>>) -> Result<ChValue, Runtim
     let val = visit_node(node, scope)?;
 
     if let ChValue::Expression(expr) = val {
+        expr.scope.borrow_mut().parent = Some(scope.clone());
+
         if expr.nodes.is_empty() {
             return Ok(ChValue::Void);
         }
 
-        let mut it = expr.nodes.iter();
-        let mut val = visit_node(it.next().unwrap(), &expr.scope)?;
+        let mut ret_val = false;
 
-        for n in it {
+        let mut it = expr.nodes.iter().peekable();
+
+        if let NodeType::Return(_) = it.peek().unwrap().typ {
+            ret_val = true;
+        }
+
+        let mut val = visit_node(it.next().unwrap(), &expr.scope)?;
+        if ret_val {
+            return Ok(val);
+        }
+
+        while let Some(n) = it.next() {
+            if let NodeType::Return(_) = n.typ {
+                ret_val = true;
+            }
+
             val = visit_node(n, &expr.scope)?;
+
+            if ret_val {
+                return Ok(val);
+            }
         }
 
         if expr.ret_last {
@@ -130,10 +198,10 @@ fn visit_expr(
     scope: &Rc<RefCell<Scope>>,
 ) -> Result<ChValue, RuntimeErr> {
     let expr = chvalue::ExpressionData {
-        nodes: nodes.clone(), //TODO: move nodes clone
+        nodes: nodes.clone(), //TODO: move nodes
         ret_last,
-        scope: Rc::new(RefCell::new(Scope::new())),
-        parent: scope.clone(),
+        scope: Rc::new(RefCell::new(Scope::from(scope.clone()))),
+        // parent: scope.clone(),
     };
     Ok(ChValue::Expression(expr))
 }
@@ -164,10 +232,17 @@ fn visit_node(node: &Node, scope: &Rc<RefCell<Scope>>) -> Result<ChValue, Runtim
         F32Lit(val) => Ok(ChValue::F32(*val)),
         F64Lit(val) => Ok(ChValue::F64(*val)),
 
+        StringLit(val) => Ok(ChValue::String(val.to_owned())),
+
         Add(lhs, rhs) => visit_bin_op(ops::Add::add, lhs, rhs, scope),
         Sub(lhs, rhs) => visit_bin_op(ops::Sub::sub, lhs, rhs, scope),
         Mul(lhs, rhs) => visit_bin_op(ops::Mul::mul, lhs, rhs, scope),
         Div(lhs, rhs) => visit_bin_op(ops::Div::div, lhs, rhs, scope),
+
+        AddEq(lhs, rhs) => visit_assign_bin_op(ops::Add::add, lhs, rhs, scope),
+        SubEq(lhs, rhs) => visit_assign_bin_op(ops::Sub::sub, lhs, rhs, scope),
+        MulEq(lhs, rhs) => visit_assign_bin_op(ops::Mul::mul, lhs, rhs, scope),
+        DivEq(lhs, rhs) => visit_assign_bin_op(ops::Div::div, lhs, rhs, scope),
 
         Equal(lhs, rhs) => visit_bin_op(
             |v1: ChValue, v2: ChValue| Ok(ChValue::Bool(v1 == v2)),
@@ -215,7 +290,11 @@ fn visit_node(node: &Node, scope: &Rc<RefCell<Scope>>) -> Result<ChValue, Runtim
 
         Expresssion(exprs, ret_last) => visit_expr(exprs, *ret_last, scope),
         Eval(expr) => visit_eval(expr, scope),
-        _ => panic!("visit_node for {:?} not implemented", node.typ),
+
+        Return(expr) => visit_node(expr, scope),
+
+        Error(e) => panic!("found error from lexer: {}", e),
+        // _ => panic!("visit_node for {:?} not implemented", node.typ),
     }
 }
 
