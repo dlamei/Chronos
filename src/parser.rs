@@ -547,7 +547,6 @@ where
 
     while lookahead.is_op() && lookahead.precedence() > precedence {
         let op = lookahead;
-        // println!("op: {:?}", op);
 
         iter.next();
         if iter.peek().is_none() {
@@ -555,27 +554,22 @@ where
         }
 
         let mut rhs = atom(iter);
-        // println!("rhs: {:?}", rhs);
 
         if iter.peek().is_none() {
             lhs = apply_op(op, lhs, rhs);
             break;
         }
         lookahead = iter.peek().unwrap().typ.clone();
-        // println!("lookahead: {:?}", lookahead);
 
         while lookahead.is_op() && lookahead.precedence() > op.precedence() {
             rhs = parse_sub_expression(iter, rhs, op.precedence());
-            // println!("\nrhs: {:?}", rhs);
             if iter.peek().is_none() {
                 break;
             }
             lookahead = iter.peek().unwrap().typ.clone();
-            // println!("\nlookahead: {:?}", lookahead);
         }
 
         lhs = apply_op(op, lhs, rhs);
-        // println!("lhs: {:?}", lhs);
     }
 
     lhs
