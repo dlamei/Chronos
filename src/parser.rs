@@ -91,6 +91,9 @@ pub enum NodeType {
 
     Return(Box<Node>),
 
+    Ref(Box<Node>),
+    DeRef(Box<Node>),
+
     Error(String),
 }
 
@@ -119,11 +122,11 @@ pub struct Node {
 }
 
 impl Node {
-    fn new(typ: NodeType, range: Position, flags: NodeFlags) -> Self {
+    pub fn new(typ: NodeType, range: Position, flags: NodeFlags) -> Self {
         Self { typ, range, flags }
     }
 
-    fn from(typ: NodeType, range: Position) -> Self {
+    pub fn from(typ: NodeType, range: Position) -> Self {
         Self {
             typ,
             range,
@@ -131,7 +134,7 @@ impl Node {
         }
     }
 
-    fn error(msg: &str, range: Position) -> Self {
+    pub fn error(msg: &str, range: Position) -> Self {
         Self {
             typ: NodeType::Error(msg.to_owned()),
             range,
@@ -201,6 +204,9 @@ impl fmt::Display for Node {
             Id(v) => write!(f, "{}", v),
 
             Return(n) => write!(f, "(return {})", n),
+
+            Ref(n) => write!(f, "(& {})", n),
+            DeRef(n) => write!(f, "(* {})", n),
 
             Error(msg) => write!(f, "Err: {}", msg),
 
@@ -454,7 +460,39 @@ where
         range.end = expr.range.end;
         Node::from(NodeType::Return(expr.into()), range)
     } else {
-        panic!("Expected retrun token, found: {:?}", iter.peek());
+        panic!("Expected return token, found: {:?}", iter.peek());
+    }
+}
+
+fn parse_ref<I>(iter: &mut I) -> Node
+where
+    I: PeekableIterator<Item = Token>,
+{
+    if expect_tok_peek(iter, &[TokenType::Ref]).is_none() {
+        let mut range = iter.next().unwrap().range;
+
+        let expr = atom(iter);
+        range.end = expr.range.end;
+
+        Node::from(NodeType::Ref(expr.into()), range)
+    } else {
+        panic!("Expected ref token, found: {:?}", iter.peek());
+    }
+}
+
+fn parse_deref<I>(iter: &mut I) -> Node
+where
+    I: PeekableIterator<Item = Token>,
+{
+    if expect_tok_peek(iter, &[TokenType::Mul]).is_none() {
+        let mut range = iter.next().unwrap().range;
+
+        let expr = atom(iter);
+        range.end = expr.range.end;
+
+        Node::from(NodeType::DeRef(expr.into()), range)
+    } else {
+        panic!("Expected deref token, found: {:?}", iter.peek());
     }
 }
 
@@ -472,6 +510,9 @@ where
             | I64Lit(_) | U64Lit(_) | ISizeLit(_) | USizeLit(_) | I128Lit(_) | U128Lit(_)
             | F32Lit(_) | F64Lit(_) | StringLit(_) | Id(_) => parse_tok(iter),
             Add | Sub | Not => parse_unry(iter),
+
+            Ref => parse_ref(iter),
+            Mul => parse_deref(iter),
 
             Error => {
                 let tok = iter.next().unwrap();
@@ -642,13 +683,12 @@ pub fn print_errors(n: &Node, code: &str) {
                 print_errors(e, code);
             }
         }
-        Eval(expr) => {
-            print_errors(expr, code);
-        }
+        Eval(expr) => print_errors(expr, code),
 
-        Return(n) => {
-            print_errors(n, code);
-        }
+        Ref(expr) => print_errors(expr, code),
+        DeRef(expr) => print_errors(expr, code),
+
+        Return(n) => print_errors(n, code),
 
         Error(msg) => {
             println!("Parser: {}", msg);

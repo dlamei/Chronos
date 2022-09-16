@@ -14,7 +14,7 @@ use crate::interpreter::ErrType::{self, *};
 
 #[derive(Debug, Clone)]
 pub struct Scope {
-    pub map: HashMap<String, ChValue>,
+    pub map: HashMap<String, Rc<RefCell<ChValue>>>,
     pub parent: Option<Rc<RefCell<Scope>>>,
 }
 
@@ -68,6 +68,8 @@ pub enum ChType {
 
     Expression,
 
+    Ref,
+    // DeRef,
     Void,
 }
 
@@ -95,39 +97,11 @@ pub enum ChValue {
     Char(char),
     String(String),
 
+    Ref(Rc<RefCell<ChValue>>),
+    // DeRef(Rc<RefCell<ChValue>>),
     Expression(ExpressionData),
 
     Void,
-}
-
-macro_rules! unwrap_chvalue {
-    ($chvalue:ident, $in:ident, $e:expr) => {{
-        use ChValue::*;
-        match $chvalue {
-            Bool($in) => $e,
-
-            I8($in) => $e,
-            I16($in) => $e,
-            I32($in) => $e,
-            I64($in) => $e,
-            ISize($in) => $e,
-            I128($in) => $e,
-
-            U8($in) => $e,
-            U16($in) => $e,
-            U32($in) => $e,
-            U64($in) => $e,
-            USize($in) => $e,
-            U128($in) => $e,
-
-            F32($in) => $e,
-            F64($in) => $e,
-
-            Char($in) => $e,
-            String($in) => $e,
-            _ => panic!("unwrap_chvalue not implemented for {:?}", $chvalue),
-        }
-    }};
 }
 
 macro_rules! chnum_as_typ {
@@ -319,8 +293,7 @@ fn get_op_numtype(left: &ChValue, right: &ChValue) -> Option<ChType> {
     let mut v2 = &right;
 
     if right.bitsize() > left.bitsize() {
-        v1 = &right;
-        v2 = &left;
+        (v1, v2) = (v2, v1);
     }
 
     if v1.is_float() && v2.is_float() {
@@ -405,6 +378,8 @@ impl ChValue {
             ChType::Char => Char('\0'),
             ChType::String => String("".to_owned()),
             ChType::Void => Void,
+            ChType::Ref => Ref(Rc::new(RefCell::new(ChValue::Void))),
+            // ChType::DeRef => DeRef(Rc::new(RefCell::new(ChValue::Void))),
             ChType::Expression => panic!("can't initialize chvalue"),
         }
     }
@@ -430,6 +405,8 @@ impl ChValue {
             F64(_) => ChType::F64,
             Char(_) => ChType::Char,
             String(_) => ChType::String,
+            Ref(_) => ChType::Ref,
+            // DeRef(_) => ChType::DeRef,
             Expression(_) => ChType::Expression,
             Void => ChType::Void,
         }
@@ -497,12 +474,29 @@ impl ChValue {
 
 impl fmt::Display for ChValue {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if let ChValue::Void = self {
-            write!(f, "")
-        } else if let ChValue::Expression(_) = self {
-            write!(f, "Expression")
-        } else {
-            unwrap_chvalue!(self, e, write!(f, "{}", e))
+        use ChValue::*;
+
+        match self {
+            Bool(v) => write!(f, "{}", v.to_string()),
+            I8(v) => write!(f, "{}", v.to_string()),
+            I16(v) => write!(f, "{}", v.to_string()),
+            I32(v) => write!(f, "{}", v.to_string()),
+            I64(v) => write!(f, "{}", v.to_string()),
+            ISize(v) => write!(f, "{}", v.to_string()),
+            I128(v) => write!(f, "{}", v.to_string()),
+            U8(v) => write!(f, "{}", v.to_string()),
+            U16(v) => write!(f, "{}", v.to_string()),
+            U32(v) => write!(f, "{}", v.to_string()),
+            U64(v) => write!(f, "{}", v.to_string()),
+            USize(v) => write!(f, "{}", v.to_string()),
+            U128(v) => write!(f, "{}", v.to_string()),
+            F32(v) => write!(f, "{}", v.to_string()),
+            F64(v) => write!(f, "{}", v.to_string()),
+            Char(v) => write!(f, "{}", v.to_string()),
+            String(v) => write!(f, "{}", v.to_string()),
+            Ref(v) => write!(f, "ref {}", v.borrow()),
+            Expression(_) => write!(f, "Expression"),
+            Void => write!(f, ""),
         }
     }
 }
@@ -519,6 +513,12 @@ impl ops::Add<&ChValue> for &ChValue {
                 res.push_str(s2);
                 return Ok(String(res));
             }
+        } else if let Ref(val) = self {
+            let v: &ChValue = &val.borrow();
+            return v + rhs;
+        } else if let Ref(val) = rhs {
+            let v: &ChValue = &val.borrow();
+            return self + v;
         }
 
         //TODO: id system
@@ -547,6 +547,14 @@ impl ops::Add<ChValue> for ChValue {
 impl ops::Sub<&ChValue> for &ChValue {
     type Output = Result<ChValue, ErrType>;
     fn sub(self, rhs: &ChValue) -> Result<ChValue, ErrType> {
+        if let ChValue::Ref(val) = self {
+            let v: &ChValue = &val.borrow();
+            return v - rhs;
+        } else if let ChValue::Ref(val) = rhs {
+            let v: &ChValue = &val.borrow();
+            return self - v;
+        }
+
         if let Some(typ) = get_op_numtype(self, rhs) {
             let lhs = self.as_transformed_num(&typ);
             let rhs = rhs.as_transformed_num(&typ);
@@ -584,6 +592,14 @@ impl ops::Mul<&ChValue> for &ChValue {
             // }
         }
 
+        if let ChValue::Ref(val) = self {
+            let v: &ChValue = &val.borrow();
+            return v * rhs;
+        } else if let Ref(val) = rhs {
+            let v: &ChValue = &val.borrow();
+            return self * v;
+        }
+
         if let Some(typ) = get_op_numtype(self, rhs) {
             let lhs = self.as_transformed_num(&typ);
             let rhs = rhs.as_transformed_num(&typ);
@@ -616,6 +632,12 @@ impl ops::Div<&ChValue> for &ChValue {
                 self.get_type(),
                 rhs.get_type()
             )));
+        } else if let ChValue::Ref(val) = self {
+            let v: &ChValue = &val.borrow();
+            return v / rhs;
+        } else if let ChValue::Ref(val) = rhs {
+            let v: &ChValue = &val.borrow();
+            return self / v;
         }
 
         if rhs.is_zero() {

@@ -136,7 +136,7 @@ pub enum TokenType {
     #[token(":")]
     Colon,
     #[token("&")]
-    Addr,
+    Ref,
 
     #[token("false", parse_bool)]
     #[token("true", parse_bool)]
@@ -354,12 +354,10 @@ pub fn print_tokens(code: &str, tokens: &Vec<Token>) {
 
             Const | Return | This | Any => s.magenta(),
 
-            Add | AddAdd | Sub | SubSub | Mul | Div 
-                | AddEq | SubEq | MulEq | DivEq 
-                | Equal | Not | NotEqual | Greater | Less
-            | GreaterEq | LessEq | Assign => s.blue(),
+            Add | AddAdd | Sub | SubSub | Mul | Div | AddEq | SubEq | MulEq | DivEq | Equal
+            | Not | NotEqual | Greater | Less | GreaterEq | LessEq | Assign => s.blue(),
 
-            Arrow | Dot | Comma | Semicln | Colon | Addr => s.yellow(),
+            Arrow | Dot | Comma | Semicln | Colon | Ref => s.yellow(),
 
             BoolLit(val) => val.to_string().red(),
 
