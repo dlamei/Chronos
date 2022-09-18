@@ -335,8 +335,8 @@ impl ChValue {
     #[cfg(target_pointer_width = "32")]
     crate::assign_func!(get_bit_size -> u32, 0,
         [8; Bool(_), U8(_), I8(_)]
-        [32; U32(_), I32(_), F32(_)]
-        [64; U64(_), USize(_), I64(_), ISize(_), F64(_)]
+        [32; U32(_), I32(_), F32(_), USize(_), ISize(_)]
+        [64; U64(_), I64(_), F64(_)]
         [128; U128(_), I128(_)]
     );
 

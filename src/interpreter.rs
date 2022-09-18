@@ -352,7 +352,8 @@ fn visit_node(node: &Node, scope: &Rc<RefCell<Scope>>) -> Result<ChValue, Runtim
         DeRef(expr) => visit_deref(expr, scope),
 
         Error(e) => panic!("found error from lexer: {}", e),
-        // _ => panic!("visit_node for {:?} not implemented", node.typ),
+
+        _ => panic!("visit_node for {:?} not implemented", node.typ),
     }
 }
 

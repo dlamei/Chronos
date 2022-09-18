@@ -51,8 +51,8 @@ fn main() {
             };
         }
     } else {
-        // let code = "{val = 3; ref = &val; *ref = 4; val}()";
-        let code = "{a = 1; v = {val = &a; val}(); *v = 4; a}()";
+        let code = "{val = 3; ref = &val; *ref = 4; val}()";
+        // let code = "a: i32 = 7";
 
         let (mut tokens, err_flag) = lexer::lex_tokens(code);
 
@@ -136,7 +136,8 @@ fn ref_test() {
     assert_eq!(run("{l = 3; r = 4; res = &l * r; res}()").unwrap(), I32(12));
     assert_eq!(run("{l = 3; r = 4.0; res = l / &r; res}()").unwrap(), F32(3.0/4.0));
     assert_eq!(run("{ref = {a = 3; &a}(); *ref += 2; *ref}()").unwrap(), I32(5));
-    assert_eq!(run("{val = 4; res = {ref = &val; val = val * 1.5; *ref}(); res}()").unwrap(), F32(6.0));
+    assert_eq!(run("{val = 4; res = {ref = &val; val *= 1.5; *ref}(); res}()").unwrap(), F32(6.0));
+    assert_eq!(run("{ref = {a = 4; &a}(); *ref = 3; *ref}()").unwrap(), I32(3));
 }
 
 #[test]

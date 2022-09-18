@@ -84,7 +84,9 @@ pub enum NodeType {
     LessEq(Box<Node>, Box<Node>),
 
     Assign(Box<Node>, Box<Node>),
+
     Id(String),
+    IdAnnot(String, Box<Node>),
 
     Expresssion(LinkedList<Node>, bool), //return last
     Eval(Box<Node>),
@@ -201,7 +203,9 @@ impl fmt::Display for Node {
             LessEq(lhs, rhs) => write!(f, "({} <= {})", lhs, rhs),
 
             Assign(lhs, rhs) => write!(f, "({} = {})", lhs, rhs),
+
             Id(v) => write!(f, "{}", v),
+            IdAnnot(v1, v2) => write!(f, "{}: {}", v1, v2),
 
             Return(n) => write!(f, "(return {})", n),
 
@@ -290,12 +294,12 @@ where
     }
 }
 
-fn expect_tok<I>(iter: &mut I, typs: Vec<TokenType>) -> Option<Node>
+fn expect_tok<I>(iter: &mut I, typs: &[TokenType]) -> Option<Node>
 where
     I: PeekableIterator<Item = Token>,
 {
     if let Some(tok) = iter.next() {
-        for typ in &typs {
+        for typ in typs {
             if &tok.typ == typ {
                 return None;
             }
@@ -319,11 +323,11 @@ fn parse_paren<I>(iter: &mut I) -> Node
 where
     I: PeekableIterator<Item = Token>,
 {
-    unwrap_ret!(expect_tok(iter, vec!(TokenType::LParen)));
+    unwrap_ret!(expect_tok(iter, &[TokenType::LParen]));
 
     let node = prop_node!(parse_expression(iter));
 
-    unwrap_ret!(expect_tok(iter, vec!(TokenType::RParen)));
+    unwrap_ret!(expect_tok(iter, &[TokenType::RParen]));
     node
 }
 
@@ -332,7 +336,7 @@ where
     I: PeekableIterator<Item = Token>,
 {
     let start = iter.peek().unwrap().range.start;
-    unwrap_ret!(expect_tok(iter, vec!(TokenType::LBrace)));
+    unwrap_ret!(expect_tok(iter, &[TokenType::LBrace]));
 
     let mut expr: LinkedList<Node> = LinkedList::new();
     let mut ret_last = false;
@@ -356,7 +360,7 @@ where
 
     // let node = prop_node!(parse_expression(iter));
     let end = iter.peek().unwrap().range.end;
-    unwrap_ret!(expect_tok(iter, vec!(TokenType::RBrace)));
+    unwrap_ret!(expect_tok(iter, &[TokenType::RBrace]));
 
     Node::from(NodeType::Expresssion(expr, ret_last), start..end)
 }
@@ -366,8 +370,8 @@ where
     I: PeekableIterator<Item = Token>,
 {
     let tok = iter.next().unwrap();
-    Node {
-        typ: token_to_node!(tok.typ, panic!("expected literal, found: {:?}", tok.typ),
+    Node::from(
+        token_to_node!(tok.typ, panic!("expected literal, found: {:?}", tok.typ),
             BoolLit(val) => BoolLit(val)
 
             I8Lit(val) => I8Lit(val)
@@ -394,8 +398,30 @@ where
             StringLit(val) => StringLit(val)
             Id(val) => Id(val)
         ),
-        range: tok.range,
-        flags: NodeFlags::empty(),
+        tok.range,
+    )
+}
+
+fn parse_id<I>(iter: &mut I) -> Node
+where
+    I: PeekableIterator<Item = Token>,
+{
+    let tok = iter.next().unwrap();
+
+    if let TokenType::Id(name) = tok.typ {
+        if expect_tok_peek(iter, &[TokenType::Colon]).is_none() {
+            iter.next();
+            let typ = atom(iter);
+            let flags = typ.flags.clone();
+
+            let range = tok.range.start..typ.range.end;
+
+            Node::new(NodeType::IdAnnot(name, typ.into()), range, flags)
+        } else {
+            Node::from(NodeType::Id(name.clone()), tok.range.clone())
+        }
+    } else {
+        panic!("expected id, found: {:?}", tok);
     }
 }
 
@@ -508,8 +534,10 @@ where
             Return => parse_ret(iter),
             BoolLit(_) | I8Lit(_) | U8Lit(_) | I16Lit(_) | U16Lit(_) | I32Lit(_) | U32Lit(_)
             | I64Lit(_) | U64Lit(_) | ISizeLit(_) | USizeLit(_) | I128Lit(_) | U128Lit(_)
-            | F32Lit(_) | F64Lit(_) | StringLit(_) | Id(_) => parse_tok(iter),
+            | F32Lit(_) | F64Lit(_) | StringLit(_) => parse_tok(iter),
             Add | Sub | Not => parse_unry(iter),
+
+            Id(_) => parse_id(iter),
 
             Ref => parse_ref(iter),
             Mul => parse_deref(iter),
@@ -678,6 +706,8 @@ pub fn print_errors(n: &Node, code: &str) {
             }
         }
         Eval(expr) => print_errors(expr, code),
+
+        IdAnnot(_, v) => print_errors(v, code),
 
         Ref(expr) => print_errors(expr, code),
         DeRef(expr) => print_errors(expr, code),
