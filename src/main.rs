@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-mod chvalue;
+mod primitive;
 mod error;
 mod interpreter;
 mod lexer;
@@ -18,6 +18,7 @@ fn main() {
         loop {
             let mut code = String::new();
             io::stdin().read_line(&mut code).unwrap();
+            let code = code.trim();
 
             let (mut tokens, err_flag) = lexer::lex_tokens(&code);
 
@@ -32,7 +33,7 @@ fn main() {
                     println!("Lexer: could not lex char:");
                     println!("{}", error::underline_code(&code, &err.range));
                 }
-                return;
+                continue;
             }
 
             lexer::filter_tokens(&mut tokens);
@@ -42,7 +43,7 @@ fn main() {
 
             if ast.flags.contains(parser::NodeFlags::ERROR) {
                 parser::print_errors(&ast, &code);
-                return;
+                continue;
             }
 
             match interpreter::interpret(&ast) {
@@ -87,7 +88,7 @@ fn main() {
     }
 }
 
-fn run(c: &str) -> Result<chvalue::ChValue, interpreter::RuntimeErr> {
+fn run(c: &str) -> Result<primitive::Primitive, interpreter::RuntimeErr> {
     let (mut tokens, _) = lexer::lex_tokens(c);
     lexer::filter_tokens(&mut tokens);
     let ast = parser::parse_tokens(tokens);
@@ -96,7 +97,7 @@ fn run(c: &str) -> Result<chvalue::ChValue, interpreter::RuntimeErr> {
 
 #[test]
 fn basic_code() {
-    use chvalue::ChValue::*;
+    use primitive::Primitive::*;
     assert_eq!(run("1 + 2 * 3").unwrap(), I32(7));
     assert_eq!(run("1 + 2 * (3 + 2) == 11").unwrap(), Bool(true));
     assert_eq!(run("1 + 2 * (3 + 2) == 10").unwrap(), Bool(false));
@@ -125,24 +126,36 @@ fn basic_code() {
 
 #[test]
 fn unry_test() {
-    use chvalue::ChValue::*;
+    use primitive::Primitive::*;
     assert_eq!(run("1 + - - - !false").unwrap(), I32(0));
 }
 
 #[test]
 fn ref_test() {
-    use chvalue::ChValue::*;
+    use primitive::Primitive::*;
     assert_eq!(run("{l = 3; r = 4; res = &l + &r; res}()").unwrap(), I32(7));
     assert_eq!(run("{l = 3; r = 4; res = &l * r; res}()").unwrap(), I32(12));
-    assert_eq!(run("{l = 3; r = 4.0; res = l / &r; res}()").unwrap(), F32(3.0/4.0));
-    assert_eq!(run("{ref = {a = 3; &a}(); *ref += 2; *ref}()").unwrap(), I32(5));
-    assert_eq!(run("{val = 4; res = {ref = &val; val *= 1.5; *ref}(); res}()").unwrap(), F32(6.0));
-    assert_eq!(run("{ref = {a = 4; &a}(); *ref = 3; *ref}()").unwrap(), I32(3));
+    assert_eq!(
+        run("{l = 3; r = 4.0; res = l / &r; res}()").unwrap(),
+        F32(3.0 / 4.0)
+    );
+    assert_eq!(
+        run("{ref = {a = 3; &a}(); *ref += 2; *ref}()").unwrap(),
+        I32(5)
+    );
+    assert_eq!(
+        run("{val = 4; res = {ref = &val; val *= 1.5; *ref}(); res}()").unwrap(),
+        F32(6.0)
+    );
+    assert_eq!(
+        run("{ref = {a = 4; &a}(); *ref = 3; *ref}()").unwrap(),
+        I32(3)
+    );
 }
 
 #[test]
 fn eval_lit() {
-    use chvalue::ChValue::*;
+    use primitive::Primitive::*;
 
     assert_eq!(run("41").unwrap(), I32(41));
     assert_eq!(run("41.0").unwrap(), F32(41.0));

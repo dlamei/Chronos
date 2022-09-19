@@ -313,6 +313,15 @@ where
     vec
 }
 
+fn trim_newline(s: &mut String) {
+    if s.ends_with('\n') {
+        s.pop();
+        if s.ends_with('\r') {
+            s.pop();
+        }
+    }
+}
+
 pub fn lex_tokens(code: &str) -> (Vec<Token>, bool) {
     let lex = TokenType::lexer(code);
     let mut err_flag = false;

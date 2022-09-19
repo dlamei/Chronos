@@ -10,11 +10,11 @@ use std::{
 
 use crate::interpreter::ErrType::{self, *};
 
-// pub type Scope = HashMap<String, ChValue>;
+// pub type Scope = HashMap<String, Primitive>;
 
 #[derive(Debug, Clone)]
 pub struct Scope {
-    pub map: HashMap<String, Rc<RefCell<ChValue>>>,
+    pub map: HashMap<String, Rc<RefCell<Primitive>>>,
     pub parent: Option<Rc<RefCell<Scope>>>,
 }
 
@@ -43,7 +43,7 @@ pub struct ExpressionData {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum ChType {
+pub enum PrimitiveType {
     Bool,
 
     I8,
@@ -74,7 +74,7 @@ pub enum ChType {
 }
 
 #[derive(Debug, Clone)]
-pub enum ChValue {
+pub enum Primitive {
     Bool(bool),
 
     I8(i8),
@@ -97,8 +97,8 @@ pub enum ChValue {
     Char(char),
     String(String),
 
-    Ref(Rc<RefCell<ChValue>>),
-    // DeRef(Rc<RefCell<ChValue>>),
+    Ref(Rc<RefCell<Primitive>>),
+    // DeRef(Rc<RefCell<Primitive>>),
     Expression(ExpressionData),
 
     Void,
@@ -108,7 +108,7 @@ macro_rules! chnum_as_typ {
     ($typ: ty) => {
         paste! {
             pub fn [<as_$typ>](&self) -> $typ {
-                use ChValue::*;
+                use Primitive::*;
                 match self {
                     Bool(v) => *v as u8 as $typ,
 
@@ -139,7 +139,7 @@ macro_rules! chnum_as_typ {
 
 macro_rules! apply_op {
     ($lhs:expr; $op:tt $rhs:expr; $checked:ident) => {{
-        use ChValue::*;
+        use Primitive::*;
         match ($lhs, $rhs) {
             (Bool(v1), Bool(v2)) => U8(*v1 as u8 $op *v2 as u8),
             (Char(v1), Char(v2)) => {
@@ -231,7 +231,7 @@ macro_rules! apply_op {
     }};
 
     ($lhs:expr; $op:tt $rhs:expr; => $rest:expr) => {{
-        use ChValue::*;
+        use Primitive::*;
         match ($lhs, $rhs) {
             (Bool(v1), Bool(v2)) => *v1 as u8 $op *v2 as u8,
             (U8(v1), U8(v2)) => *v1 $op *v2,
@@ -253,8 +253,8 @@ macro_rules! apply_op {
     }};
 }
 
-fn type_from_bit_size(size: u32, signed: bool, float: bool) -> Option<ChType> {
-    use ChType::*;
+fn type_from_bit_size(size: u32, signed: bool, float: bool) -> Option<PrimitiveType> {
+    use PrimitiveType::*;
     Some(if !float {
         if signed {
             match size {
@@ -284,7 +284,7 @@ fn type_from_bit_size(size: u32, signed: bool, float: bool) -> Option<ChType> {
     })
 }
 
-fn get_op_numtype(left: &ChValue, right: &ChValue) -> Option<ChType> {
+fn get_op_numtype(left: &Primitive, right: &Primitive) -> Option<PrimitiveType> {
     if !left.is_num() || !right.is_num() {
         return None;
     }
@@ -299,14 +299,14 @@ fn get_op_numtype(left: &ChValue, right: &ChValue) -> Option<ChType> {
     if v1.is_float() && v2.is_float() {
         return type_from_bit_size(cmp::max(v1.bitsize(), v2.bitsize()), true, true);
     } else if v1.is_float() {
-        use ChType::*;
+        use PrimitiveType::*;
         if v2.bitsize() <= 32 {
             return Some(F32);
         } else {
             return Some(F64);
         }
     } else if v2.is_float() {
-        use ChType::*;
+        use PrimitiveType::*;
         if v1.bitsize() <= 32 {
             return Some(F32);
         } else {
@@ -322,7 +322,7 @@ fn get_op_numtype(left: &ChValue, right: &ChValue) -> Option<ChType> {
     }
 }
 
-impl ChValue {
+impl Primitive {
     #[cfg(target_pointer_width = "64")]
     crate::assign_func!(bitsize -> u32, 0,
         [8; Bool(_), Char(_), U8(_), I8(_)]
@@ -356,64 +356,64 @@ impl ChValue {
         [true; U128(_), I128(_)]
     );
 
-    fn from_chvalue(typ: ChType) -> Self {
-        use ChValue::*;
+    fn from_primitive(typ: PrimitiveType) -> Self {
+        use Primitive::*;
 
         match typ {
-            ChType::Bool => Bool(false),
-            ChType::I8 => I8(0),
-            ChType::I16 => I16(0),
-            ChType::I32 => I32(0),
-            ChType::I64 => I64(0),
-            ChType::ISize => ISize(0),
-            ChType::I128 => I128(0),
-            ChType::U8 => U8(0),
-            ChType::U16 => U16(0),
-            ChType::U32 => U32(0),
-            ChType::U64 => U64(0),
-            ChType::USize => USize(0),
-            ChType::U128 => U128(0),
-            ChType::F32 => F32(0.0),
-            ChType::F64 => F64(0.0),
-            ChType::Char => Char('\0'),
-            ChType::String => String("".to_owned()),
-            ChType::Void => Void,
-            ChType::Ref => Ref(Rc::new(RefCell::new(ChValue::Void))),
-            // ChType::DeRef => DeRef(Rc::new(RefCell::new(ChValue::Void))),
-            ChType::Expression => panic!("can't initialize chvalue"),
+            PrimitiveType::Bool => Bool(false),
+            PrimitiveType::I8 => I8(0),
+            PrimitiveType::I16 => I16(0),
+            PrimitiveType::I32 => I32(0),
+            PrimitiveType::I64 => I64(0),
+            PrimitiveType::ISize => ISize(0),
+            PrimitiveType::I128 => I128(0),
+            PrimitiveType::U8 => U8(0),
+            PrimitiveType::U16 => U16(0),
+            PrimitiveType::U32 => U32(0),
+            PrimitiveType::U64 => U64(0),
+            PrimitiveType::USize => USize(0),
+            PrimitiveType::U128 => U128(0),
+            PrimitiveType::F32 => F32(0.0),
+            PrimitiveType::F64 => F64(0.0),
+            PrimitiveType::Char => Char('\0'),
+            PrimitiveType::String => String("".to_owned()),
+            PrimitiveType::Void => Void,
+            PrimitiveType::Ref => Ref(Rc::new(RefCell::new(Primitive::Void))),
+            // ChType::DeRef => DeRef(Rc::new(RefCell::new(Primitive::Void))),
+            PrimitiveType::Expression => panic!("can't initialize primitive"),
         }
     }
 
-    pub fn get_type(&self) -> ChType {
-        use ChValue::*;
+    pub fn get_type(&self) -> PrimitiveType {
+        use Primitive::*;
 
         match self {
-            Bool(_) => ChType::Bool,
-            I8(_) => ChType::I8,
-            I16(_) => ChType::I16,
-            I32(_) => ChType::I32,
-            I64(_) => ChType::I64,
-            ISize(_) => ChType::ISize,
-            I128(_) => ChType::I128,
-            U8(_) => ChType::U8,
-            U16(_) => ChType::U16,
-            U32(_) => ChType::U32,
-            U64(_) => ChType::U64,
-            USize(_) => ChType::USize,
-            U128(_) => ChType::U128,
-            F32(_) => ChType::F32,
-            F64(_) => ChType::F64,
-            Char(_) => ChType::Char,
-            String(_) => ChType::String,
-            Ref(_) => ChType::Ref,
+            Bool(_) => PrimitiveType::Bool,
+            I8(_) => PrimitiveType::I8,
+            I16(_) => PrimitiveType::I16,
+            I32(_) => PrimitiveType::I32,
+            I64(_) => PrimitiveType::I64,
+            ISize(_) => PrimitiveType::ISize,
+            I128(_) => PrimitiveType::I128,
+            U8(_) => PrimitiveType::U8,
+            U16(_) => PrimitiveType::U16,
+            U32(_) => PrimitiveType::U32,
+            U64(_) => PrimitiveType::U64,
+            USize(_) => PrimitiveType::USize,
+            U128(_) => PrimitiveType::U128,
+            F32(_) => PrimitiveType::F32,
+            F64(_) => PrimitiveType::F64,
+            Char(_) => PrimitiveType::Char,
+            String(_) => PrimitiveType::String,
+            Ref(_) => PrimitiveType::Ref,
             // DeRef(_) => ChType::DeRef,
-            Expression(_) => ChType::Expression,
-            Void => ChType::Void,
+            Expression(_) => PrimitiveType::Expression,
+            Void => PrimitiveType::Void,
         }
     }
 
     pub fn is_zero(&self) -> bool {
-        use ChValue::*;
+        use Primitive::*;
 
         match self {
             Bool(false) | I8(0i8) | I32(0i32) | I64(0i64) | ISize(0isize) | I128(0i128)
@@ -430,25 +430,25 @@ impl ChValue {
         !self.is_zero()
     }
 
-    pub fn as_transformed_num(&self, typ: &ChType) -> ChValue {
-        use ChValue::*;
+    pub fn as_transformed_num(&self, typ: &PrimitiveType) -> Primitive {
+        use Primitive::*;
         match typ {
-            ChType::Bool => Bool(self.as_bool()),
-            ChType::I8 => I8(self.as_i8()),
-            ChType::I16 => I16(self.as_i16()),
-            ChType::I32 => I32(self.as_i32()),
-            ChType::I64 => I64(self.as_i64()),
-            ChType::ISize => ISize(self.as_isize()),
-            ChType::I128 => I128(self.as_i128()),
-            ChType::U8 => U8(self.as_u8()),
-            ChType::U16 => U16(self.as_u16()),
-            ChType::U32 => U32(self.as_u32()),
-            ChType::U64 => U64(self.as_u64()),
-            ChType::USize => USize(self.as_usize()),
-            ChType::U128 => U128(self.as_u128()),
-            ChType::F32 => F32(self.as_f32()),
-            ChType::F64 => F64(self.as_f64()),
-            ChType::Char => Char(self.as_u8() as char),
+            PrimitiveType::Bool => Bool(self.as_bool()),
+            PrimitiveType::I8 => I8(self.as_i8()),
+            PrimitiveType::I16 => I16(self.as_i16()),
+            PrimitiveType::I32 => I32(self.as_i32()),
+            PrimitiveType::I64 => I64(self.as_i64()),
+            PrimitiveType::ISize => ISize(self.as_isize()),
+            PrimitiveType::I128 => I128(self.as_i128()),
+            PrimitiveType::U8 => U8(self.as_u8()),
+            PrimitiveType::U16 => U16(self.as_u16()),
+            PrimitiveType::U32 => U32(self.as_u32()),
+            PrimitiveType::U64 => U64(self.as_u64()),
+            PrimitiveType::USize => USize(self.as_usize()),
+            PrimitiveType::U128 => U128(self.as_u128()),
+            PrimitiveType::F32 => F32(self.as_f32()),
+            PrimitiveType::F64 => F64(self.as_f64()),
+            PrimitiveType::Char => Char(self.as_u8() as char),
 
             _ => panic!("can't transorm {:?} to type: {:?}", self, typ),
         }
@@ -472,9 +472,9 @@ impl ChValue {
     chnum_as_typ!(f64);
 }
 
-impl fmt::Display for ChValue {
+impl fmt::Display for Primitive {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use ChValue::*;
+        use Primitive::*;
 
         match self {
             Bool(v) => write!(f, "{}", v.to_string()),
@@ -501,11 +501,11 @@ impl fmt::Display for ChValue {
     }
 }
 
-impl ops::Add<&ChValue> for &ChValue {
-    type Output = Result<ChValue, ErrType>;
+impl ops::Add<&Primitive> for &Primitive {
+    type Output = Result<Primitive, ErrType>;
 
-    fn add(self, rhs: &ChValue) -> Result<ChValue, ErrType> {
-        use ChValue::*;
+    fn add(self, rhs: &Primitive) -> Result<Primitive, ErrType> {
+        use Primitive::*;
 
         if let String(ref s1) = self {
             if let String(s2) = rhs {
@@ -514,10 +514,10 @@ impl ops::Add<&ChValue> for &ChValue {
                 return Ok(String(res));
             }
         } else if let Ref(val) = self {
-            let v: &ChValue = &val.borrow();
+            let v: &Primitive = &val.borrow();
             return v + rhs;
         } else if let Ref(val) = rhs {
-            let v: &ChValue = &val.borrow();
+            let v: &Primitive = &val.borrow();
             return self + v;
         }
 
@@ -537,21 +537,21 @@ impl ops::Add<&ChValue> for &ChValue {
     }
 }
 
-impl ops::Add<ChValue> for ChValue {
-    type Output = Result<ChValue, ErrType>;
-    fn add(self, rhs: ChValue) -> Result<ChValue, ErrType> {
+impl ops::Add<Primitive> for Primitive {
+    type Output = Result<Primitive, ErrType>;
+    fn add(self, rhs: Primitive) -> Result<Primitive, ErrType> {
         &self + &rhs
     }
 }
 
-impl ops::Sub<&ChValue> for &ChValue {
-    type Output = Result<ChValue, ErrType>;
-    fn sub(self, rhs: &ChValue) -> Result<ChValue, ErrType> {
-        if let ChValue::Ref(val) = self {
-            let v: &ChValue = &val.borrow();
+impl ops::Sub<&Primitive> for &Primitive {
+    type Output = Result<Primitive, ErrType>;
+    fn sub(self, rhs: &Primitive) -> Result<Primitive, ErrType> {
+        if let Primitive::Ref(val) = self {
+            let v: &Primitive = &val.borrow();
             return v - rhs;
-        } else if let ChValue::Ref(val) = rhs {
-            let v: &ChValue = &val.borrow();
+        } else if let Primitive::Ref(val) = rhs {
+            let v: &Primitive = &val.borrow();
             return self - v;
         }
 
@@ -570,17 +570,17 @@ impl ops::Sub<&ChValue> for &ChValue {
     }
 }
 
-impl ops::Sub<ChValue> for ChValue {
-    type Output = Result<ChValue, ErrType>;
-    fn sub(self, rhs: ChValue) -> Result<ChValue, ErrType> {
+impl ops::Sub<Primitive> for Primitive {
+    type Output = Result<Primitive, ErrType>;
+    fn sub(self, rhs: Primitive) -> Result<Primitive, ErrType> {
         &self - &rhs
     }
 }
 
-impl ops::Mul<&ChValue> for &ChValue {
-    type Output = Result<ChValue, ErrType>;
-    fn mul(self, rhs: &ChValue) -> Result<ChValue, ErrType> {
-        use ChValue::*;
+impl ops::Mul<&Primitive> for &Primitive {
+    type Output = Result<Primitive, ErrType>;
+    fn mul(self, rhs: &Primitive) -> Result<Primitive, ErrType> {
+        use Primitive::*;
 
         if rhs.is_num() {
             if let String(v) = self {
@@ -592,11 +592,11 @@ impl ops::Mul<&ChValue> for &ChValue {
             // }
         }
 
-        if let ChValue::Ref(val) = self {
-            let v: &ChValue = &val.borrow();
+        if let Primitive::Ref(val) = self {
+            let v: &Primitive = &val.borrow();
             return v * rhs;
         } else if let Ref(val) = rhs {
-            let v: &ChValue = &val.borrow();
+            let v: &Primitive = &val.borrow();
             return self * v;
         }
 
@@ -616,27 +616,27 @@ impl ops::Mul<&ChValue> for &ChValue {
     }
 }
 
-impl ops::Mul<ChValue> for ChValue {
-    type Output = Result<ChValue, ErrType>;
-    fn mul(self, rhs: ChValue) -> Result<ChValue, ErrType> {
+impl ops::Mul<Primitive> for Primitive {
+    type Output = Result<Primitive, ErrType>;
+    fn mul(self, rhs: Primitive) -> Result<Primitive, ErrType> {
         &self * &rhs
     }
 }
 
-impl ops::Div<&ChValue> for &ChValue {
-    type Output = Result<ChValue, ErrType>;
-    fn div(self, rhs: &ChValue) -> Result<ChValue, ErrType> {
-        if let ChValue::Void = rhs {
+impl ops::Div<&Primitive> for &Primitive {
+    type Output = Result<Primitive, ErrType>;
+    fn div(self, rhs: &Primitive) -> Result<Primitive, ErrType> {
+        if let Primitive::Void = rhs {
             return Err(ErrType::UnsupportedOperand(format!(
                 "Operator [Div] not defined for {:?} / {:?}",
                 self.get_type(),
                 rhs.get_type()
             )));
-        } else if let ChValue::Ref(val) = self {
-            let v: &ChValue = &val.borrow();
+        } else if let Primitive::Ref(val) = self {
+            let v: &Primitive = &val.borrow();
             return v / rhs;
-        } else if let ChValue::Ref(val) = rhs {
-            let v: &ChValue = &val.borrow();
+        } else if let Primitive::Ref(val) = rhs {
+            let v: &Primitive = &val.borrow();
             return self / v;
         }
 
@@ -659,16 +659,16 @@ impl ops::Div<&ChValue> for &ChValue {
     }
 }
 
-impl ops::Div<ChValue> for ChValue {
-    type Output = Result<ChValue, ErrType>;
-    fn div(self, rhs: ChValue) -> Result<ChValue, ErrType> {
+impl ops::Div<Primitive> for Primitive {
+    type Output = Result<Primitive, ErrType>;
+    fn div(self, rhs: Primitive) -> Result<Primitive, ErrType> {
         &self / &rhs
     }
 }
 
-impl PartialEq for ChValue {
+impl PartialEq for Primitive {
     fn eq(&self, other: &Self) -> bool {
-        use ChValue::*;
+        use Primitive::*;
 
         match self {
             //TODO: maybe 'a' == "a"?
@@ -707,13 +707,13 @@ impl PartialEq for ChValue {
     }
 }
 
-impl PartialOrd for ChValue {
+impl PartialOrd for Primitive {
     fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
         if self == other {
             return Some(cmp::Ordering::Equal);
         }
 
-        if let (ChValue::String(s1), ChValue::String(s2)) = (self, other) {
+        if let (Primitive::String(s1), Primitive::String(s2)) = (self, other) {
             return s1.partial_cmp(s2);
         }
 
@@ -734,8 +734,8 @@ impl PartialOrd for ChValue {
 }
 
 #[test]
-fn add_chvalue() {
-    use ChValue::*;
+fn add_primitive() {
+    use Primitive::*;
     assert_eq!((I32(2) + Bool(false)).unwrap(), I32(2));
     assert_eq!(
         (I32(2) + Char(std::char::from_u32(10).unwrap())),
@@ -755,8 +755,8 @@ fn add_chvalue() {
 }
 
 #[test]
-fn sub_chvalue() {
-    use ChValue::*;
+fn sub_primitive() {
+    use Primitive::*;
     assert_eq!((I32(5) - Bool(true)).unwrap(), I32(4));
     assert_eq!((I32(5) - I32(3)).unwrap(), I32(2));
     assert_eq!((U8(5) - I32(3)).unwrap(), I32(2));
@@ -767,8 +767,8 @@ fn sub_chvalue() {
 }
 
 #[test]
-fn mul_chvalue() {
-    use ChValue::*;
+fn mul_primitive() {
+    use Primitive::*;
     assert_eq!((I32(2) * I32(3)).unwrap(), I32(6));
     assert_eq!((I32(2) * U8(3)).unwrap(), I32(6));
     assert_eq!((U8(2) * U8(3)).unwrap(), U8(6));
@@ -780,8 +780,8 @@ fn mul_chvalue() {
 }
 
 #[test]
-fn div_chvalue() {
-    use ChValue::*;
+fn div_primitive() {
+    use Primitive::*;
     assert_eq!((I32(5) / I32(3)).unwrap(), I32(1));
     assert_eq!((I32(3) / F32(2.0)).unwrap(), F32(1.5));
     assert_eq!(I32(3) / Bool(false), Err(ZeroDivision));
@@ -789,8 +789,8 @@ fn div_chvalue() {
 }
 
 #[test]
-fn eq_chvalue() {
-    use ChValue::*;
+fn eq_primitive() {
+    use Primitive::*;
     assert_eq!(I32(5), I32(5));
     assert_eq!((I16(2) + I16(3)).unwrap(), I8(5));
     assert_eq!(I8(5), I32(5));
@@ -811,8 +811,8 @@ fn eq_chvalue() {
 }
 
 #[test]
-fn chvalue_to_bool() {
-    use ChValue::*;
+fn primitive_to_bool() {
+    use Primitive::*;
     assert!(F32(2.0).as_bool());
     assert!(!U8(0).as_bool());
     assert!(!Void.as_bool());
@@ -820,16 +820,16 @@ fn chvalue_to_bool() {
 }
 
 #[test]
-fn chvalue_overflow() {
-    use ChValue::*;
+fn primitive_overflow() {
+    use Primitive::*;
     assert_eq!(I32(i32::MAX) + I32(1), Ok(I64(i32::MAX as i64 + 1)));
     assert_eq!(I32(i32::MAX) + F32(1.0), Ok(F32(i32::MAX as f32 + 1.0)));
     assert_eq!(Bool(false) + Bool(false), Ok(I8(0)));
 }
 
 #[test]
-fn chvalue_order() {
-    use ChValue::*;
+fn primitive_order() {
+    use Primitive::*;
     assert!(Char('a') < Char('b'));
     assert!(Bool(true) < Char('b'));
     assert!(F32(1.3) > I128(1));
