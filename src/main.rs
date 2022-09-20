@@ -4,6 +4,7 @@ mod error;
 mod interpreter;
 mod lexer;
 mod parser;
+mod chvalue;
 
 use std::{env, io};
 // use std::{env, fs};
@@ -47,7 +48,7 @@ fn main() {
             }
 
             match interpreter::interpret(&ast) {
-                Ok(e) => println!("{}", e),
+                Ok(e) => println!("interpreter: {}", e),
                 Err(e) => interpreter::print_error(e, &code),
             };
         }
@@ -82,7 +83,7 @@ fn main() {
         }
 
         match interpreter::interpret(&ast) {
-            Ok(e) => println!("{:?}", e),
+            Ok(e) => println!("interpreter: {:?}", e),
             Err(e) => interpreter::print_error(e, code),
         };
     }
@@ -92,7 +93,10 @@ fn run(c: &str) -> Result<primitive::Primitive, interpreter::RuntimeErr> {
     let (mut tokens, _) = lexer::lex_tokens(c);
     lexer::filter_tokens(&mut tokens);
     let ast = parser::parse_tokens(tokens);
-    interpreter::interpret(&ast)
+    match interpreter::interpret(&ast) {
+        Ok(v) => Ok(v.value),
+        Err(e) => Err(e),
+    }
 }
 
 #[test]

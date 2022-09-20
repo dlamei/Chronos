@@ -1,9 +1,11 @@
-use crate::parser::Node;
+use crate::{
+    chvalue::ChValue,
+    parser::Node, chvalue::Scope};
 use paste::paste;
 use std::{
     cell::RefCell,
     cmp,
-    collections::{HashMap, LinkedList},
+    collections::LinkedList,
     fmt, ops,
     rc::Rc,
 };
@@ -11,28 +13,6 @@ use std::{
 use crate::interpreter::ErrType::{self, *};
 
 // pub type Scope = HashMap<String, Primitive>;
-
-#[derive(Debug, Clone)]
-pub struct Scope {
-    pub map: HashMap<String, Rc<RefCell<Primitive>>>,
-    pub parent: Option<Rc<RefCell<Scope>>>,
-}
-
-impl Scope {
-    pub fn new() -> Self {
-        Scope {
-            map: HashMap::new(),
-            parent: None,
-        }
-    }
-
-    pub fn from(parent: Rc<RefCell<Scope>>) -> Self {
-        Scope {
-            map: HashMap::new(),
-            parent: Some(parent),
-        }
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct ExpressionData {
@@ -97,7 +77,7 @@ pub enum Primitive {
     Char(char),
     String(String),
 
-    Ref(Rc<RefCell<Primitive>>),
+    Ref(Rc<RefCell<ChValue>>),
     // DeRef(Rc<RefCell<Primitive>>),
     Expression(ExpressionData),
 
@@ -378,7 +358,7 @@ impl Primitive {
             PrimitiveType::Char => Char('\0'),
             PrimitiveType::String => String("".to_owned()),
             PrimitiveType::Void => Void,
-            PrimitiveType::Ref => Ref(Rc::new(RefCell::new(Primitive::Void))),
+            PrimitiveType::Ref => Ref(Rc::new(RefCell::new(ChValue::from(Primitive::Void)))),
             // ChType::DeRef => DeRef(Rc::new(RefCell::new(Primitive::Void))),
             PrimitiveType::Expression => panic!("can't initialize primitive"),
         }
@@ -514,10 +494,10 @@ impl ops::Add<&Primitive> for &Primitive {
                 return Ok(String(res));
             }
         } else if let Ref(val) = self {
-            let v: &Primitive = &val.borrow();
+            let v: &Primitive = &val.borrow().value;
             return v + rhs;
         } else if let Ref(val) = rhs {
-            let v: &Primitive = &val.borrow();
+            let v: &Primitive = &val.borrow().value;
             return self + v;
         }
 
@@ -548,10 +528,10 @@ impl ops::Sub<&Primitive> for &Primitive {
     type Output = Result<Primitive, ErrType>;
     fn sub(self, rhs: &Primitive) -> Result<Primitive, ErrType> {
         if let Primitive::Ref(val) = self {
-            let v: &Primitive = &val.borrow();
+            let v: &Primitive = &val.borrow().value;
             return v - rhs;
         } else if let Primitive::Ref(val) = rhs {
-            let v: &Primitive = &val.borrow();
+            let v: &Primitive = &val.borrow().value;
             return self - v;
         }
 
@@ -593,10 +573,10 @@ impl ops::Mul<&Primitive> for &Primitive {
         }
 
         if let Primitive::Ref(val) = self {
-            let v: &Primitive = &val.borrow();
+            let v: &Primitive = &val.borrow().value;
             return v * rhs;
         } else if let Ref(val) = rhs {
-            let v: &Primitive = &val.borrow();
+            let v: &Primitive = &val.borrow().value;
             return self * v;
         }
 
@@ -633,10 +613,10 @@ impl ops::Div<&Primitive> for &Primitive {
                 rhs.get_type()
             )));
         } else if let Primitive::Ref(val) = self {
-            let v: &Primitive = &val.borrow();
+            let v: &Primitive = &val.borrow().value;
             return v / rhs;
         } else if let Primitive::Ref(val) = rhs {
-            let v: &Primitive = &val.borrow();
+            let v: &Primitive = &val.borrow().value;
             return self / v;
         }
 
