@@ -1,7 +1,7 @@
-use crate::lexer::Position;
+use crate::lexer::Range;
 use colored::Colorize;
 
-pub fn underline_code(code: &str, pos: &Position) -> String {
+pub fn underline_code(code: &str, pos: &Range) -> String {
     let mut beg_line = code[0..pos.start].rfind('\n').unwrap_or(0);
     if beg_line != 0 {
         beg_line += 1
@@ -19,5 +19,6 @@ pub fn underline_code(code: &str, pos: &Position) -> String {
     line.push('\n');
     let arrows = " ".repeat(err_start) + &"⌃".repeat(err_len);
 
-    line + &arrows.red().to_string()
+    let arrow_line: String = arrows.red().to_string();
+    line + &arrow_line
 }

@@ -24,8 +24,8 @@ macro_rules! enum_match {
         if let enum_or!($($x1),*) = $self {
             $n
         } else {
-                enum_match!($self, $default, $n+1, $([$($x2),*])*)
-            }
+            enum_match!($self, $default, $n+1, $([$($x2),*])*)
+        }
     };
 }
 
@@ -70,15 +70,13 @@ fn parse_string(lex: &mut Lexer<TokenType>) -> Option<String> {
                 't' => str.push('\t'),
                 _ => str.push_str(&format!("\\{}", c).to_owned()),
             }
-
             escape = false;
-            continue;
-        }
-
-        match c {
-            '\\' => escape = true,
-            '"' => break,
-            _ => str.push(c),
+        } else {
+            match c {
+                '\\' => escape = true,
+                '"' => break,
+                _ => str.push(c),
+            }
         }
     }
 
@@ -103,13 +101,11 @@ where
     if let Some(end) = num.find(lit) {
         num = &num[..end];
         if let Ok(res) = num.parse() {
-            Some(res)
-        } else {
-            None
+            return Some(res)
         }
-    } else {
-        None
     }
+
+    None
 }
 
 #[derive(Logos, Debug, PartialEq, Clone)]
@@ -136,7 +132,14 @@ pub enum TokenType {
     #[token(":")]
     Colon,
     #[token("&")]
-    Ref,
+    And,
+    #[token("|")]
+    Or,
+
+    #[token("&&")]
+    LogicalAnd,
+    #[token("||")]
+    LogicalOr,
 
     #[token("false", parse_bool)]
     #[token("true", parse_bool)]
@@ -254,6 +257,7 @@ impl TokenType {
     priority_func!(precedence -> i32, 0,
         [Assign, AddEq, SubEq, MulEq, DivEq]
         [Equal, NotEqual, Greater, GreaterEq, Less, LessEq]
+        [LogicalAnd, LogicalOr]
         [Add, Sub]
         [Mul, Div]
     );
@@ -266,12 +270,46 @@ impl TokenType {
     // );
 }
 
-pub type Position = std::ops::Range<usize>;
+pub type Range = std::ops::Range<usize>;
 
 #[derive(Debug, Clone)]
 pub struct Token {
     pub typ: TokenType,
-    pub range: Position,
+    pub range: Range,
+}
+
+fn merge_errors_it<I>(mut tokens: I) -> impl Iterator<Item = Token>
+where
+    I: Iterator<Item = Token>,
+{
+    //let mut iter = tokens.peekable();
+
+    std::iter::from_fn(move || {
+        let mut err_range: Option<Range> = None;
+
+        while let Some(token) = tokens.next() {
+            if let TokenType::Error = token.typ {
+                err_range = Some(
+                    err_range
+                        .as_ref()
+                        .map_or(token.range.clone(), |range| range.start..token.range.end),
+                );
+            } else {
+                if let Some(range) = err_range.take() {
+                    return Some(Token {
+                        typ: TokenType::Error,
+                        range,
+                    });
+                }
+                return Some(token);
+            }
+        }
+
+        err_range.map(|range| Token {
+            typ: TokenType::Error,
+            range,
+        })
+    })
 }
 
 fn merge_errors<I>(tokens: I) -> Vec<Token>
@@ -279,7 +317,7 @@ where
     I: Iterator<Item = Token>,
 {
     let mut vec = Vec::<Token>::new();
-    let mut err_range: Option<Position> = None;
+    let mut err_range: Option<Range> = None;
 
     for tok in tokens {
         if tok.typ == TokenType::Error {
@@ -322,23 +360,18 @@ fn trim_newline(s: &mut String) {
     }
 }
 
-pub fn lex_tokens(code: &str) -> (Vec<Token>, bool) {
+pub fn lex_tokens(code: &str) -> Vec<Token> {
     let lex = TokenType::lexer(code);
-    let mut err_flag = false;
 
-    let mut tokens: Vec<Token> = merge_errors(lex.spanned().map(|(typ, range)| {
-        if TokenType::Error == typ {
-            err_flag = true;
-        }
-        Token { typ, range }
-    }));
+    let mut tokens: Vec<Token> =
+    merge_errors_it(lex.spanned().map(|(typ, range)| Token { typ, range })).collect();
 
     tokens.push(Token {
         typ: TokenType::Eof,
         range: (code.len()..code.len() + 1),
     });
 
-    (tokens, err_flag)
+    tokens
 }
 
 pub fn filter_tokens(tokens: &mut Vec<Token>) {
@@ -351,7 +384,6 @@ pub fn print_tokens(code: &str, tokens: &Vec<Token>) {
     use TokenType::*;
 
     for tok in tokens {
-        // println!("{:?}", tok);
         if let TokenType::Eof = tok.typ {
             continue;
         }
@@ -364,9 +396,9 @@ pub fn print_tokens(code: &str, tokens: &Vec<Token>) {
             Const | Return | This | Any => s.magenta(),
 
             Add | AddAdd | Sub | SubSub | Mul | Div | AddEq | SubEq | MulEq | DivEq | Equal
-            | Not | NotEqual | Greater | Less | GreaterEq | LessEq | Assign => s.blue(),
+                | Not | NotEqual | Greater | Less | GreaterEq | LessEq | Assign => s.blue(),
 
-            Arrow | Dot | Comma | Semicln | Colon | Ref => s.yellow(),
+            Arrow | Dot | Comma | Semicln | Colon | And | Or | LogicalAnd | LogicalOr => s.yellow(),
 
             BoolLit(val) => val.to_string().red(),
 
@@ -386,7 +418,7 @@ pub fn print_tokens(code: &str, tokens: &Vec<Token>) {
             F32Lit(val) => val.to_string().red(),
             F64Lit(val) => val.to_string().red(),
 
-            StringLit(val) => format!("\"{}\"", val).green(),
+            StringLit(val) => format!("\"{val}\"").green(),
 
             Void => "void".to_owned().red(),
 
@@ -400,27 +432,30 @@ pub fn print_tokens(code: &str, tokens: &Vec<Token>) {
             Eof => "".clear(),
         };
 
-        res.push_str(&colored_str.to_string());
+        let col: String = colored_str.to_string();
+        res.push_str(&col);
     }
 
-    println!("lexer: {}", res);
+    println!("{res}");
 }
 
 #[test]
 fn lex_lit() {
     use TokenType::*;
-    assert_eq!(lex_tokens("23i8").0[0].typ, I8Lit(23));
-    assert_eq!(lex_tokens("2i16").0[0].typ, I16Lit(2));
-    assert_eq!(lex_tokens("123i32").0[0].typ, I32Lit(123));
-    assert_eq!(lex_tokens("321i64").0[0].typ, I64Lit(321));
-    assert_eq!(lex_tokens("321isize").0[0].typ, ISizeLit(321));
-    assert_eq!(lex_tokens("128i128").0[0].typ, I128Lit(128));
+    assert_eq!(lex_tokens("23i8")[0].typ, I8Lit(23));
+    assert_eq!(lex_tokens("2i16")[0].typ, I16Lit(2));
+    assert_eq!(lex_tokens("123i32")[0].typ, I32Lit(123));
+    assert_eq!(lex_tokens("321i64")[0].typ, I64Lit(321));
+    assert_eq!(lex_tokens("321isize")[0].typ, ISizeLit(321));
+    assert_eq!(lex_tokens("128i128")[0].typ, I128Lit(128));
 
-    assert_eq!(lex_tokens("23u8").0[0].typ, U8Lit(23));
-    assert_eq!(lex_tokens("2u16").0[0].typ, U16Lit(2));
-    assert_eq!(lex_tokens("123u32").0[0].typ, U32Lit(123));
-    assert_eq!(lex_tokens("321u64").0[0].typ, U64Lit(321));
-    assert_eq!(lex_tokens("321usize").0[0].typ, USizeLit(321));
-    assert_eq!(lex_tokens("128u128").0[0].typ, U128Lit(128));
-    // assert_eq!(lex_tokens("234234i8").0[0].typ, I8Lit(123));
+    assert_eq!(lex_tokens("23u8")[0].typ, U8Lit(23));
+    assert_eq!(lex_tokens("2u16")[0].typ, U16Lit(2));
+    assert_eq!(lex_tokens("123u32")[0].typ, U32Lit(123));
+    assert_eq!(lex_tokens("321u64")[0].typ, U64Lit(321));
+    assert_eq!(lex_tokens("321usize")[0].typ, USizeLit(321));
+    assert_eq!(lex_tokens("128u128")[0].typ, U128Lit(128));
+    //assert_eq!(lex_tokens("234234i8")[0].typ, I8Lit(123));
+
+    assert_eq!(lex_tokens("\"Hello World\"")[0].typ, StringLit("Hello World".to_owned()));
 }

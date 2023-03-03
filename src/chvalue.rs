@@ -1,22 +1,13 @@
 use crate::{interpreter::ErrType, primitive::Primitive};
-use std::{
-    fmt::Display,
-    cell::RefCell, cmp, collections::HashMap, ops, rc::Rc};
+use std::{cell::RefCell, cmp, collections::HashMap, fmt::Display, ops, rc::Rc};
 
-#[derive(Debug, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct Scope {
     pub map: HashMap<String, Rc<RefCell<ChValue>>>,
     pub parent: Option<Rc<RefCell<Scope>>>,
 }
 
 impl Scope {
-    pub fn new() -> Self {
-        Scope {
-            map: HashMap::new(),
-            parent: None,
-        }
-    }
-
     pub fn from(parent: Rc<RefCell<Scope>>) -> Self {
         Scope {
             map: HashMap::new(),
@@ -37,7 +28,6 @@ impl Display for ChValue {
         if let Some(t) = &self.typ {
             res = write!(f, ": {}", t);
         }
-
         res
     }
 }
@@ -50,6 +40,10 @@ impl ChValue {
     pub fn new(value: Primitive, typ: Option<Primitive>) -> Self {
         ChValue { value, typ }
     }
+
+    // pub fn try_cast(self, cast: &Option<ChValue>) -> Self {
+    //     // if cast.is_none()
+    // }
 }
 
 impl ops::Add for &ChValue {

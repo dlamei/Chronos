@@ -1,14 +1,6 @@
-use crate::{
-    chvalue::ChValue,
-    parser::Node, chvalue::Scope};
+use crate::{chvalue::ChValue, chvalue::Scope, parser::Node};
 use paste::paste;
-use std::{
-    cell::RefCell,
-    cmp,
-    collections::LinkedList,
-    fmt, ops,
-    rc::Rc,
-};
+use std::{cell::RefCell, cmp, collections::LinkedList, fmt, ops, rc::Rc};
 
 use crate::interpreter::ErrType::{self, *};
 
@@ -82,6 +74,8 @@ pub enum Primitive {
     Expression(ExpressionData),
 
     Void,
+
+    UnInit,
 }
 
 macro_rules! chnum_as_typ {
@@ -389,6 +383,8 @@ impl Primitive {
             // DeRef(_) => ChType::DeRef,
             Expression(_) => PrimitiveType::Expression,
             Void => PrimitiveType::Void,
+
+            UnInit => panic!("get type should never be called on UnInit"),
         }
     }
 
@@ -457,26 +453,27 @@ impl fmt::Display for Primitive {
         use Primitive::*;
 
         match self {
-            Bool(v) => write!(f, "{}", v.to_string()),
-            I8(v) => write!(f, "{}", v.to_string()),
-            I16(v) => write!(f, "{}", v.to_string()),
-            I32(v) => write!(f, "{}", v.to_string()),
-            I64(v) => write!(f, "{}", v.to_string()),
-            ISize(v) => write!(f, "{}", v.to_string()),
-            I128(v) => write!(f, "{}", v.to_string()),
-            U8(v) => write!(f, "{}", v.to_string()),
-            U16(v) => write!(f, "{}", v.to_string()),
-            U32(v) => write!(f, "{}", v.to_string()),
-            U64(v) => write!(f, "{}", v.to_string()),
-            USize(v) => write!(f, "{}", v.to_string()),
-            U128(v) => write!(f, "{}", v.to_string()),
-            F32(v) => write!(f, "{}", v.to_string()),
-            F64(v) => write!(f, "{}", v.to_string()),
-            Char(v) => write!(f, "{}", v.to_string()),
-            String(v) => write!(f, "{}", v.to_string()),
+            Bool(v) => write!(f, "{}", v),
+            I8(v) => write!(f, "{}", v),
+            I16(v) => write!(f, "{}", v),
+            I32(v) => write!(f, "{}", v),
+            I64(v) => write!(f, "{}", v),
+            ISize(v) => write!(f, "{}", v),
+            I128(v) => write!(f, "{}", v),
+            U8(v) => write!(f, "{}", v),
+            U16(v) => write!(f, "{}", v),
+            U32(v) => write!(f, "{}", v),
+            U64(v) => write!(f, "{}", v),
+            USize(v) => write!(f, "{}", v),
+            U128(v) => write!(f, "{}", v),
+            F32(v) => write!(f, "{}", v),
+            F64(v) => write!(f, "{}", v),
+            Char(v) => write!(f, "{}", v),
+            String(v) => write!(f, "{}", v),
             Ref(v) => write!(f, "ref {}", v.borrow()),
             Expression(_) => write!(f, "Expression"),
             Void => write!(f, ""),
+            UnInit => write!(f, "UnInit"),
         }
     }
 }

@@ -1,6 +1,6 @@
 use crate::{
     error,
-    lexer::{Position, Token, TokenType},
+    lexer::{Range, Token, TokenType},
 };
 use bitflags::bitflags;
 use paste::paste;
@@ -16,7 +16,7 @@ macro_rules! unwrap_ret {
 }
 
 macro_rules! prop_node {
-    ($e:expr $(,$func:ident)?) => {{
+    ($e:expr) => {{
         let n = $e;
         if let NodeType::Error(_) = n.typ {
             return n;
@@ -101,7 +101,7 @@ pub enum NodeType {
 
 //TODO: impl drop
 
-macro_rules! token_to_node {
+macro_rules! binop_token_to_node {
     ($tok:expr, $panic:expr, $($lhs:pat => $rhs:expr)*) => {
         match $tok {
             $(paste!(TokenType::$lhs) => paste!(NodeType::$rhs),)*
@@ -119,16 +119,16 @@ bitflags! {
 #[derive(Clone)]
 pub struct Node {
     pub typ: NodeType,
-    pub range: Position,
+    pub range: Range,
     pub flags: NodeFlags,
 }
 
 impl Node {
-    pub fn new(typ: NodeType, range: Position, flags: NodeFlags) -> Self {
+    pub fn new(typ: NodeType, range: Range, flags: NodeFlags) -> Self {
         Self { typ, range, flags }
     }
 
-    pub fn from(typ: NodeType, range: Position) -> Self {
+    pub fn from(typ: NodeType, range: Range) -> Self {
         Self {
             typ,
             range,
@@ -136,7 +136,7 @@ impl Node {
         }
     }
 
-    pub fn error(msg: &str, range: Position) -> Self {
+    pub fn error(msg: &str, range: Range) -> Self {
         Self {
             typ: NodeType::Error(msg.to_owned()),
             range,
@@ -156,63 +156,63 @@ impl fmt::Display for Node {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use NodeType::*;
         match &self.typ {
-            BoolLit(v) => write!(f, "{}", v),
+            BoolLit(v) => write!(f, "{v}"),
 
-            I8Lit(v) => write!(f, "{}", v),
-            U8Lit(v) => write!(f, "{}", v),
+            I8Lit(v) => write!(f, "{v}"),
+            U8Lit(v) => write!(f, "{v}"),
 
-            I16Lit(v) => write!(f, "{}", v),
-            U16Lit(v) => write!(f, "{}", v),
+            I16Lit(v) => write!(f, "{v}"),
+            U16Lit(v) => write!(f, "{v}"),
 
-            I32Lit(v) => write!(f, "{}", v),
-            U32Lit(v) => write!(f, "{}", v),
+            I32Lit(v) => write!(f, "{v}"),
+            U32Lit(v) => write!(f, "{v}"),
 
-            I64Lit(v) => write!(f, "{}", v),
-            U64Lit(v) => write!(f, "{}", v),
+            I64Lit(v) => write!(f, "{v}"),
+            U64Lit(v) => write!(f, "{v}"),
 
-            ISizeLit(v) => write!(f, "{}", v),
-            USizeLit(v) => write!(f, "{}", v),
+            ISizeLit(v) => write!(f, "{v}"),
+            USizeLit(v) => write!(f, "{v}"),
 
-            I128Lit(v) => write!(f, "{}", v),
-            U128Lit(v) => write!(f, "{}", v),
+            I128Lit(v) => write!(f, "{v}"),
+            U128Lit(v) => write!(f, "{v}"),
 
-            F32Lit(v) => write!(f, "{}", v),
-            F64Lit(v) => write!(f, "{}", v),
+            F32Lit(v) => write!(f, "{v}"),
+            F64Lit(v) => write!(f, "{v}"),
 
-            StringLit(v) => write!(f, "{}", v),
+            StringLit(v) => write!(f, "{v}"),
 
-            Add(lhs, rhs) => write!(f, "({} + {})", lhs, rhs),
-            Sub(lhs, rhs) => write!(f, "({} - {})", lhs, rhs),
-            Mul(lhs, rhs) => write!(f, "({} * {})", lhs, rhs),
-            Div(lhs, rhs) => write!(f, "({} / {})", lhs, rhs),
+            Add(lhs, rhs) => write!(f, "({lhs} + {rhs})"),
+            Sub(lhs, rhs) => write!(f, "({lhs} - {rhs})"),
+            Mul(lhs, rhs) => write!(f, "({lhs} * {rhs})"),
+            Div(lhs, rhs) => write!(f, "({lhs} / {rhs})"),
 
-            AddEq(lhs, rhs) => write!(f, "({} += {})", lhs, rhs),
-            SubEq(lhs, rhs) => write!(f, "({} -= {})", lhs, rhs),
-            MulEq(lhs, rhs) => write!(f, "({} *= {})", lhs, rhs),
-            DivEq(lhs, rhs) => write!(f, "({} /= {})", lhs, rhs),
+            AddEq(lhs, rhs) => write!(f, "({lhs} += {rhs})"),
+            SubEq(lhs, rhs) => write!(f, "({lhs} -= {rhs})"),
+            MulEq(lhs, rhs) => write!(f, "({lhs} *= {rhs})"),
+            DivEq(lhs, rhs) => write!(f, "({lhs} /= {rhs})"),
 
-            UnryAdd(node) => write!(f, "(+ {})", node),
-            UnryMin(node) => write!(f, "(- {})", node),
-            UnryNot(node) => write!(f, "(! {})", node),
+            UnryAdd(node) => write!(f, "(+ {node})"),
+            UnryMin(node) => write!(f, "(- {node})"),
+            UnryNot(node) => write!(f, "(! {node})"),
 
-            Equal(lhs, rhs) => write!(f, "({} == {})", lhs, rhs),
-            NotEqual(lhs, rhs) => write!(f, "({} != {})", lhs, rhs),
-            Greater(lhs, rhs) => write!(f, "({} > {})", lhs, rhs),
-            GreaterEq(lhs, rhs) => write!(f, "({} >= {})", lhs, rhs),
-            Less(lhs, rhs) => write!(f, "({} < {})", lhs, rhs),
-            LessEq(lhs, rhs) => write!(f, "({} <= {})", lhs, rhs),
+            Equal(lhs, rhs) => write!(f, "({lhs} == {rhs})"),
+            NotEqual(lhs, rhs) => write!(f, "({lhs} != {rhs})"),
+            Greater(lhs, rhs) => write!(f, "({lhs} > {rhs})"),
+            GreaterEq(lhs, rhs) => write!(f, "({lhs} >= {rhs})"),
+            Less(lhs, rhs) => write!(f, "({lhs} < {rhs})"),
+            LessEq(lhs, rhs) => write!(f, "({lhs} <= {rhs})"),
 
-            Assign(lhs, rhs) => write!(f, "({} = {})", lhs, rhs),
+            Assign(lhs, rhs) => write!(f, "({lhs} = {rhs})"),
 
-            Id(v) => write!(f, "{}", v),
-            IdAnnot(v1, v2) => write!(f, "{}: {}", v1, v2),
+            Id(v) => write!(f, "{v}"),
+            IdAnnot(v1, v2) => write!(f, "{v1}: {v2}"),
 
-            Return(n) => write!(f, "(return {})", n),
+            Return(n) => write!(f, "(return {n})"),
 
-            Ref(n) => write!(f, "(& {})", n),
-            DeRef(n) => write!(f, "(* {})", n),
+            Ref(n) => write!(f, "(& {n})"),
+            DeRef(n) => write!(f, "(* {n})"),
 
-            Error(msg) => write!(f, "Err: {}", msg),
+            Error(msg) => write!(f, "Err: {msg}"),
 
             Expresssion(expr, last_ret) => {
                 use std::fmt::Write;
@@ -222,14 +222,14 @@ impl fmt::Display for Node {
 
                 while let Some(e) = it.next() {
                     if it.peek().is_some() || !last_ret {
-                        write!(res, "{};", e).unwrap();
+                        write!(res, "{e};")?;
                     } else {
-                        write!(res, "{}", e).unwrap();
+                        write!(res, "{e}")?;
                     }
                 }
                 write!(f, "{{{}}}", res)
             }
-            Eval(expr) => write!(f, "{}()", expr),
+            Eval(expr) => write!(f, "{expr}()"),
         }
     }
 }
@@ -241,10 +241,10 @@ fn apply_op(op: TokenType, lhs: Node, rhs: Node) -> Node {
     let l_flags = lhs.flags;
     let r_flags = rhs.flags;
 
-    let res_flags = (l_flags & NodeFlags::ERROR) | (r_flags & NodeFlags::ERROR);
+    let res_flags = l_flags | r_flags;
 
     Node {
-        typ: token_to_node!(op, panic!("apply_op for {:?} not implemented", op),
+        typ: binop_token_to_node!(op, panic!("apply_op for {:?} not implemented", op),
             Add => Add(lhs.into(), rhs.into())
             Sub => Sub(lhs.into(), rhs.into())
             Mul => Mul(lhs.into(), rhs.into())
@@ -371,7 +371,7 @@ where
 {
     let tok = iter.next().unwrap();
     Node::from(
-        token_to_node!(tok.typ, panic!("expected literal, found: {:?}", tok.typ),
+        binop_token_to_node!(tok.typ, panic!("expected literal, found: {:?}", tok.typ),
             BoolLit(val) => BoolLit(val)
 
             I8Lit(val) => I8Lit(val)
@@ -412,13 +412,13 @@ where
         if expect_tok_peek(iter, &[TokenType::Colon]).is_none() {
             iter.next();
             let typ = atom(iter);
-            let flags = typ.flags.clone();
+            let flags = typ.flags;
 
             let range = tok.range.start..typ.range.end;
 
             Node::new(NodeType::IdAnnot(name, typ.into()), range, flags)
         } else {
-            Node::from(NodeType::Id(name.clone()), tok.range.clone())
+            Node::from(NodeType::Id(name), tok.range.clone())
         }
     } else {
         panic!("expected id, found: {:?}", tok);
@@ -494,7 +494,7 @@ fn parse_ref<I>(iter: &mut I) -> Node
 where
     I: PeekableIterator<Item = Token>,
 {
-    if expect_tok_peek(iter, &[TokenType::Ref]).is_none() {
+    if expect_tok_peek(iter, &[TokenType::And]).is_none() {
         let mut range = iter.next().unwrap().range;
 
         let expr = atom(iter);
@@ -539,7 +539,7 @@ where
 
             Id(_) => parse_id(iter),
 
-            Ref => parse_ref(iter),
+            And => parse_ref(iter),
             Mul => parse_deref(iter),
 
             Error => {
@@ -564,13 +564,15 @@ fn parse_sub_expression<I>(iter: &mut I, mut lhs: Node, precedence: i32) -> Node
 where
     I: PeekableIterator<Item = Token>,
 {
-    if iter.peek().is_none() || iter.peek().unwrap().typ == TokenType::Eof {
+    //if iter.peek().is_none() || iter.peek().unwrap().typ == TokenType::Eof {
+    if iter.peek().is_none() {
+        panic!("no EOF at the end of token stream!");
+    }
+
+    if iter.peek().unwrap().typ == TokenType::Eof {
         return lhs;
     }
 
-    if iter.peek().is_none() {
-        return lhs;
-    }
     let mut lookahead = iter.peek().unwrap().typ.clone();
 
     while lookahead.is_op() && lookahead.precedence() > precedence {
@@ -626,6 +628,11 @@ pub fn parse_tokens(tokens: Vec<Token>) -> Node {
 }
 
 pub fn print_errors(n: &Node, code: &str) {
+
+    if n.flags.contains(NodeFlags::ERROR) {
+        return;
+    }
+
     use NodeType::*;
     match &n.typ {
         I8Lit(_) | U8Lit(_) | I16Lit(_) | U16Lit(_) | I32Lit(_) | U32Lit(_) | I64Lit(_)
@@ -701,7 +708,7 @@ pub fn print_errors(n: &Node, code: &str) {
         }
 
         Expresssion(list, _) => {
-            for e in list.iter() {
+            for e in list {
                 print_errors(e, code);
             }
         }

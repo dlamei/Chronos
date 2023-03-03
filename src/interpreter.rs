@@ -1,7 +1,7 @@
 use crate::{
     chvalue::{ChValue, Scope},
     error,
-    lexer::{Position, TokenType},
+    lexer::{Range, TokenType},
     parser::{Node, NodeType},
     primitive::{self, Primitive},
 };
@@ -14,16 +14,19 @@ pub enum ErrType {
     UnsupportedOperand(String),
     UnAllowedAssign,
     Undefinded(String),
+
+    UnInitialized(String),
+    AlreadyDefined(String),
 }
 
 #[derive(Debug, PartialEq)]
 pub struct RuntimeErr {
     typ: ErrType,
-    range: Position,
+    range: Range,
 }
 
 impl RuntimeErr {
-    fn new(typ: ErrType, range: Position) -> Self {
+    fn new(typ: ErrType, range: Range) -> Self {
         Self { typ, range }
     }
 }
@@ -85,15 +88,15 @@ where
     }
 }
 
-fn get_scope_with_key(name: String, scope: &Rc<RefCell<Scope>>) -> Option<Rc<RefCell<Scope>>> {
+fn get_scope_with_key(name: &String, scope: &Rc<RefCell<Scope>>) -> Option<Rc<RefCell<Scope>>> {
     let mut scp = scope.clone();
 
-    if scp.borrow().map.contains_key(&name) {
+    if scp.borrow().map.contains_key(name) {
         return Some(scp);
     }
 
     while let Some(parent) = &scp.clone().borrow().parent {
-        if parent.borrow().map.contains_key(&name) {
+        if parent.borrow().map.contains_key(name) {
             return Some(parent.clone());
         }
         scp = parent.clone();
@@ -109,12 +112,16 @@ fn visit_assign(lhs: &Node, rhs: &Node, scope: &Rc<RefCell<Scope>>) -> Result<Ch
             let name = name.to_string();
 
             let val = visit_node(rhs, scope)?;
-
             let ret = val.clone();
 
-            if let Some(s) = get_scope_with_key(name.clone(), scope) {
+            if let Some(s) = get_scope_with_key(&name, scope) {
                 // s.borrow_mut().map.insert(name, Rc::new(RefCell::new(val)));
                 let ref_val = s.borrow_mut().map.get(&name).unwrap().clone();
+
+                if let Some(typ) = &ref_val.borrow().typ {
+                    val.value.as_transformed_num(&typ.get_type());
+                }
+
                 ref_val.replace(val);
             } else {
                 scope
@@ -124,6 +131,31 @@ fn visit_assign(lhs: &Node, rhs: &Node, scope: &Rc<RefCell<Scope>>) -> Result<Ch
             }
 
             Ok(ret)
+        }
+        NodeType::IdAnnot(name, typ) => {
+            let name = name.to_string();
+
+            if let Some(_s) = get_scope_with_key(&name, scope) {
+                Err(RuntimeErr::new(
+                    ErrType::AlreadyDefined(name.clone()),
+                    range,
+                ))
+            } else {
+                let typ = visit_node(typ, scope)?;
+                let mut val = visit_node(rhs, scope)?;
+
+                val.value.as_transformed_num(&typ.value.get_type());
+                val.typ = Some(typ.value);
+
+                let ret = val.clone();
+
+                scope
+                    .borrow_mut()
+                    .map
+                    .insert(name, Rc::new(RefCell::new(val)));
+
+                Ok(ret)
+            }
         }
         NodeType::DeRef(ref_node) => {
             let ref_val = visit_node(ref_node, scope)?;
@@ -142,18 +174,52 @@ fn visit_assign(lhs: &Node, rhs: &Node, scope: &Rc<RefCell<Scope>>) -> Result<Ch
 
 fn visit_access(n: &Node, scope: &Rc<RefCell<Scope>>) -> Result<ChValue, RuntimeErr> {
     if let NodeType::Id(name) = &n.typ {
-        if let Some(val) = scope.borrow().map.get(name) {
-            Ok(val.borrow().clone())
-        } else if let Some(parent) = &scope.borrow().parent {
-            visit_access(n, &parent)
+        // let val = if let Some(val) = scope.borrow().map.get(name) {
+        //     val.borrow().clone()
+        // } else if let Some(parent) = &scope.borrow().parent {
+        //     visit_access(n, &parent)?
+        let val: ChValue = if let Some(s) = get_scope_with_key(name, scope) {
+            s.borrow().map.get(name).unwrap().borrow().clone()
         } else {
-            Err(RuntimeErr::new(
+            return Err(RuntimeErr::new(
                 ErrType::Undefinded(name.to_owned()),
                 n.range.clone(),
+            ));
+        };
+
+        if let Primitive::UnInit = val.value {
+            Err(RuntimeErr::new(
+                ErrType::UnInitialized(format!("{}", n)),
+                n.range.clone(),
             ))
+        } else {
+            Ok(val)
         }
     } else {
         panic!("access is only defined for Id, found: {:?}", n)
+    }
+}
+
+fn visit_define(n: &Node, scope: &Rc<RefCell<Scope>>) -> Result<ChValue, RuntimeErr> {
+    let range = n.range.clone();
+
+    if let NodeType::IdAnnot(name, val) = &n.typ {
+        if get_scope_with_key(name, scope).is_some() {
+            Err(RuntimeErr::new(
+                ErrType::AlreadyDefined(name.to_owned()),
+                range,
+            ))
+        } else {
+            let v: ChValue = visit_node(val, scope)?;
+            let value = ChValue::new(Primitive::UnInit, Some(v.value));
+            scope
+                .borrow_mut()
+                .map
+                .insert(name.to_owned(), Rc::new(RefCell::new(value)));
+            Ok(ChValue::from(Primitive::Void))
+        }
+    } else {
+        panic!("access is only defined for IdAnnot, found: {:?}", n)
     }
 }
 
@@ -161,21 +227,19 @@ fn visit_ref(n: &Node, scope: &Rc<RefCell<Scope>>) -> Result<ChValue, RuntimeErr
     let range = n.range.clone();
 
     if let NodeType::Id(name) = &n.typ {
-        if let Some(s) = get_scope_with_key(name.to_owned(), scope) {
-            Ok(ChValue::from(
-                Primitive::Ref(s.borrow().map.get(name).unwrap().clone())
-            ))
+        if let Some(s) = get_scope_with_key(name, scope) {
+            Ok(ChValue::from(Primitive::Ref(
+                s.borrow().map.get(name).unwrap().clone(),
+            )))
         } else {
             Err(RuntimeErr::new(
-                ErrType::Undefinded(format!("{}", name)),
+                ErrType::Undefinded(name.to_string()),
                 range,
             ))
         }
     } else {
         let val = visit_node(n, scope)?;
-        Ok(ChValue::from(
-            Primitive::Ref(Rc::new(RefCell::new(val)))
-        ))
+        Ok(ChValue::from(Primitive::Ref(Rc::new(RefCell::new(val)))))
     }
 }
 
@@ -220,7 +284,7 @@ fn visit_eval(node: &Node, scope: &Rc<RefCell<Scope>>) -> Result<ChValue, Runtim
             return Ok(val);
         }
 
-        while let Some(n) = it.next() {
+        for n in it {
             if let NodeType::Return(_) = n.typ {
                 ret_val = true;
             }
@@ -344,6 +408,7 @@ fn visit_node(node: &Node, scope: &Rc<RefCell<Scope>>) -> Result<ChValue, Runtim
 
         Assign(id, n) => visit_assign(id, n, scope),
         Id(_) => visit_access(node, scope),
+        IdAnnot(..) => visit_define(node, scope),
 
         Expresssion(exprs, ret_last) => visit_expr(exprs, *ret_last, scope),
         Eval(expr) => visit_eval(expr, scope),
@@ -354,12 +419,11 @@ fn visit_node(node: &Node, scope: &Rc<RefCell<Scope>>) -> Result<ChValue, Runtim
         DeRef(expr) => visit_deref(expr, scope),
 
         Error(e) => panic!("found error from lexer: {}", e),
-
-        _ => panic!("visit_node for {:?} not implemented", node.typ),
+        // _ => panic!("visit_node for {:?} not implemented", node.typ),
     }
 }
 
 pub fn interpret(root: &Node) -> Result<ChValue, RuntimeErr> {
     // visit_node(root, &mut Scope::new())
-    visit_node(root, &Rc::new(RefCell::new(Scope::new())))
+    visit_node(root, &Rc::new(RefCell::new(Scope::default())))
 }
