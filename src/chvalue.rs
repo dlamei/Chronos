@@ -19,13 +19,13 @@ impl Scope {
 #[derive(Debug, Clone)]
 pub struct ChValue {
     pub value: Primitive,
-    pub typ: Option<Primitive>,
+    pub cast: Option<Primitive>,
 }
 
 impl Display for ChValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut res = write!(f, "{}", self.value);
-        if let Some(t) = &self.typ {
+        if let Some(t) = &self.cast {
             res = write!(f, ": {}", t);
         }
         res
@@ -34,11 +34,11 @@ impl Display for ChValue {
 
 impl ChValue {
     pub fn from(value: Primitive) -> Self {
-        ChValue { value, typ: None }
+        ChValue { value, cast: None }
     }
 
     pub fn new(value: Primitive, typ: Option<Primitive>) -> Self {
-        ChValue { value, typ }
+        ChValue { value, cast: typ }
     }
 
     // pub fn try_cast(self, cast: &Option<ChValue>) -> Self {

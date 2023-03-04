@@ -118,7 +118,7 @@ fn visit_assign(lhs: &Node, rhs: &Node, scope: &Rc<RefCell<Scope>>) -> Result<Ch
                 // s.borrow_mut().map.insert(name, Rc::new(RefCell::new(val)));
                 let ref_val = s.borrow_mut().map.get(&name).unwrap().clone();
 
-                if let Some(typ) = &ref_val.borrow().typ {
+                if let Some(typ) = &ref_val.borrow().cast {
                     val.value.as_transformed_num(&typ.get_type());
                 }
 
@@ -145,7 +145,7 @@ fn visit_assign(lhs: &Node, rhs: &Node, scope: &Rc<RefCell<Scope>>) -> Result<Ch
                 let mut val = visit_node(rhs, scope)?;
 
                 val.value.as_transformed_num(&typ.value.get_type());
-                val.typ = Some(typ.value);
+                val.cast = Some(typ.value);
 
                 let ret = val.clone();
 
@@ -296,11 +296,7 @@ fn visit_eval(node: &Node, scope: &Rc<RefCell<Scope>>) -> Result<ChValue, Runtim
             }
         }
 
-        if expr.ret_last {
-            Ok(val)
-        } else {
-            Ok(ChValue::from(Primitive::Void))
-        }
+        Ok(ChValue::from(Primitive::Void))
     } else {
         Err(RuntimeErr::new(
             ErrType::UnsupportedOperand(format!("Can't evaluate type: {:?}", val.value.get_type())),
@@ -309,14 +305,9 @@ fn visit_eval(node: &Node, scope: &Rc<RefCell<Scope>>) -> Result<ChValue, Runtim
     }
 }
 
-fn visit_expr(
-    nodes: &LinkedList<Node>,
-    ret_last: bool,
-    scope: &Rc<RefCell<Scope>>,
-) -> Result<ChValue, RuntimeErr> {
+fn visit_expr(nodes: &LinkedList<Node>, scope: &Rc<RefCell<Scope>>) -> Result<ChValue, RuntimeErr> {
     let expr = primitive::ExpressionData {
         nodes: nodes.clone(), //TODO: move nodes
-        ret_last,
         scope: Rc::new(RefCell::new(Scope::from(scope.clone()))),
         // parent: scope.clone(),
     };
@@ -410,7 +401,7 @@ fn visit_node(node: &Node, scope: &Rc<RefCell<Scope>>) -> Result<ChValue, Runtim
         Id(_) => visit_access(node, scope),
         IdAnnot(..) => visit_define(node, scope),
 
-        Expresssion(exprs, ret_last) => visit_expr(exprs, *ret_last, scope),
+        Expresssion(exprs) => visit_expr(exprs, scope),
         Eval(expr) => visit_eval(expr, scope),
 
         Return(expr) => visit_node(expr, scope),
@@ -424,6 +415,5 @@ fn visit_node(node: &Node, scope: &Rc<RefCell<Scope>>) -> Result<ChValue, Runtim
 }
 
 pub fn interpret(root: &Node) -> Result<ChValue, RuntimeErr> {
-    // visit_node(root, &mut Scope::new())
     visit_node(root, &Rc::new(RefCell::new(Scope::default())))
 }

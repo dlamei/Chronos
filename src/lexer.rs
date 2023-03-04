@@ -101,7 +101,7 @@ where
     if let Some(end) = num.find(lit) {
         num = &num[..end];
         if let Ok(res) = num.parse() {
-            return Some(res)
+            return Some(res);
         }
     }
 
@@ -364,7 +364,7 @@ pub fn lex_tokens(code: &str) -> Vec<Token> {
     let lex = TokenType::lexer(code);
 
     let mut tokens: Vec<Token> =
-    merge_errors_it(lex.spanned().map(|(typ, range)| Token { typ, range })).collect();
+        merge_errors_it(lex.spanned().map(|(typ, range)| Token { typ, range })).collect();
 
     tokens.push(Token {
         typ: TokenType::Eof,
@@ -396,7 +396,7 @@ pub fn print_tokens(code: &str, tokens: &Vec<Token>) {
             Const | Return | This | Any => s.magenta(),
 
             Add | AddAdd | Sub | SubSub | Mul | Div | AddEq | SubEq | MulEq | DivEq | Equal
-                | Not | NotEqual | Greater | Less | GreaterEq | LessEq | Assign => s.blue(),
+            | Not | NotEqual | Greater | Less | GreaterEq | LessEq | Assign => s.blue(),
 
             Arrow | Dot | Comma | Semicln | Colon | And | Or | LogicalAnd | LogicalOr => s.yellow(),
 
@@ -457,5 +457,8 @@ fn lex_lit() {
     assert_eq!(lex_tokens("128u128")[0].typ, U128Lit(128));
     //assert_eq!(lex_tokens("234234i8")[0].typ, I8Lit(123));
 
-    assert_eq!(lex_tokens("\"Hello World\"")[0].typ, StringLit("Hello World".to_owned()));
+    assert_eq!(
+        lex_tokens("\"Hello World\"")[0].typ,
+        StringLit("Hello World".to_owned())
+    );
 }

@@ -9,7 +9,7 @@ use crate::interpreter::ErrType::{self, *};
 #[derive(Debug, Clone)]
 pub struct ExpressionData {
     pub nodes: LinkedList<Node>,
-    pub ret_last: bool,
+    //pub ret_last: bool,
     pub scope: Rc<RefCell<Scope>>,
     // pub parent: Rc<RefCell<Scope>>,
 }
@@ -112,85 +112,83 @@ macro_rules! chnum_as_typ {
 }
 
 macro_rules! apply_op {
-    ($lhs:expr; $op:tt $rhs:expr; $checked:ident) => {{
+    ($lhs:expr; $op:tt $rhs:expr; $op_fn:ident) => {{
         use Primitive::*;
         match ($lhs, $rhs) {
             (Bool(v1), Bool(v2)) => U8(*v1 as u8 $op *v2 as u8),
             (Char(v1), Char(v2)) => {
-                if let Some(v) = (*v1 as u8).$checked(*v2 as u8) {
+                if let Some(v) = (*v1 as u8).$op_fn(*v2 as u8) {
                     Char(v as char)
                 } else {
                     U16(*v1 as u16 $op *v2 as u16)
                 }
             }
             (U8(v1), U8(v2)) => {
-                if let Some(v) = v1.$checked(*v2) {
+                if let Some(v) = v1.$op_fn(*v2) {
                     U8(v)
                 } else {
                     U16(*v1 as u16 $op *v2 as u16)
                 }
             }
             (U16(v1), U16(v2)) => {
-                if let Some(v) = v1.$checked(*v2) {
+                if let Some(v) = v1.$op_fn(*v2) {
                     U16(v)
                 } else {
                     U32(*v1 as u32 $op *v2 as u32)
                 }
             }
             (U32(v1), U32(v2)) => {
-                if let Some(v) = v1.$checked(*v2) {
+                if let Some(v) = v1.$op_fn(*v2) {
                     U32(v)
                 } else {
                     U64(*v1 as u64 $op *v2 as u64)
                 }
             }
             (U64(v1), U64(v2)) => {
-                if let Some(v) = v1.$checked(*v2) {
+                if let Some(v) = v1.$op_fn(*v2) {
                     U64(v)
                 } else {
                     U128(*v1 as u128 $op *v2 as u128)
                 }
             }
             (U128(v1), U128(v2)) => {
-                if let Some(v) = v1.$checked(*v2) {
+                if let Some(v) = v1.$op_fn(*v2) {
                     U128(v)
                 } else {
                     todo!()
                 }
             }
             (I8(v1), I8(v2)) => {
-                if let Some(v) = v1.$checked(*v2) {
+                if let Some(v) = v1.$op_fn(*v2) {
                     I8(v)
                 } else {
                     I16(*v1 as i16 $op *v2 as i16)
                 }
             }
             (I16(v1), I16(v2)) => {
-                if let Some(v) = v1.$checked(*v2) {
+                if let Some(v) = v1.$op_fn(*v2) {
                     I16(v)
                 } else {
                     I32(*v1 as i32 $op *v2 as i32)
                 }
             }
             (I32(v1), I32(v2)) => {
-                if let Some(v) = v1.$checked(*v2) {
+                if let Some(v) = v1.$op_fn(*v2) {
                     I32(v)
                 } else {
                     I64(*v1 as i64 $op *v2 as i64)
                 }
             }
             (I64(v1), I64(v2)) => {
-                if let Some(v) = v1.$checked(*v2) {
+                if let Some(v) = v1.$op_fn(*v2) {
                     I64(v)
                 } else {
                     I128(*v1 as i128 $op *v2 as i128)
                 }
             }
             (I128(v1), I128(v2)) => {
-                if let Some(v) = v1.$checked(*v2) {
+                if let Some(v) = v1.$op_fn(*v2) {
                     I128(v)
-                } else {
-                    todo!()
                 }
             }
 
@@ -330,33 +328,33 @@ impl Primitive {
         [true; U128(_), I128(_)]
     );
 
-    fn from_primitive(typ: PrimitiveType) -> Self {
-        use Primitive::*;
+    //fn from_primitive(typ: PrimitiveType) -> Self {
+    //    use Primitive::*;
 
-        match typ {
-            PrimitiveType::Bool => Bool(false),
-            PrimitiveType::I8 => I8(0),
-            PrimitiveType::I16 => I16(0),
-            PrimitiveType::I32 => I32(0),
-            PrimitiveType::I64 => I64(0),
-            PrimitiveType::ISize => ISize(0),
-            PrimitiveType::I128 => I128(0),
-            PrimitiveType::U8 => U8(0),
-            PrimitiveType::U16 => U16(0),
-            PrimitiveType::U32 => U32(0),
-            PrimitiveType::U64 => U64(0),
-            PrimitiveType::USize => USize(0),
-            PrimitiveType::U128 => U128(0),
-            PrimitiveType::F32 => F32(0.0),
-            PrimitiveType::F64 => F64(0.0),
-            PrimitiveType::Char => Char('\0'),
-            PrimitiveType::String => String("".to_owned()),
-            PrimitiveType::Void => Void,
-            PrimitiveType::Ref => Ref(Rc::new(RefCell::new(ChValue::from(Primitive::Void)))),
-            // ChType::DeRef => DeRef(Rc::new(RefCell::new(Primitive::Void))),
-            PrimitiveType::Expression => panic!("can't initialize primitive"),
-        }
-    }
+    //    match typ {
+    //        PrimitiveType::Bool => Bool(false),
+    //        PrimitiveType::I8 => I8(0),
+    //        PrimitiveType::I16 => I16(0),
+    //        PrimitiveType::I32 => I32(0),
+    //        PrimitiveType::I64 => I64(0),
+    //        PrimitiveType::ISize => ISize(0),
+    //        PrimitiveType::I128 => I128(0),
+    //        PrimitiveType::U8 => U8(0),
+    //        PrimitiveType::U16 => U16(0),
+    //        PrimitiveType::U32 => U32(0),
+    //        PrimitiveType::U64 => U64(0),
+    //        PrimitiveType::USize => USize(0),
+    //        PrimitiveType::U128 => U128(0),
+    //        PrimitiveType::F32 => F32(0.0),
+    //        PrimitiveType::F64 => F64(0.0),
+    //        PrimitiveType::Char => Char('\0'),
+    //        PrimitiveType::String => String("".to_owned()),
+    //        PrimitiveType::Void => Void,
+    //        PrimitiveType::Ref => Ref(Rc::new(RefCell::new(ChValue::from(Primitive::Void)))),
+    //        // ChType::DeRef => DeRef(Rc::new(RefCell::new(Primitive::Void))),
+    //        PrimitiveType::Expression => panic!("can't initialize primitive"),
+    //    }
+    //}
 
     pub fn get_type(&self) -> PrimitiveType {
         use Primitive::*;
@@ -453,24 +451,24 @@ impl fmt::Display for Primitive {
         use Primitive::*;
 
         match self {
-            Bool(v) => write!(f, "{}", v),
-            I8(v) => write!(f, "{}", v),
-            I16(v) => write!(f, "{}", v),
-            I32(v) => write!(f, "{}", v),
-            I64(v) => write!(f, "{}", v),
-            ISize(v) => write!(f, "{}", v),
-            I128(v) => write!(f, "{}", v),
-            U8(v) => write!(f, "{}", v),
-            U16(v) => write!(f, "{}", v),
-            U32(v) => write!(f, "{}", v),
-            U64(v) => write!(f, "{}", v),
-            USize(v) => write!(f, "{}", v),
-            U128(v) => write!(f, "{}", v),
-            F32(v) => write!(f, "{}", v),
-            F64(v) => write!(f, "{}", v),
-            Char(v) => write!(f, "{}", v),
-            String(v) => write!(f, "{}", v),
-            Ref(v) => write!(f, "ref {}", v.borrow()),
+            Bool(v) =>  write!(f, "{v}"),
+            I8(v) =>    write!(f, "{v}"),
+            I16(v) =>   write!(f, "{v}"),
+            I32(v) =>   write!(f, "{v}"),
+            I64(v) =>   write!(f, "{v}"),
+            ISize(v) => write!(f, "{v}"),
+            I128(v) =>  write!(f, "{v}"),
+            U8(v) =>    write!(f, "{v}"),
+            U16(v) =>   write!(f, "{v}"),
+            U32(v) =>   write!(f, "{v}"),
+            U64(v) =>   write!(f, "{v}"),
+            USize(v) => write!(f, "{v}"),
+            U128(v) =>  write!(f, "{v}"),
+            F32(v) =>   write!(f, "{v}"),
+            F64(v) =>   write!(f, "{v}"),
+            Char(v) =>  write!(f, "{v}"),
+            String(v) =>write!(f, "{v}"),
+            Ref(v) =>   write!(f, "ref {}", v.borrow()),
             Expression(_) => write!(f, "Expression"),
             Void => write!(f, ""),
             UnInit => write!(f, "UnInit"),

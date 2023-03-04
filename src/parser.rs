@@ -9,7 +9,7 @@ use std::{collections::LinkedList, fmt};
 macro_rules! unwrap_ret {
     ($e:expr) => {{
         let n = $e;
-        if let Some(err) = n {
+        if let Err(err) = n {
             return err;
         }
     }};
@@ -88,7 +88,7 @@ pub enum NodeType {
     Id(String),
     IdAnnot(String, Box<Node>),
 
-    Expresssion(LinkedList<Node>, bool), //return last
+    Expresssion(LinkedList<Node>),
     Eval(Box<Node>),
 
     Return(Box<Node>),
@@ -113,7 +113,7 @@ macro_rules! binop_token_to_node {
 bitflags! {
     pub struct NodeFlags: u32 {
         const ERROR = 0b00000001;
-    }
+}
 }
 
 #[derive(Clone)]
@@ -212,16 +212,16 @@ impl fmt::Display for Node {
             Ref(n) => write!(f, "(& {n})"),
             DeRef(n) => write!(f, "(* {n})"),
 
-            Error(msg) => write!(f, "Err: {msg}"),
+            Error(msg) => write!(f, "Error: {msg}"),
 
-            Expresssion(expr, last_ret) => {
+            Expresssion(expr) => {
                 use std::fmt::Write;
 
                 let mut res = String::new();
                 let mut it = expr.iter().peekable();
 
                 while let Some(e) = it.next() {
-                    if it.peek().is_some() || !last_ret {
+                    if it.peek().is_some() {
                         write!(res, "{e};")?;
                     } else {
                         write!(res, "{e}")?;
@@ -269,54 +269,46 @@ fn apply_op(op: TokenType, lhs: Node, rhs: Node) -> Node {
     }
 }
 
-fn expect_tok_peek<I>(iter: &mut I, typs: &[TokenType]) -> Option<Node>
+fn expect_tok_peek<I>(iter: &mut I, typs: &[TokenType]) -> Result<(), Node>
 where
     I: PeekableIterator<Item = Token>,
 {
+    let mut err_range = 0..0;
+    let mut msg = format!("Expected: {:?}, found NONE", typs);
+
     if let Some(tok) = iter.peek() {
         for typ in typs {
             if &tok.typ == typ {
-                return None;
+                return Ok(());
             }
         }
 
-        Some(Node {
-            typ: NodeType::Error(format!("Expected: {:?}, found {:?}", typs, tok.typ)),
-            range: tok.range.clone(),
-            flags: NodeFlags::ERROR,
-        })
-    } else {
-        Some(Node {
-            typ: NodeType::Error(format!("Expected: {:?}, found NONE", typs)),
-            range: 0..0,
-            flags: NodeFlags::ERROR,
-        })
+        err_range = tok.range.clone();
+        msg = format!("Expected: {:?}, found {:?}", typs, tok.typ);
     }
+
+    Err(Node::error(&msg, err_range))
 }
 
-fn expect_tok<I>(iter: &mut I, typs: &[TokenType]) -> Option<Node>
+fn expect_tok<I>(iter: &mut I, typs: &[TokenType]) -> Result<(), Node>
 where
     I: PeekableIterator<Item = Token>,
 {
+    let mut err_range = 0..0;
+    let mut msg = format!("Expected: {:?}, found NONE", typs);
+
     if let Some(tok) = iter.next() {
         for typ in typs {
             if &tok.typ == typ {
-                return None;
+                return Ok(());
             }
         }
 
-        Some(Node {
-            typ: NodeType::Error(format!("Expected: {:?}, found {:?}", typs, tok.typ)),
-            range: tok.range,
-            flags: NodeFlags::ERROR,
-        })
-    } else {
-        Some(Node {
-            typ: NodeType::Error(format!("Expected: {:?}, found NONE", typs)),
-            range: 0..0,
-            flags: NodeFlags::ERROR,
-        })
+        err_range = tok.range.clone();
+        msg = format!("Expected: {:?}, found {:?}", typs, tok.typ);
     }
+
+    Err(Node::error(&msg, err_range))
 }
 
 fn parse_paren<I>(iter: &mut I) -> Node
@@ -336,10 +328,10 @@ where
     I: PeekableIterator<Item = Token>,
 {
     let start = iter.peek().unwrap().range.start;
+    let mut flags = NodeFlags::empty();
     unwrap_ret!(expect_tok(iter, &[TokenType::LBrace]));
 
     let mut expr: LinkedList<Node> = LinkedList::new();
-    let mut ret_last = false;
 
     while iter.peek().is_some() && iter.peek().unwrap().typ != TokenType::RBrace {
         if let TokenType::Semicln = iter.peek().unwrap().typ {
@@ -348,21 +340,23 @@ where
         }
 
         let node = parse_expression(iter);
-        expr.push_back(node);
+        flags |= node.flags;
 
-        if expect_tok_peek(iter, &[TokenType::Semicln]).is_some() {
-            ret_last = true;
+        if expect_tok_peek(iter, &[TokenType::Semicln]).is_err() {
+            let r = node.range.clone();
+            expr.push_back(Node::new(NodeType::Return(node.into()), r, flags));
             break;
-        } else {
-            iter.next();
         }
+
+        expr.push_back(node);
+        iter.next();
     }
 
     // let node = prop_node!(parse_expression(iter));
     let end = iter.peek().unwrap().range.end;
     unwrap_ret!(expect_tok(iter, &[TokenType::RBrace]));
 
-    Node::from(NodeType::Expresssion(expr, ret_last), start..end)
+    Node::new(NodeType::Expresssion(expr), start..end, flags)
 }
 
 fn parse_tok<I>(iter: &mut I) -> Node
@@ -374,29 +368,29 @@ where
         binop_token_to_node!(tok.typ, panic!("expected literal, found: {:?}", tok.typ),
             BoolLit(val) => BoolLit(val)
 
-            I8Lit(val) => I8Lit(val)
-            U8Lit(val) => U8Lit(val)
+                I8Lit(val) => I8Lit(val)
+                U8Lit(val) => U8Lit(val)
 
-            I16Lit(val) => I16Lit(val)
-            U16Lit(val) => U16Lit(val)
+                I16Lit(val) => I16Lit(val)
+                U16Lit(val) => U16Lit(val)
 
-            I32Lit(val) => I32Lit(val)
-            U32Lit(val) => U32Lit(val)
+                I32Lit(val) => I32Lit(val)
+                U32Lit(val) => U32Lit(val)
 
-            I64Lit(val) => I64Lit(val)
-            U64Lit(val) => U64Lit(val)
+                I64Lit(val) => I64Lit(val)
+                U64Lit(val) => U64Lit(val)
 
-            ISizeLit(val) => ISizeLit(val)
-            USizeLit(val) => USizeLit(val)
+                ISizeLit(val) => ISizeLit(val)
+                USizeLit(val) => USizeLit(val)
 
-            I128Lit(val) => I128Lit(val)
-            U128Lit(val) => U128Lit(val)
+                I128Lit(val) => I128Lit(val)
+                U128Lit(val) => U128Lit(val)
 
-            F32Lit(val) => F32Lit(val)
-            F64Lit(val) => F64Lit(val)
+                F32Lit(val) => F32Lit(val)
+                F64Lit(val) => F64Lit(val)
 
-            StringLit(val) => StringLit(val)
-            Id(val) => Id(val)
+                StringLit(val) => StringLit(val)
+                Id(val) => Id(val)
         ),
         tok.range,
     )
@@ -409,7 +403,7 @@ where
     let tok = iter.next().unwrap();
 
     if let TokenType::Id(name) = tok.typ {
-        if expect_tok_peek(iter, &[TokenType::Colon]).is_none() {
+        if expect_tok_peek(iter, &[TokenType::Colon]).is_ok() {
             iter.next();
             let typ = atom(iter);
             let flags = typ.flags;
@@ -431,21 +425,36 @@ where
 {
     use TokenType::*;
 
-    unwrap_ret!(expect_tok_peek(
+    expect_tok_peek(
         iter,
-        &[TokenType::Add, TokenType::Sub, TokenType::Not]
-    ));
+        &[
+            TokenType::Add,
+            TokenType::Sub,
+            TokenType::Not,
+            TokenType::And,
+            TokenType::Mul,
+        ],
+    )
+    .expect("Expected: UnryOp");
+
     let op = iter.next().unwrap();
 
-    let node = parse_expression(iter);
+    let node: Box<Node> =  //parse_expression(iter).into();
+    match op.typ {
+        And | Mul => atom(iter),
+        _ => parse_expression(iter),
+    }.into();
+
     let range = op.range.start..node.range.end;
 
     Node::from(
         match op.typ {
-            Add => NodeType::UnryAdd(node.into()),
-            Sub => NodeType::UnryMin(node.into()),
-            Not => NodeType::UnryNot(node.into()),
-            _ => panic!("expected Add or Sub, found: {:?}", op),
+            Add => NodeType::UnryAdd(node),
+            Sub => NodeType::UnryMin(node),
+            Not => NodeType::UnryNot(node),
+            And => NodeType::Ref(node),
+            Mul => NodeType::DeRef(node),
+            _ => panic!("expected UnryOp, found: {:?}", op),
         },
         range,
     )
@@ -455,7 +464,7 @@ fn parse_eval<I>(iter: &mut I, node: Node) -> Node
 where
     I: PeekableIterator<Item = Token>,
 {
-    if expect_tok_peek(iter, &[TokenType::LParen]).is_none() {
+    if expect_tok_peek(iter, &[TokenType::LParen]).is_ok() {
         iter.next();
         let start = node.range.start;
         let flags = node.flags;
@@ -479,7 +488,7 @@ fn parse_ret<I>(iter: &mut I) -> Node
 where
     I: PeekableIterator<Item = Token>,
 {
-    if expect_tok_peek(iter, &[TokenType::Return]).is_none() {
+    if expect_tok_peek(iter, &[TokenType::Return]).is_ok() {
         let mut range = iter.next().unwrap().range;
 
         let expr = parse_expression(iter);
@@ -494,7 +503,7 @@ fn parse_ref<I>(iter: &mut I) -> Node
 where
     I: PeekableIterator<Item = Token>,
 {
-    if expect_tok_peek(iter, &[TokenType::And]).is_none() {
+    if expect_tok_peek(iter, &[TokenType::And]).is_ok() {
         let mut range = iter.next().unwrap().range;
 
         let expr = atom(iter);
@@ -510,7 +519,7 @@ fn parse_deref<I>(iter: &mut I) -> Node
 where
     I: PeekableIterator<Item = Token>,
 {
-    if expect_tok_peek(iter, &[TokenType::Mul]).is_none() {
+    if expect_tok_peek(iter, &[TokenType::Mul]).is_ok() {
         let mut range = iter.next().unwrap().range;
 
         let expr = atom(iter);
@@ -535,13 +544,12 @@ where
             BoolLit(_) | I8Lit(_) | U8Lit(_) | I16Lit(_) | U16Lit(_) | I32Lit(_) | U32Lit(_)
             | I64Lit(_) | U64Lit(_) | ISizeLit(_) | USizeLit(_) | I128Lit(_) | U128Lit(_)
             | F32Lit(_) | F64Lit(_) | StringLit(_) => parse_tok(iter),
-            Add | Sub | Not => parse_unry(iter),
+            Mul | And | Add | Sub | Not => parse_unry(iter),
 
             Id(_) => parse_id(iter),
 
-            And => parse_ref(iter),
-            Mul => parse_deref(iter),
-
+            //And => parse_ref(iter),
+            //Mul => parse_deref(iter),
             Error => {
                 let tok = iter.next().unwrap();
                 Node::error("Could not lex token", tok.range)
@@ -623,15 +631,16 @@ pub fn parse_tokens(tokens: Vec<Token>) -> Node {
     }
 
     let mut iter = tokens.into_iter().peekable();
-
     parse_expression(&mut iter)
 }
 
 pub fn print_errors(n: &Node, code: &str) {
+    let err = print_errors;
 
-    if n.flags.contains(NodeFlags::ERROR) {
+    if !n.flags.contains(NodeFlags::ERROR) {
         return;
     }
+
 
     use NodeType::*;
     match &n.typ {
@@ -640,89 +649,90 @@ pub fn print_errors(n: &Node, code: &str) {
         | F32Lit(_) | F64Lit(_) | StringLit(_) | Id(_) => {}
 
         Add(lhs, rhs) => {
-            print_errors(lhs, code);
-            print_errors(rhs, code);
+            err(lhs, code);
+            err(rhs, code);
         }
         Sub(lhs, rhs) => {
-            print_errors(lhs, code);
-            print_errors(rhs, code);
+            err(lhs, code);
+            err(rhs, code);
         }
         Mul(lhs, rhs) => {
-            print_errors(lhs, code);
-            print_errors(rhs, code);
+            err(lhs, code);
+            err(rhs, code);
         }
         Div(lhs, rhs) => {
-            print_errors(lhs, code);
-            print_errors(rhs, code);
+            err(lhs, code);
+            err(rhs, code);
         }
 
         AddEq(lhs, rhs) => {
-            print_errors(lhs, code);
-            print_errors(rhs, code);
+            err(lhs, code);
+            err(rhs, code);
         }
         SubEq(lhs, rhs) => {
-            print_errors(lhs, code);
-            print_errors(rhs, code);
+            err(lhs, code);
+            err(rhs, code);
         }
         MulEq(lhs, rhs) => {
-            print_errors(lhs, code);
-            print_errors(rhs, code);
+            err(lhs, code);
+            err(rhs, code);
         }
         DivEq(lhs, rhs) => {
-            print_errors(lhs, code);
-            print_errors(rhs, code);
+            err(lhs, code);
+            err(rhs, code);
         }
 
-        UnryAdd(node) => print_errors(node, code),
-        UnryMin(node) => print_errors(node, code),
-        UnryNot(node) => print_errors(node, code),
+        UnryAdd(node) => err(node, code),
+        UnryMin(node) => err(node, code),
+        UnryNot(node) => err(node, code),
 
         Equal(lhs, rhs) => {
-            print_errors(lhs, code);
-            print_errors(rhs, code);
+            err(lhs, code);
+            err(rhs, code);
         }
         NotEqual(lhs, rhs) => {
-            print_errors(lhs, code);
-            print_errors(rhs, code);
+            err(lhs, code);
+            err(rhs, code);
         }
         Greater(lhs, rhs) => {
-            print_errors(lhs, code);
-            print_errors(rhs, code);
+            err(lhs, code);
+            err(rhs, code);
         }
         GreaterEq(lhs, rhs) => {
-            print_errors(lhs, code);
-            print_errors(rhs, code);
+            err(lhs, code);
+            err(rhs, code);
         }
         Less(lhs, rhs) => {
-            print_errors(lhs, code);
-            print_errors(rhs, code);
+            err(lhs, code);
+            err(rhs, code);
         }
         LessEq(lhs, rhs) => {
-            print_errors(lhs, code);
-            print_errors(rhs, code);
+            err(lhs, code);
+            err(rhs, code);
         }
 
         Assign(lhs, rhs) => {
-            print_errors(lhs, code);
-            print_errors(rhs, code);
+            err(lhs, code);
+            err(rhs, code);
         }
 
-        Expresssion(list, _) => {
+        Expresssion(list) => {
             for e in list {
-                print_errors(e, code);
+                err(e, code);
             }
         }
-        Eval(expr) => print_errors(expr, code),
+        Eval(expr) => err(expr, code),
 
-        IdAnnot(_, v) => print_errors(v, code),
+        IdAnnot(_, v) => err(v, code),
 
-        Ref(expr) => print_errors(expr, code),
-        DeRef(expr) => print_errors(expr, code),
+        Ref(expr) => err(expr, code),
+        DeRef(expr) => err(expr, code),
 
-        Return(n) => print_errors(n, code),
+        Return(n) => err(n, code),
 
         Error(msg) => {
             println!("Parser: {}", msg);
+            println!("underline");
             println!("{}", error::underline_code(code, &n.range));
         }
     }

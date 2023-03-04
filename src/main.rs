@@ -25,13 +25,15 @@ fn run(c: &str) {
 
     let ast = parser::parse_tokens(tokens);
 
-    println!("parser: {}", ast);
+    println!("parser: {ast}");
     parser::print_errors(&ast, c);
 
-    match interpreter::interpret(&ast) {
-        Ok(e) => println!("interpreter: {}", e),
-        Err(e) => interpreter::print_error(e, c),
-    };
+    if !ast.flags.contains(parser::NodeFlags::ERROR) {
+        match interpreter::interpret(&ast) {
+            Ok(e) => println!("interpreter: {}", e),
+            Err(e) => interpreter::print_error(e, c),
+        };
+    }
 }
 
 fn main() {
