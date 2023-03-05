@@ -41,7 +41,6 @@ pub enum PrimitiveType {
     Expression,
 
     Ref,
-    // DeRef,
     Void,
 }
 
@@ -70,7 +69,6 @@ pub enum Primitive {
     String(String),
 
     Ref(Rc<RefCell<ChValue>>),
-    // DeRef(Rc<RefCell<Primitive>>),
     Expression(ExpressionData),
 
     Void,
@@ -115,82 +113,18 @@ macro_rules! apply_op {
     ($lhs:expr; $op:tt $rhs:expr; $op_fn:ident) => {{
         use Primitive::*;
         match ($lhs, $rhs) {
-            (Bool(v1), Bool(v2)) => U8(*v1 as u8 $op *v2 as u8),
-            (Char(v1), Char(v2)) => {
-                if let Some(v) = (*v1 as u8).$op_fn(*v2 as u8) {
-                    Char(v as char)
-                } else {
-                    U16(*v1 as u16 $op *v2 as u16)
-                }
-            }
-            (U8(v1), U8(v2)) => {
-                if let Some(v) = v1.$op_fn(*v2) {
-                    U8(v)
-                } else {
-                    U16(*v1 as u16 $op *v2 as u16)
-                }
-            }
-            (U16(v1), U16(v2)) => {
-                if let Some(v) = v1.$op_fn(*v2) {
-                    U16(v)
-                } else {
-                    U32(*v1 as u32 $op *v2 as u32)
-                }
-            }
-            (U32(v1), U32(v2)) => {
-                if let Some(v) = v1.$op_fn(*v2) {
-                    U32(v)
-                } else {
-                    U64(*v1 as u64 $op *v2 as u64)
-                }
-            }
-            (U64(v1), U64(v2)) => {
-                if let Some(v) = v1.$op_fn(*v2) {
-                    U64(v)
-                } else {
-                    U128(*v1 as u128 $op *v2 as u128)
-                }
-            }
-            (U128(v1), U128(v2)) => {
-                if let Some(v) = v1.$op_fn(*v2) {
-                    U128(v)
-                } else {
-                    todo!()
-                }
-            }
-            (I8(v1), I8(v2)) => {
-                if let Some(v) = v1.$op_fn(*v2) {
-                    I8(v)
-                } else {
-                    I16(*v1 as i16 $op *v2 as i16)
-                }
-            }
-            (I16(v1), I16(v2)) => {
-                if let Some(v) = v1.$op_fn(*v2) {
-                    I16(v)
-                } else {
-                    I32(*v1 as i32 $op *v2 as i32)
-                }
-            }
-            (I32(v1), I32(v2)) => {
-                if let Some(v) = v1.$op_fn(*v2) {
-                    I32(v)
-                } else {
-                    I64(*v1 as i64 $op *v2 as i64)
-                }
-            }
-            (I64(v1), I64(v2)) => {
-                if let Some(v) = v1.$op_fn(*v2) {
-                    I64(v)
-                } else {
-                    I128(*v1 as i128 $op *v2 as i128)
-                }
-            }
-            (I128(v1), I128(v2)) => {
-                if let Some(v) = v1.$op_fn(*v2) {
-                    I128(v)
-                }
-            }
+            (Bool(v1), Bool(v2)) => U8((*v1 as u8).$op_fn(*v2 as u8).0),
+            (Char(v1), Char(v2)) => Char((*v1 as u8).$op_fn(*v2 as u8).0 as char),
+            (U8(v1), U8(v2)) => U8(v1.$op_fn(*v2).0),
+            (U16(v1), U16(v2)) => U16(v1.$op_fn(*v2).0),
+            (U32(v1), U32(v2)) => U32(v1.$op_fn(*v2).0),
+            (U64(v1), U64(v2)) => U64(v1.$op_fn(*v2).0),
+            (U128(v1), U128(v2)) => U128(v1.$op_fn(*v2).0),
+            (I8(v1), I8(v2)) => I8(v1.$op_fn(*v2).0),
+            (I16(v1), I16(v2)) => I16(v1.$op_fn(*v2).0),
+            (I32(v1), I32(v2)) => I32(v1.$op_fn(*v2).0),
+            (I64(v1), I64(v2)) => I64(v1.$op_fn(*v2).0),
+            (I128(v1), I128(v2)) => I128(v1.$op_fn(*v2).0),
 
             (F32(v1), F32(v2)) => F32(*v1 $op *v2),
             (F64(v1), F64(v2)) => F64(*v1 $op *v2),
@@ -261,6 +195,8 @@ fn get_op_numtype(left: &Primitive, right: &Primitive) -> Option<PrimitiveType> 
         return None;
     }
 
+    use PrimitiveType::*;
+
     let mut v1 = &left; //biggest bitsize
     let mut v2 = &right;
 
@@ -270,15 +206,15 @@ fn get_op_numtype(left: &Primitive, right: &Primitive) -> Option<PrimitiveType> 
 
     if v1.is_float() && v2.is_float() {
         return type_from_bit_size(cmp::max(v1.bitsize(), v2.bitsize()), true, true);
-    } else if v1.is_float() {
-        use PrimitiveType::*;
+    } 
+
+    if v1.is_float() {
         if v2.bitsize() <= 32 {
             return Some(F32);
         } else {
             return Some(F64);
         }
     } else if v2.is_float() {
-        use PrimitiveType::*;
         if v1.bitsize() <= 32 {
             return Some(F32);
         } else {
@@ -378,7 +314,6 @@ impl Primitive {
             Char(_) => PrimitiveType::Char,
             String(_) => PrimitiveType::String,
             Ref(_) => PrimitiveType::Ref,
-            // DeRef(_) => ChType::DeRef,
             Expression(_) => PrimitiveType::Expression,
             Void => PrimitiveType::Void,
 
@@ -501,7 +436,7 @@ impl ops::Add<&Primitive> for &Primitive {
             let lhs = self.as_transformed_num(&typ);
             let rhs = rhs.as_transformed_num(&typ);
 
-            Ok(apply_op!(&lhs; + &rhs; checked_add))
+            Ok(apply_op!(&lhs; + &rhs; overflowing_add))
         } else {
             Err(ErrType::UnsupportedOperand(format!(
                 "Operator [Add] not defined for {:?} + {:?}",
@@ -534,7 +469,7 @@ impl ops::Sub<&Primitive> for &Primitive {
             let lhs = self.as_transformed_num(&typ);
             let rhs = rhs.as_transformed_num(&typ);
 
-            Ok(apply_op!(&lhs; - &rhs; checked_sub))
+            Ok(apply_op!(&lhs; - &rhs; overflowing_sub))
         } else {
             Err(ErrType::UnsupportedOperand(format!(
                 "Operator [Sub] not defined for {:?} - {:?}",
@@ -579,7 +514,7 @@ impl ops::Mul<&Primitive> for &Primitive {
             let lhs = self.as_transformed_num(&typ);
             let rhs = rhs.as_transformed_num(&typ);
 
-            let res = apply_op!(&lhs; * &rhs; checked_mul);
+            let res = apply_op!(&lhs; * &rhs; overflowing_mul);
             Ok(res)
         } else {
             Err(ErrType::UnsupportedOperand(format!(
@@ -623,7 +558,7 @@ impl ops::Div<&Primitive> for &Primitive {
             let lhs = self.as_transformed_num(&typ);
             let rhs = rhs.as_transformed_num(&typ);
 
-            Ok(apply_op!(&lhs; / &rhs; checked_div))
+            Ok(apply_op!(&lhs; / &rhs; overflowing_div))
         } else {
             Err(ErrType::UnsupportedOperand(format!(
                 "Operator [Div] not defined for {:?} / {:?}",
@@ -797,7 +732,7 @@ fn primitive_to_bool() {
 #[test]
 fn primitive_overflow() {
     use Primitive::*;
-    assert_eq!(I32(i32::MAX) + I32(1), Ok(I64(i32::MAX as i64 + 1)));
+    assert_eq!(I32(i32::MAX) + I32(1), Ok(I32(i32::MAX.overflowing_add(1).0)));
     assert_eq!(I32(i32::MAX) + F32(1.0), Ok(F32(i32::MAX as f32 + 1.0)));
     assert_eq!(Bool(false) + Bool(false), Ok(I8(0)));
 }

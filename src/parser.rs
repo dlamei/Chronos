@@ -732,7 +732,6 @@ pub fn print_errors(n: &Node, code: &str) {
 
         Error(msg) => {
             println!("Parser: {}", msg);
-            println!("underline");
             println!("{}", error::underline_code(code, &n.range));
         }
     }
