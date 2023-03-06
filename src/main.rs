@@ -107,17 +107,10 @@ fn unry_test() {
 fn ref_test() {
     use primitive::Primitive::*;
     assert_eq!(
-        run_test("{l = 3; r = 4; res = &l + &r; res}()").unwrap(),
-        I32(7)
+        run_test("{a = 3; b = &a; c = &a; *b += 1; *c += 1; *b += 1; a}()").unwrap(),
+        I32(6)
     );
-    assert_eq!(
-        run_test("{l = 3; r = 4; res = &l * r; res}()").unwrap(),
-        I32(12)
-    );
-    assert_eq!(
-        run_test("{l = 3; r = 4.0; res = l / &r; res}()").unwrap(),
-        F32(3.0 / 4.0)
-    );
+
     assert_eq!(
         run_test("{ref = {a = 3; &a}(); *ref += 2; *ref}()").unwrap(),
         I32(5)

@@ -14,7 +14,35 @@ impl Scope {
             parent: Some(parent),
         }
     }
+
+    pub fn find_key(&self, name: &str) -> Option<Rc<RefCell<ChValue>>> {
+        if self.map.contains_key(name) {
+            return Some(self.map.get(name).unwrap().clone());
+        }
+
+        if let Some(parent) = &self.parent {
+            return parent.borrow().find_key(name);
+        }
+
+        None
+    }
 }
+
+// fn get_scope_with_key(name: &str, scope: &Rc<RefCell<Scope>>) -> Option<Rc<RefCell<Scope>>> {
+//     let mut scp = scope.clone();
+
+//     if scp.borrow().map.contains_key(name) {
+//         return Some(scp);
+//     }
+
+//     while let Some(parent) = &scp.clone().borrow().parent {
+//         if parent.borrow().map.contains_key(name) {
+//             return Some(parent.clone());
+//         }
+//         scp = parent.clone();
+//     }
+//     None
+// }
 
 #[derive(Debug, Clone)]
 pub struct ChValue {
