@@ -206,7 +206,7 @@ fn get_op_numtype(left: &Primitive, right: &Primitive) -> Option<PrimitiveType> 
 
     if v1.is_float() && v2.is_float() {
         return type_from_bit_size(cmp::max(v1.bitsize(), v2.bitsize()), true, true);
-    } 
+    }
 
     if v1.is_float() {
         if v2.bitsize() <= 32 {
@@ -386,24 +386,24 @@ impl fmt::Display for Primitive {
         use Primitive::*;
 
         match self {
-            Bool(v) =>  write!(f, "{v}"),
-            I8(v) =>    write!(f, "{v}"),
-            I16(v) =>   write!(f, "{v}"),
-            I32(v) =>   write!(f, "{v}"),
-            I64(v) =>   write!(f, "{v}"),
+            Bool(v) => write!(f, "{v}"),
+            I8(v) => write!(f, "{v}"),
+            I16(v) => write!(f, "{v}"),
+            I32(v) => write!(f, "{v}"),
+            I64(v) => write!(f, "{v}"),
             ISize(v) => write!(f, "{v}"),
-            I128(v) =>  write!(f, "{v}"),
-            U8(v) =>    write!(f, "{v}"),
-            U16(v) =>   write!(f, "{v}"),
-            U32(v) =>   write!(f, "{v}"),
-            U64(v) =>   write!(f, "{v}"),
+            I128(v) => write!(f, "{v}"),
+            U8(v) => write!(f, "{v}"),
+            U16(v) => write!(f, "{v}"),
+            U32(v) => write!(f, "{v}"),
+            U64(v) => write!(f, "{v}"),
             USize(v) => write!(f, "{v}"),
-            U128(v) =>  write!(f, "{v}"),
-            F32(v) =>   write!(f, "{v}"),
-            F64(v) =>   write!(f, "{v}"),
-            Char(v) =>  write!(f, "{v}"),
-            String(v) =>write!(f, "{v}"),
-            Ref(v) =>   write!(f, "ref {}", v.borrow()),
+            U128(v) => write!(f, "{v}"),
+            F32(v) => write!(f, "{v}"),
+            F64(v) => write!(f, "{v}"),
+            Char(v) => write!(f, "{v}"),
+            String(v) => write!(f, "{v}"),
+            Ref(v) => write!(f, "ref {}", v.borrow()),
             Expression(_) => write!(f, "Expression"),
             Void => write!(f, ""),
             UnInit => write!(f, "UnInit"),
@@ -732,7 +732,10 @@ fn primitive_to_bool() {
 #[test]
 fn primitive_overflow() {
     use Primitive::*;
-    assert_eq!(I32(i32::MAX) + I32(1), Ok(I32(i32::MAX.overflowing_add(1).0)));
+    assert_eq!(
+        I32(i32::MAX) + I32(1),
+        Ok(I32(i32::MAX.overflowing_add(1).0))
+    );
     assert_eq!(I32(i32::MAX) + F32(1.0), Ok(F32(i32::MAX as f32 + 1.0)));
     assert_eq!(Bool(false) + Bool(false), Ok(I8(0)));
 }

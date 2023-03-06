@@ -641,7 +641,6 @@ pub fn print_errors(n: &Node, code: &str) {
         return;
     }
 
-
     use NodeType::*;
     match &n.typ {
         I8Lit(_) | U8Lit(_) | I16Lit(_) | U16Lit(_) | I32Lit(_) | U32Lit(_) | I64Lit(_)
